@@ -1,32 +1,62 @@
-# React + TypeScript + Vite
+# Pulse
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Projeto web em React para explorar uma nova experiência de predictions.
 
-Currently, two official plugins are available:
+O produto está no início: layout, componentes, fluxos, fontes de dados e regras de negócio ainda serão definidos. A base atual é um scaffold técnico limpo, sem reaproveitar a interface ou a arquitetura de produto do Draftaco.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- React 19
+- TypeScript 6
+- Vite 8
+- CSS
+- pnpm
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Como executar
 
-## Expanding the Oxlint configuration
+O scaffold foi validado com Node.js 24.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+pnpm install
+pnpm dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+O Vite informa a URL local disponível ao iniciar o servidor.
+
+Scripts úteis:
+
+```bash
+pnpm dev      # servidor de desenvolvimento
+pnpm build    # typecheck e build de produção
+pnpm lint     # análise estática com Oxlint
+pnpm preview  # preview local do build
+```
+
+## Estado atual
+
+- A aplicação ainda usa a tela demonstrativa do scaffold oficial do Vite.
+- Não existem rotas ou componentes de produto definidos.
+- Não existe design system configurado.
+- CI, hospedagem e deploy ainda não foram definidos.
+
+## Estrutura inicial
+
+```text
+src/
+  assets/      assets demonstrativos do scaffold
+  App.tsx      componente inicial da aplicação
+  App.css      estilos do componente inicial
+  index.css    estilos globais iniciais
+  main.tsx     inicialização do React
+```
+
+Novas pastas devem ser adicionadas conforme necessidades reais de produto surgirem, evitando antecipar uma arquitetura sem requisitos.
+
+## Colaboração
+
+- [AGENTS.md](AGENTS.md): regras compartilhadas de trabalho.
+- [CLAUDE.md](CLAUDE.md): entrada de contexto para o Claude Code.
+- [docs/AI_CONTEXT.md](docs/AI_CONTEXT.md): contexto durável do produto e da arquitetura.
+- [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md): estado operacional da tarefa atual.
+
+Cada mudança deve ser desenvolvida em uma branch própria. Pull Request, merge e deploy são etapas separadas.
