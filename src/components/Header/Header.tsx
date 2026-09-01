@@ -6,9 +6,16 @@ import './Header.css'
 interface HeaderProps {
   balance: string
   balanceCents?: number
+  isProfileOpen: boolean
+  onProfileOpen: () => void
 }
 
-export function Header({ balance, balanceCents }: HeaderProps) {
+export function Header({
+  balance,
+  balanceCents,
+  isProfileOpen,
+  onProfileOpen,
+}: HeaderProps) {
   return (
     <header
       className="header"
@@ -30,7 +37,14 @@ export function Header({ balance, balanceCents }: HeaderProps) {
           </span>
         </button>
 
-        <button className="header__profile" type="button" aria-label="Abrir perfil">
+        <button
+          className="header__profile"
+          type="button"
+          aria-label="Abrir mi perfil"
+          aria-haspopup="dialog"
+          aria-expanded={isProfileOpen}
+          onClick={onProfileOpen}
+        >
           <img src={iconPerfilHeader} alt="" aria-hidden="true" />
         </button>
       </div>
