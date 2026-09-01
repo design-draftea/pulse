@@ -17,7 +17,7 @@
   width: 100%;
   align-items: center;
   gap: 8px;
-  padding: 16px 16px 8px;
+  padding: 8px 16px;
 }
 
 .open-entries__tabs--pinned {
@@ -30,7 +30,7 @@
 .open-entries__tabs::before {
   position: absolute;
   z-index: 0;
-  top: 16px;
+  top: 8px;
   left: 16px;
   width: 104px;
   height: 32px;
@@ -176,7 +176,7 @@
 
 .open-entries__list--empty {
   min-height: calc(
-    100svh - 56px - 56px - var(--open-entries-bottom-clearance)
+    100svh - 56px - 48px - var(--open-entries-bottom-clearance)
   );
   align-items: center;
   justify-content: center;
