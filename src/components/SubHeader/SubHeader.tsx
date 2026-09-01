@@ -1,4 +1,5 @@
 import logoBTC from '../../assets/logoBTC.png'
+import logoBTCBack from '../../assets/logoBTCBack.png'
 import './SubHeader.css'
 
 interface SubHeaderProps {
@@ -28,7 +29,24 @@ export function SubHeader({
         data-node-id={isCompact ? '198:3358' : '188:2920'}
       >
         <div className="sub-header__market">
-          <img className="sub-header__logo" src={logoBTC} alt="Bitcoin" />
+          <span
+            className="sub-header__coin"
+            role="img"
+            aria-label="Bitcoin"
+          >
+            <img
+              className="sub-header__logo sub-header__logo--front"
+              src={logoBTC}
+              alt=""
+              aria-hidden="true"
+            />
+            <img
+              className="sub-header__logo sub-header__logo--back"
+              src={logoBTCBack}
+              alt=""
+              aria-hidden="true"
+            />
+          </span>
 
           <div className="sub-header__details">
             <h1 className="sub-header__title">BTC / 15 Min</h1>
