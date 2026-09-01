@@ -1,4 +1,9 @@
-import { useEffect, useRef } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import iconClose from '../../assets/iconClose.svg'
 import type { PrototypeWalletMovement } from '../../services/prototypeWallet'
@@ -11,6 +16,8 @@ import {
 } from './movementPresentation'
 import './MovementDetailModal.css'
 
+const MODAL_MOTION_MS = 300
+
 interface MovementDetailModalProps {
   movement: PrototypeWalletMovement
   onClose: () => void
@@ -20,8 +27,31 @@ export function MovementDetailModal({
   movement,
   onClose,
 }: MovementDetailModalProps) {
+  const [isClosing, setIsClosing] = useState(false)
+  const isClosingRef = useRef(false)
+  const closeTimerRef = useRef<number | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const onCloseRef = useRef(onClose)
   const occurredAt = new Date(movement.occurredAt)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  const requestClose = useCallback(() => {
+    if (isClosingRef.current) return
+
+    isClosingRef.current = true
+    setIsClosing(true)
+    const closeDelay = window.matchMedia('(prefers-reduced-motion: reduce)')
+      .matches
+      ? 1
+      : MODAL_MOTION_MS
+
+    closeTimerRef.current = window.setTimeout(() => {
+      onCloseRef.current()
+    }, closeDelay)
+  }, [])
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow
@@ -33,7 +63,10 @@ export function MovementDetailModal({
     closeButtonRef.current?.focus()
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Escape') return
+
+      event.preventDefault()
+      requestClose()
     }
 
     window.addEventListener('keydown', handleEscape)
@@ -41,17 +74,22 @@ export function MovementDetailModal({
     return () => {
       document.body.style.overflow = previousBodyOverflow
       window.removeEventListener('keydown', handleEscape)
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current)
+      }
       previousFocus?.focus()
     }
-  }, [onClose])
+  }, [requestClose])
 
   return createPortal(
-    <div className="movement-detail-modal__container">
+    <div
+      className={`movement-detail-modal__container${isClosing ? ' movement-detail-modal__container--closing' : ''}`}
+    >
       <button
         className="movement-detail-modal__overlay"
         type="button"
         aria-label="Cerrar detalle al tocar fuera"
-        onClick={onClose}
+        onClick={requestClose}
       />
       <section
         className="movement-detail-modal"
@@ -65,7 +103,7 @@ export function MovementDetailModal({
           className="movement-detail-modal__close"
           type="button"
           aria-label="Cerrar detalle del movimiento"
-          onClick={onClose}
+          onClick={requestClose}
         >
           <img src={iconClose} alt="" aria-hidden="true" />
         </button>
@@ -97,7 +135,7 @@ export function MovementDetailModal({
         </div>
 
         <footer className="movement-detail-modal__footer">
-          <button type="button" onClick={onClose}>Entendido</button>
+          <button type="button" onClick={requestClose}>Entendido</button>
         </footer>
       </section>
     </div>,
