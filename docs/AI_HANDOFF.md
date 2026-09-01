@@ -136,8 +136,8 @@
 - Retorno `PASADAS` → scroll → Home validado: a origem estava em `scrollY=222`; a Home entrou em `scrollY=0` diretamente com `SubHeader` em `64px` e `PriceComparison` em `90px`, sem classes compactas nem erros no console.
 - Suíte integrada após produção: `test:chart` 13, `test:fallback` 6, `test:market` 23, `test:wallet` 14 e `test:entries` 7; lint, build com 121 módulos e `git diff --check` passaram.
 
-- `GANADAS` validada no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: cards de `296px`, `351px` e `404px`, respectivamente, sempre com `196px` de altura, `12px` de margem lateral e sem overflow horizontal.
-- `PASADAS` validada no navegador com os três estados em `320px`, `375px` e `428px`: cards de `296px`, `351px` e `404px`, todos com `196px`, badges/cores correspondentes, chips estáveis e console limpo.
+- `GANADAS` validada no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`; depois, chips e cards foram padronizados com o padding lateral de `16px` usado pela Home.
+- `PASADAS` validada no navegador com os três estados em `320px`, `375px` e `428px`: cards com `196px`, badges/cores correspondentes, chips estáveis e console limpo. A margem lateral final é de `16px`.
 - Chips de Entradas alterados para `position: sticky` no topo com o mesmo comportamento da Home: transparentes enquanto estão no fluxo e com uma cópia alinhada de `bgHeader.png` somente no estado pinned, sem faixa própria ou blur. Em `375 × 568px`, permaneceram em `top: 0` após `232px` de rolagem, sem overflow horizontal.
 - Reserva inferior de Entradas separada do inset de `130px` da Home e ajustada à Navbar fixa mais a área segura. No fim de `PASADAS`, o último card terminou `10px` acima da Navbar, sem o espaço excedente anterior.
 - Transição dos chips validada no navegador: indicador percorreu de `translateX(0)` a `206px` e ajustou a largura de `104px` para `82px`; o conteúdo passou por opacidade intermediária antes de estabilizar, sem overflow. Em `320px`, os chips encerram em `x=300px` dentro do viewport.
