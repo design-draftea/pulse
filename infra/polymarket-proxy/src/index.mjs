@@ -87,4 +87,8 @@ export const handleRequest = async (request, upstreamFetch = fetch) => {
   }
 }
 
-export default { fetch: handleRequest }
+export default {
+  fetch(request) {
+    return handleRequest(request)
+  },
+}
