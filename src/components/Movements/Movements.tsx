@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import iconChevronRight from '../../assets/iconChevronRight.svg'
-import iconDeposito from '../../assets/iconDeposito.svg'
-import iconMoney from '../../assets/iconMoney.svg'
-import iconSaque from '../../assets/iconSaque.svg'
-import type {
-  PrototypeWalletMovement,
-  WalletMovementType,
-} from '../../services/prototypeWallet'
+import type { PrototypeWalletMovement } from '../../services/prototypeWallet'
+import { MovementDetailModal } from './MovementDetailModal'
+import {
+  formatMovementAmount,
+  formatMovementTime,
+  MONTH_LABELS,
+  movementIcons,
+  movementTitles,
+} from './movementPresentation'
 import './Movements.css'
 
 interface MovementsProps {
@@ -17,52 +20,6 @@ interface MovementGroup {
   label: string
   items: PrototypeWalletMovement[]
 }
-
-const MONTH_LABELS = [
-  'Ene.',
-  'Feb.',
-  'Mar.',
-  'Abr.',
-  'May.',
-  'Jun.',
-  'Jul.',
-  'Ago.',
-  'Set.',
-  'Oct.',
-  'Nov.',
-  'Dic.',
-]
-
-const movementTitles: Record<WalletMovementType, string> = {
-  deposit: 'Depósito',
-  withdrawal: 'Retiro de ganancias',
-  purchase: 'Compró BTC / 15 min',
-  sale: 'Vendió BTC / 15 min',
-  win: 'Ganó BTC / 15 min',
-  cancellation: 'Cancelado BTC / 15 min',
-}
-
-const movementIcons: Record<WalletMovementType, string> = {
-  deposit: iconDeposito,
-  withdrawal: iconSaque,
-  purchase: iconMoney,
-  sale: iconMoney,
-  win: iconMoney,
-  cancellation: iconMoney,
-}
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
-const timeFormatter = new Intl.DateTimeFormat('es-MX', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-})
 
 const getDateKey = (date: Date) => (
   `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
@@ -102,13 +59,8 @@ const groupMovements = (
   }, [])
 }
 
-const formatMovementAmount = (amountCents: number) => (
-  `${amountCents >= 0 ? '+' : '-'} ${currencyFormatter.format(
-    Math.abs(amountCents) / 100,
-  )}`
-)
-
 export function Movements({ movements }: MovementsProps) {
+  const [selectedMovement, setSelectedMovement] = useState<PrototypeWalletMovement | null>(null)
   const movementGroups = groupMovements(movements)
 
   return (
@@ -127,39 +79,46 @@ export function Movements({ movements }: MovementsProps) {
 
               return (
                 <li className="movements__item" key={item.id}>
-                  <span className="movements__icon-wrap" aria-hidden="true">
-                    <img
-                      className="movements__icon"
-                      src={movementIcons[item.type]}
-                      alt=""
-                    />
-                  </span>
-
-                  <span className="movements__info">
-                    <span className="movements__title">
-                      {movementTitles[item.type]}
+                  <button
+                    className="movements__item-button"
+                    type="button"
+                    aria-label={`Ver detalle: ${movementTitles[item.type]}, ${formatMovementAmount(item.amountCents)}`}
+                    onClick={() => setSelectedMovement(item)}
+                  >
+                    <span className="movements__icon-wrap" aria-hidden="true">
+                      <img
+                        className="movements__icon"
+                        src={movementIcons[item.type]}
+                        alt=""
+                      />
                     </span>
-                    <time
-                      className="movements__time"
-                      dateTime={occurredAt.toISOString()}
-                    >
-                      {timeFormatter.format(occurredAt)}
-                    </time>
-                  </span>
 
-                  <span className="movements__value-wrap">
-                    <span
-                      className={`movements__value movements__value--${isPositive ? 'positive' : 'negative'}`}
-                    >
-                      {formatMovementAmount(item.amountCents)}
+                    <span className="movements__info">
+                      <span className="movements__title">
+                        {movementTitles[item.type]}
+                      </span>
+                      <time
+                        className="movements__time"
+                        dateTime={occurredAt.toISOString()}
+                      >
+                        {formatMovementTime(occurredAt)}
+                      </time>
                     </span>
-                    <img
-                      className="movements__chevron"
-                      src={iconChevronRight}
-                      alt=""
-                      aria-hidden="true"
-                    />
-                  </span>
+
+                    <span className="movements__value-wrap">
+                      <span
+                        className={`movements__value movements__value--${isPositive ? 'positive' : 'negative'}`}
+                      >
+                        {formatMovementAmount(item.amountCents)}
+                      </span>
+                      <img
+                        className="movements__chevron"
+                        src={iconChevronRight}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </button>
                 </li>
               )
             })}
@@ -167,6 +126,13 @@ export function Movements({ movements }: MovementsProps) {
         </section>
       ))}
       <div className="movements__spacing" aria-hidden="true" />
+
+      {selectedMovement && (
+        <MovementDetailModal
+          movement={selectedMovement}
+          onClose={() => setSelectedMovement(null)}
+        />
+      )}
     </main>
   )
 }
