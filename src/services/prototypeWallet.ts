@@ -1,9 +1,13 @@
 import type { OutcomeSide } from './outcomeMarket'
 
-export const PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v2'
-export const LEGACY_PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v1'
-export const PROTOTYPE_WALLET_VERSION = 2
-export const INITIAL_BALANCE_CENTS = 200_000
+export const PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v3'
+export const LEGACY_PROTOTYPE_WALLET_STORAGE_KEYS = [
+  'pulse.prototype-wallet.v1',
+  'pulse.prototype-wallet.v2',
+] as const
+export const PROTOTYPE_WALLET_VERSION = 3
+export const INITIAL_DEPOSIT_CENTS = 200_000
+export const SEEDED_AVAILABLE_BALANCE_CENTS = 204_000
 
 const MAX_CREDIT_EVENT_IDS = 100
 const MAX_MOVEMENTS = 100
@@ -11,6 +15,71 @@ const MAX_SETTLED_ENTRIES = 100
 const PARTICIPATION_EPSILON = 1e-8
 const INITIAL_DEPOSIT_MOVEMENT_ID = 'initial-deposit'
 const ROUND_DURATION_MS = 15 * 60 * 1000
+const SEEDED_PURCHASE_DELAY_MS = 2 * 60 * 1000
+
+interface SeededEntryDefinition {
+  daysAgo: number
+  hour: number
+  minute: number
+  side: OutcomeSide
+  outcome: 'won' | 'lost'
+  amountCents: number
+  participations: number
+  payoutCents: number
+  targetPrice: number
+  finalPrice: number
+}
+
+const SEEDED_ENTRY_DEFINITIONS = [
+  {
+    daysAgo: 3,
+    hour: 10,
+    minute: 0,
+    side: 'up',
+    outcome: 'won',
+    amountCents: 10_000,
+    participations: 160,
+    payoutCents: 16_000,
+    targetPrice: 80_014.42,
+    finalPrice: 80_031.15,
+  },
+  {
+    daysAgo: 2,
+    hour: 15,
+    minute: 15,
+    side: 'down',
+    outcome: 'lost',
+    amountCents: 6_000,
+    participations: 75,
+    payoutCents: 0,
+    targetPrice: 80_214.63,
+    finalPrice: 80_236.19,
+  },
+  {
+    daysAgo: 1,
+    hour: 9,
+    minute: 30,
+    side: 'down',
+    outcome: 'won',
+    amountCents: 12_000,
+    participations: 200,
+    payoutCents: 20_000,
+    targetPrice: 80_327.58,
+    finalPrice: 80_294.11,
+  },
+  {
+    daysAgo: 1,
+    hour: 16,
+    minute: 45,
+    side: 'up',
+    outcome: 'lost',
+    amountCents: 4_000,
+    participations: 100,
+    payoutCents: 0,
+    targetPrice: 80_266.34,
+    finalPrice: 80_252.91,
+  },
+] as const satisfies readonly SeededEntryDefinition[]
 
 export type WalletMovementType =
   | 'deposit'
@@ -143,9 +212,89 @@ const createInitialDepositMovement = (
 ): PrototypeWalletMovement => ({
   id: INITIAL_DEPOSIT_MOVEMENT_ID,
   type: 'deposit',
-  amountCents: INITIAL_BALANCE_CENTS,
+  amountCents: INITIAL_DEPOSIT_CENTS,
   occurredAt,
 })
+
+const getRelativeLocalTimestamp = (
+  createdAt: number,
+  daysAgo: number,
+  hour: number,
+  minute: number,
+) => {
+  const date = new Date(createdAt)
+
+  date.setDate(date.getDate() - daysAgo)
+  date.setHours(hour, minute, 0, 0)
+  return date.getTime()
+}
+
+const createSeededWalletHistory = (createdAt: number) => {
+  const settledEntries: PrototypeWalletSettledEntry[] = SEEDED_ENTRY_DEFINITIONS
+    .map((definition) => {
+      const roundStart = getRelativeLocalTimestamp(
+        createdAt,
+        definition.daysAgo,
+        definition.hour,
+        definition.minute,
+      )
+
+      return {
+        id: `seed-entry:${roundStart}:${definition.side}`,
+        roundStart,
+        roundEnd: roundStart + ROUND_DURATION_MS,
+        side: definition.side,
+        outcome: definition.outcome,
+        amountCents: definition.amountCents,
+        participations: definition.participations,
+        payoutCents: definition.payoutCents,
+        targetPrice: definition.targetPrice,
+        finalPrice: definition.finalPrice,
+      }
+    })
+  const depositOccurredAt = getRelativeLocalTimestamp(createdAt, 4, 9, 0)
+  const movements = [
+    createInitialDepositMovement(depositOccurredAt),
+    ...settledEntries.flatMap((entry): PrototypeWalletMovement[] => [
+      {
+        id: `seed-purchase:${entry.roundStart}:${entry.side}`,
+        type: 'purchase',
+        amountCents: -entry.amountCents,
+        occurredAt: entry.roundStart + SEEDED_PURCHASE_DELAY_MS,
+        roundStart: entry.roundStart,
+        side: entry.side,
+      },
+      ...(entry.outcome === 'won'
+        ? [{
+            id: `seed-win:${entry.roundStart}:${entry.side}`,
+            type: 'win' as const,
+            amountCents: entry.payoutCents,
+            occurredAt: entry.roundEnd,
+            roundStart: entry.roundStart,
+            side: entry.side,
+          }]
+        : []),
+    ]),
+  ].sort((left, right) => left.occurredAt - right.occurredAt)
+  const totalPurchasesCents = settledEntries.reduce(
+    (total, entry) => total + entry.amountCents,
+    0,
+  )
+  const totalReceivedCents = settledEntries.reduce(
+    (total, entry) => total + entry.payoutCents,
+    0,
+  )
+
+  return {
+    balanceCents: INITIAL_DEPOSIT_CENTS
+      - totalPurchasesCents
+      + totalReceivedCents,
+    movements,
+    settledEntries,
+    totalPurchasesCents,
+    totalReceivedCents,
+  }
+}
 
 const normalizeMovement = (
   value: unknown,
@@ -249,17 +398,18 @@ const updateWallet = (
 
 export const createInitialWalletState = (): PrototypeWalletState => {
   const createdAt = Date.now()
+  const seededHistory = createSeededWalletHistory(createdAt)
 
   return {
     version: PROTOTYPE_WALLET_VERSION,
-    balanceCents: INITIAL_BALANCE_CENTS,
+    balanceCents: seededHistory.balanceCents,
     positionsByRound: {},
     costBasisCentsByRound: {},
-    totalPurchasesCents: 0,
-    totalReceivedCents: 0,
+    totalPurchasesCents: seededHistory.totalPurchasesCents,
+    totalReceivedCents: seededHistory.totalReceivedCents,
     creditedEventIds: [],
-    movements: [createInitialDepositMovement(createdAt)],
-    settledEntries: [],
+    movements: seededHistory.movements,
+    settledEntries: seededHistory.settledEntries,
     revision: 0,
     updatedAt: createdAt,
   }
@@ -451,7 +601,7 @@ export const getWalletProfileMetrics = (
     totalPurchasesCents: state.totalPurchasesCents,
     openEntriesCents,
     totalReceivedCents: state.totalReceivedCents,
-    netResultCents: portfolioTotalCents - INITIAL_BALANCE_CENTS,
+    netResultCents: portfolioTotalCents - INITIAL_DEPOSIT_CENTS,
   }
 }
 

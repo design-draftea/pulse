@@ -10,36 +10,163 @@ import {
   getWalletCostBasis,
   getWalletProfileMetrics,
   getWalletPosition,
-  INITIAL_BALANCE_CENTS,
+  INITIAL_DEPOSIT_CENTS,
   PROTOTYPE_WALLET_VERSION,
+  SEEDED_AVAILABLE_BALANCE_CENTS,
   settleWalletRound,
+  type PrototypeWalletState,
 } from '../src/services/prototypeWallet.ts'
 
 const ROUND_START = 1_777_777_500_000
 
-test('inicia a carteira com US$ 2.000,00 e sem posições', () => {
+const createOperationTestWallet = (): PrototypeWalletState => {
   const wallet = createInitialWalletState()
 
-  assert.equal(wallet.balanceCents, INITIAL_BALANCE_CENTS)
+  return {
+    ...wallet,
+    balanceCents: INITIAL_DEPOSIT_CENTS,
+    totalPurchasesCents: 0,
+    totalReceivedCents: 0,
+    movements: [wallet.movements[0]],
+    settledEntries: [],
+  }
+}
+
+const localDayNumber = (timestamp: number) => {
+  const date = new Date(timestamp)
+
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+test('inicia a carteira-persona com depósito, histórico e sem posições abertas', () => {
+  const wallet = createInitialWalletState()
+  const profileMetrics = getWalletProfileMetrics(wallet, ROUND_START, null)
+
+  assert.equal(wallet.balanceCents, SEEDED_AVAILABLE_BALANCE_CENTS)
   assert.equal(wallet.version, PROTOTYPE_WALLET_VERSION)
   assert.deepEqual(wallet.positionsByRound, {})
   assert.deepEqual(wallet.costBasisCentsByRound, {})
-  assert.equal(wallet.totalPurchasesCents, 0)
-  assert.equal(wallet.totalReceivedCents, 0)
+  assert.equal(wallet.totalPurchasesCents, 32_000)
+  assert.equal(wallet.totalReceivedCents, 36_000)
   assert.deepEqual(wallet.creditedEventIds, [])
-  assert.deepEqual(wallet.settledEntries, [])
   assert.deepEqual(
-    wallet.movements.map(({ id, type, amountCents }) => ({
-      id,
-      type,
+    wallet.movements.map(({ type, amountCents }) => ({
       amountCents,
+      type,
     })),
-    [{
-      id: 'initial-deposit',
-      type: 'deposit',
-      amountCents: INITIAL_BALANCE_CENTS,
-    }],
+    [
+      { type: 'deposit', amountCents: INITIAL_DEPOSIT_CENTS },
+      { type: 'purchase', amountCents: -10_000 },
+      { type: 'win', amountCents: 16_000 },
+      { type: 'purchase', amountCents: -6_000 },
+      { type: 'purchase', amountCents: -12_000 },
+      { type: 'win', amountCents: 20_000 },
+      { type: 'purchase', amountCents: -4_000 },
+    ],
   )
+  assert.deepEqual(
+    wallet.settledEntries.map((entry) => ({
+      amountCents: entry.amountCents,
+      finalPrice: entry.finalPrice,
+      outcome: entry.outcome,
+      participations: entry.participations,
+      payoutCents: entry.payoutCents,
+      side: entry.side,
+      targetPrice: entry.targetPrice,
+    })),
+    [
+      {
+        side: 'up',
+        outcome: 'won',
+        amountCents: 10_000,
+        participations: 160,
+        payoutCents: 16_000,
+        targetPrice: 80_014.42,
+        finalPrice: 80_031.15,
+      },
+      {
+        side: 'down',
+        outcome: 'lost',
+        amountCents: 6_000,
+        participations: 75,
+        payoutCents: 0,
+        targetPrice: 80_214.63,
+        finalPrice: 80_236.19,
+      },
+      {
+        side: 'down',
+        outcome: 'won',
+        amountCents: 12_000,
+        participations: 200,
+        payoutCents: 20_000,
+        targetPrice: 80_327.58,
+        finalPrice: 80_294.11,
+      },
+      {
+        side: 'up',
+        outcome: 'lost',
+        amountCents: 4_000,
+        participations: 100,
+        payoutCents: 0,
+        targetPrice: 80_266.34,
+        finalPrice: 80_252.91,
+      },
+    ],
+  )
+  assert.deepEqual(profileMetrics, {
+    availableBalanceCents: SEEDED_AVAILABLE_BALANCE_CENTS,
+    portfolioTotalCents: SEEDED_AVAILABLE_BALANCE_CENTS,
+    totalPurchasesCents: 32_000,
+    openEntriesCents: 0,
+    totalReceivedCents: 36_000,
+    netResultCents: 4_000,
+  })
+
+  const createdLocalDay = localDayNumber(wallet.updatedAt)
+  assert.equal(
+    createdLocalDay - localDayNumber(wallet.movements[0].occurredAt),
+    4 * 24 * 60 * 60 * 1000,
+  )
+  assert.deepEqual(
+    wallet.settledEntries.map(({ roundStart, roundEnd }) => {
+      const start = new Date(roundStart)
+
+      return {
+        daysAgo: (createdLocalDay - localDayNumber(roundStart))
+          / (24 * 60 * 60 * 1000),
+        hour: start.getHours(),
+        minute: start.getMinutes(),
+        duration: roundEnd - roundStart,
+      }
+    }),
+    [
+      { daysAgo: 3, hour: 10, minute: 0, duration: 900_000 },
+      { daysAgo: 2, hour: 15, minute: 15, duration: 900_000 },
+      { daysAgo: 1, hour: 9, minute: 30, duration: 900_000 },
+      { daysAgo: 1, hour: 16, minute: 45, duration: 900_000 },
+    ],
+  )
+})
+
+test('compra do usuário cria a única posição aberta sem alterar o histórico inicial', () => {
+  const wallet = createInitialWalletState()
+  const originalSettledEntries = wallet.settledEntries
+  const result = applyWalletPurchase(wallet, {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountCents: 10_000,
+    participations: 125,
+  })
+
+  assert.equal(result.applied, true)
+  assert.equal(result.state.balanceCents, SEEDED_AVAILABLE_BALANCE_CENTS - 10_000)
+  assert.deepEqual(result.state.positionsByRound, {
+    [String(ROUND_START)]: { up: 125, down: 0 },
+  })
+  assert.equal(Object.keys(result.state.positionsByRound).length, 1)
+  assert.deepEqual(result.state.settledEntries, originalSettledEntries)
+  assert.equal(result.state.totalPurchasesCents, 42_000)
+  assert.equal(result.state.movements.length, 8)
 })
 
 test('restaura uma entrada cancelada junto do histórico de movimientos', () => {
@@ -63,7 +190,7 @@ test('restaura uma entrada cancelada junto do histórico de movimientos', () => 
   assert.deepEqual(restored.movements, wallet.movements)
 })
 
-test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválido', () => {
+test('restaura uma carteira v3 válida e reinicia versões anteriores ou estado inválido', () => {
   const wallet = applyWalletPurchase(createInitialWalletState(), {
     roundStart: ROUND_START,
     side: 'up',
@@ -83,7 +210,7 @@ test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválid
   assert.equal(migratedWallet.movements[0]?.type, 'deposit')
   assert.equal(
     migratedWallet.movements[0]?.amountCents,
-    INITIAL_BALANCE_CENTS,
+    INITIAL_DEPOSIT_CENTS,
   )
   const depositTimestamp = wallet.movements[0]?.occurredAt
   const restoredAfterLaterUpdate = deserializeWalletState(JSON.stringify({
@@ -100,8 +227,16 @@ test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválid
     PROTOTYPE_WALLET_VERSION,
   )
   assert.equal(
-    deserializeWalletState('{"version":2,"balanceCents":-1}').balanceCents,
-    INITIAL_BALANCE_CENTS,
+    deserializeWalletState(JSON.stringify({
+      ...wallet,
+      version: 2,
+      balanceCents: 1,
+    })).balanceCents,
+    SEEDED_AVAILABLE_BALANCE_CENTS,
+  )
+  assert.equal(
+    deserializeWalletState('{"version":3,"balanceCents":-1}').balanceCents,
+    SEEDED_AVAILABLE_BALANCE_CENTS,
   )
   assert.deepEqual(
     deserializeWalletState('{"version":1,"balanceCents":200000}').positionsByRound,
@@ -110,7 +245,7 @@ test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválid
 })
 
 test('compra parcial desconta centavos e adiciona a posição correta', () => {
-  const result = applyWalletPurchase(createInitialWalletState(), {
+  const result = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'down',
     amountCents: 12_345,
@@ -130,7 +265,7 @@ test('compra parcial desconta centavos e adiciona a posição correta', () => {
       amountCents,
     })),
     [
-      { type: 'deposit', amountCents: INITIAL_BALANCE_CENTS },
+      { type: 'deposit', amountCents: INITIAL_DEPOSIT_CENTS },
       { type: 'purchase', amountCents: -12_345 },
     ],
   )
@@ -143,10 +278,10 @@ test('compra parcial desconta centavos e adiciona a posição correta', () => {
 })
 
 test('permite usar todo o saldo e bloqueia compra acima dele', () => {
-  const allIn = applyWalletPurchase(createInitialWalletState(), {
+  const allIn = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'up',
-    amountCents: INITIAL_BALANCE_CENTS,
+    amountCents: INITIAL_DEPOSIT_CENTS,
     participations: 2_500,
   })
   const rejected = applyWalletPurchase(allIn.state, {
@@ -163,7 +298,7 @@ test('permite usar todo o saldo e bloqueia compra acima dele', () => {
 })
 
 test('venda parcial e total creditam o grossValue sem deixar posição negativa', () => {
-  const purchased = applyWalletPurchase(createInitialWalletState(), {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'up',
     amountCents: 10_000,
@@ -194,7 +329,7 @@ test('venda parcial e total creditam o grossValue sem deixar posição negativa'
       amountCents,
     })),
     [
-      { type: 'deposit', amountCents: INITIAL_BALANCE_CENTS },
+      { type: 'deposit', amountCents: INITIAL_DEPOSIT_CENTS },
       { type: 'purchase', amountCents: -10_000 },
       { type: 'sale', amountCents: 3_333 },
       { type: 'sale', amountCents: 4_500 },
@@ -205,7 +340,7 @@ test('venda parcial e total creditam o grossValue sem deixar posição negativa'
 })
 
 test('liquida somente as participações restantes do lado vencedor', () => {
-  const withUp = applyWalletPurchase(createInitialWalletState(), {
+  const withUp = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'up',
     amountCents: 10_000,
@@ -277,7 +412,7 @@ test('liquida somente as participações restantes do lado vencedor', () => {
 })
 
 test('derrota remove a posição sem crédito', () => {
-  const purchased = applyWalletPurchase(createInitialWalletState(), {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'down',
     amountCents: 10_000,
@@ -297,7 +432,7 @@ test('derrota remove a posição sem crédito', () => {
 })
 
 test('vitória DOWN paga somente as participações DOWN', () => {
-  const withDown = applyWalletPurchase(createInitialWalletState(), {
+  const withDown = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'down',
     amountCents: 8_000,
@@ -316,7 +451,7 @@ test('vitória DOWN paga somente as participações DOWN', () => {
 })
 
 test('compra seguida de venda total não gera pagamento no encerramento', () => {
-  const purchased = applyWalletPurchase(createInitialWalletState(), {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'up',
     amountCents: 10_000,
@@ -338,7 +473,7 @@ test('compra seguida de venda total não gera pagamento no encerramento', () => 
 test('identifica rodadas pendentes restauradas após F5', () => {
   const oldRound = ROUND_START - 900_000
   const currentRound = ROUND_START + 900_000
-  const withOldPosition = applyWalletPurchase(createInitialWalletState(), {
+  const withOldPosition = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: oldRound,
     side: 'up',
     amountCents: 10_000,
@@ -353,11 +488,11 @@ test('identifica rodadas pendentes restauradas após F5', () => {
     [oldRound],
   )
   assert.equal(settled.payoutCents, 10_000)
-  assert.equal(settled.state.balanceCents, INITIAL_BALANCE_CENTS)
+  assert.equal(settled.state.balanceCents, INITIAL_DEPOSIT_CENTS)
 })
 
 test('protege liquidação e crédito de demonstração contra duplicidade', () => {
-  const purchased = applyWalletPurchase(createInitialWalletState(), {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'up',
     amountCents: 10_000,
@@ -394,7 +529,7 @@ test('protege liquidação e crédito de demonstração contra duplicidade', () 
 
 test('calcula métricas de perfil pelo preço atual e usa custo nas rodadas pendentes', () => {
   const previousRound = ROUND_START - 900_000
-  const withPending = applyWalletPurchase(createInitialWalletState(), {
+  const withPending = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: previousRound,
     side: 'down',
     amountCents: 5_000,
@@ -419,7 +554,7 @@ test('calcula métricas de perfil pelo preço atual e usa custo nas rodadas pend
 })
 
 test('usa o custo da rodada atual quando a cotação de venda está indisponível', () => {
-  const purchased = applyWalletPurchase(createInitialWalletState(), {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
     roundStart: ROUND_START,
     side: 'up',
     amountCents: 12_345,
@@ -428,7 +563,7 @@ test('usa o custo da rodada atual quando a cotação de venda está indisponíve
 
   assert.deepEqual(getWalletProfileMetrics(purchased, ROUND_START, null), {
     availableBalanceCents: 187_655,
-    portfolioTotalCents: INITIAL_BALANCE_CENTS,
+    portfolioTotalCents: INITIAL_DEPOSIT_CENTS,
     totalPurchasesCents: 12_345,
     openEntriesCents: 12_345,
     totalReceivedCents: 0,

@@ -42,6 +42,7 @@ jobs:
           pnpm test:market
           pnpm test:proxy
           pnpm test:wallet
+          pnpm test:entries
 
       - name: Lint
         run: pnpm lint
