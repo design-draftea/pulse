@@ -16,6 +16,61 @@
   pointer-events: none;
 }
 
+.pulse-app__route-stage {
+  position: relative;
+  isolation: isolate;
+}
+
+.pulse-app__route {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+.pulse-app__route--outgoing {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.pulse-app__route--incoming {
+  position: fixed;
+  z-index: 2;
+  top: 56px;
+  right: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.pulse-app__route--outgoing.pulse-app__route--forward,
+.pulse-app__route--outgoing.pulse-app__route--backward {
+  animation: pulse-route-fade-out 140ms ease-in both;
+}
+
+.pulse-app__route--incoming.pulse-app__route--forward,
+.pulse-app__route--incoming.pulse-app__route--backward {
+  animation: none;
+}
+
+.pulse-app--page-transition-entering .pulse-app__route--outgoing {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  left: 0;
+}
+
+.pulse-app--page-transition-entering .pulse-app__route--incoming {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  pointer-events: auto;
+  animation: pulse-route-fade-in 180ms ease-out both;
+}
+
 .pulse-app__market-header-slot {
   position: sticky;
   z-index: 10;
@@ -61,4 +116,75 @@
   inset: 0;
   cursor: progress;
   touch-action: none;
+}
+
+.pulse-app--page-transition-forward .market-choice,
+.pulse-app--page-transition-forward .buy-betslip {
+  pointer-events: none;
+  animation: pulse-home-action-fade-out 140ms ease-in both;
+}
+
+.pulse-app--page-transition-backward .market-choice,
+.pulse-app--page-transition-backward .buy-betslip {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pulse-app--page-transition-backward.pulse-app--page-transition-entering
+  .market-choice,
+.pulse-app--page-transition-backward.pulse-app--page-transition-entering
+  .buy-betslip {
+  pointer-events: auto;
+  animation: pulse-home-action-fade-in 180ms ease-out both;
+}
+
+@keyframes pulse-route-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-route-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-home-action-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-home-action-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-app__route--outgoing,
+  .pulse-app__route--incoming,
+  .pulse-app--page-transition-forward .market-choice,
+  .pulse-app--page-transition-forward .buy-betslip,
+  .pulse-app--page-transition-backward .market-choice,
+  .pulse-app--page-transition-backward .buy-betslip {
+    animation: none;
+  }
 }

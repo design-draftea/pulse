@@ -18,6 +18,7 @@
 - `src/services/prototypeWallet.ts` e `src/hooks/usePrototypeWallet.ts`: a carteira v2 passa a persistir as entradas liquidadas com lado, custo-base, participações, pagamento, preço objetivo e preço final, mantendo compatibilidade com estados v2 anteriores.
 - `src/services/wonEntries.ts`: filtro determinístico das vencedoras, ordenadas da rodada mais recente para a mais antiga.
 - `src/App.tsx`: liquidação ao vivo e de rodadas restauradas fornece todos os dados necessários ao histórico de Ganadas.
+- `origin/main` atualizada até `abd2593`: Perfil, Movimientos publicado, correção de blur e transição de rotas foram integrados; `Entradas` agora participa do mesmo fade-through da Navbar, inclusive em voltar/avançar.
 - `tests/prototypeWallet.test.ts` e `tests/wonEntries.test.ts`: cobertura de liquidação, custo-base após venda parcial, persistência, filtro e ordenação.
 
 - `vite.config.ts`: caminho-base configurável por `VITE_BASE_PATH`, mantendo `/` no desenvolvimento e usando `/pulse/` no artefato do GitHub Pages.
