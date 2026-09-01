@@ -21,6 +21,7 @@ import { MobileOnly } from './components/MobileOnly/MobileOnly'
 import { Navbar } from './components/Navbar/Navbar'
 import { MarketPriceChart } from './components/MarketPriceChart/MarketPriceChart'
 import { PriceComparison } from './components/PriceComparison/PriceComparison'
+import { ProfileBottomSheet } from './components/ProfileBottomSheet'
 import { PulseFooter } from './components/PulseFooter/PulseFooter'
 import {
   PreviousRounds,
@@ -43,6 +44,7 @@ import {
   fetchCompletedBtcRound,
   getBtcRoundSlug,
 } from './services/marketData'
+import { getWalletProfileMetrics } from './services/prototypeWallet'
 import './App.css'
 
 const MARKET_HEADER_COMPACT_SCROLL_Y = 80
@@ -62,6 +64,7 @@ const balanceFormatter = new Intl.NumberFormat('en-US', {
 function App() {
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(null)
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false)
   const [purchaseSuccess, setPurchaseSuccess] = useState<
@@ -75,6 +78,7 @@ function App() {
     balanceCents,
     currentPosition,
     pendingRoundStarts,
+    walletState,
     purchase,
     sell,
     settleRound,
@@ -89,6 +93,25 @@ function App() {
       || currentPosition.up > 0
       || currentPosition.down > 0,
   })
+  const currentRoundMarketValueCents = useMemo(() => {
+    let totalValueCents = 0
+
+    for (const side of ['up', 'down'] as const) {
+      const participations = currentPosition[side]
+      if (participations <= 0) continue
+
+      const quote = outcomeMarket.quoteSell(side, participations)
+      if (!quote?.complete) return null
+      totalValueCents += Math.round(quote.grossValue * 100)
+    }
+
+    return totalValueCents
+  }, [currentPosition, outcomeMarket])
+  const profileMetrics = useMemo(() => getWalletProfileMetrics(
+    walletState,
+    marketRound.roundStart,
+    currentRoundMarketValueCents,
+  ), [currentRoundMarketValueCents, marketRound.roundStart, walletState])
   const [roundWin, setRoundWin] = useState<RoundWinDetails | null>(null)
   const [latestCompletedRound, setLatestCompletedRound] = useState<
     PreviousRound | null
@@ -318,6 +341,14 @@ function App() {
     setRoundWin(null)
   }, [])
 
+  const handleProfileOpen = useCallback(() => {
+    setIsProfileOpen(true)
+  }, [])
+
+  const handleProfileClose = useCallback(() => {
+    setIsProfileOpen(false)
+  }, [])
+
   const handlePurchaseExecute = useCallback((details: PurchaseSuccessDetails) => {
     const result = purchase({
       roundStart: marketRound.roundStart,
@@ -378,11 +409,16 @@ function App() {
         className={`pulse-app${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
         style={appStyle}
         aria-busy={isPurchaseLoading}
-        inert={isPurchaseLoading ? true : undefined}
+        inert={isPurchaseLoading || isProfileOpen ? true : undefined}
       >
         <div className="pulse-app__background" aria-hidden="true" />
 
-        <Header balance={formattedBalance} balanceCents={balanceCents} />
+        <Header
+          balance={formattedBalance}
+          balanceCents={balanceCents}
+          isProfileOpen={isProfileOpen}
+          onProfileOpen={handleProfileOpen}
+        />
         <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">
           <div
             className={`pulse-app__market-header${isMarketHeaderPinned ? ' pulse-app__market-header--pinned' : ''}${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
@@ -487,6 +523,12 @@ function App() {
           onDismiss={dismissRoundWin}
         />
       )}
+
+      <ProfileBottomSheet
+        isOpen={isProfileOpen}
+        metrics={profileMetrics}
+        onClose={handleProfileClose}
+      />
     </>
   )
 }

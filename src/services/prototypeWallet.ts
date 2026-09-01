@@ -1,7 +1,8 @@
 import type { OutcomeSide } from './outcomeMarket'
 
-export const PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v1'
-export const PROTOTYPE_WALLET_VERSION = 1
+export const PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v2'
+export const LEGACY_PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v1'
+export const PROTOTYPE_WALLET_VERSION = 2
 export const INITIAL_BALANCE_CENTS = 200_000
 
 const MAX_CREDIT_EVENT_IDS = 100
@@ -12,13 +13,30 @@ export interface PrototypeWalletPosition {
   down: number
 }
 
+export interface PrototypeWalletCostBasis {
+  up: number
+  down: number
+}
+
 export interface PrototypeWalletState {
   version: typeof PROTOTYPE_WALLET_VERSION
   balanceCents: number
   positionsByRound: Record<string, PrototypeWalletPosition>
+  costBasisCentsByRound: Record<string, PrototypeWalletCostBasis>
+  totalPurchasesCents: number
+  totalReceivedCents: number
   creditedEventIds: string[]
   revision: number
   updatedAt: number
+}
+
+export interface PrototypeWalletProfileMetrics {
+  availableBalanceCents: number
+  portfolioTotalCents: number
+  totalPurchasesCents: number
+  openEntriesCents: number
+  totalReceivedCents: number
+  netResultCents: number
 }
 
 export interface WalletMutationResult {
@@ -46,9 +64,14 @@ interface WalletSale {
 }
 
 const emptyPosition = (): PrototypeWalletPosition => ({ up: 0, down: 0 })
+const emptyCostBasis = (): PrototypeWalletCostBasis => ({ up: 0, down: 0 })
 
 const isNonNegativeFinite = (value: unknown): value is number => (
   typeof value === 'number' && Number.isFinite(value) && value >= 0
+)
+
+const isNonNegativeInteger = (value: unknown): value is number => (
+  Number.isInteger(value) && isNonNegativeFinite(value)
 )
 
 const isValidRoundStart = (value: number) => (
@@ -62,10 +85,15 @@ const nextCreditEventIds = (eventIds: string[], eventId: string) => (
 
 const updateWallet = (
   state: PrototypeWalletState,
-  update: Pick<
+  update: Partial<Pick<
     PrototypeWalletState,
-    'balanceCents' | 'positionsByRound' | 'creditedEventIds'
-  >,
+    | 'balanceCents'
+    | 'positionsByRound'
+    | 'costBasisCentsByRound'
+    | 'totalPurchasesCents'
+    | 'totalReceivedCents'
+    | 'creditedEventIds'
+  >>,
 ): PrototypeWalletState => ({
   ...state,
   ...update,
@@ -77,6 +105,9 @@ export const createInitialWalletState = (): PrototypeWalletState => ({
   version: PROTOTYPE_WALLET_VERSION,
   balanceCents: INITIAL_BALANCE_CENTS,
   positionsByRound: {},
+  costBasisCentsByRound: {},
+  totalPurchasesCents: 0,
+  totalReceivedCents: 0,
   creditedEventIds: [],
   revision: 0,
   updatedAt: Date.now(),
@@ -96,6 +127,10 @@ export const deserializeWalletState = (
       || !isNonNegativeFinite(parsed.balanceCents)
       || typeof parsed.positionsByRound !== 'object'
       || parsed.positionsByRound === null
+      || typeof parsed.costBasisCentsByRound !== 'object'
+      || parsed.costBasisCentsByRound === null
+      || !isNonNegativeInteger(parsed.totalPurchasesCents)
+      || !isNonNegativeInteger(parsed.totalReceivedCents)
       || !Array.isArray(parsed.creditedEventIds)
       || !Number.isInteger(parsed.revision)
       || !isNonNegativeFinite(parsed.revision)
@@ -130,11 +165,36 @@ export const deserializeWalletState = (
         (value): value is string => typeof value === 'string' && value.length > 0,
       ),
     )].slice(-MAX_CREDIT_EVENT_IDS)
+    const costBasisCentsByRound = Object.entries(positionsByRound)
+      .reduce<Record<string, PrototypeWalletCostBasis>>((costBasis, [key]) => {
+        const value = parsed.costBasisCentsByRound?.[key] as Partial<PrototypeWalletCostBasis> | undefined
+
+        if (
+          !value
+          || !isNonNegativeInteger(value.up)
+          || !isNonNegativeInteger(value.down)
+        ) {
+          return costBasis
+        }
+
+        costBasis[key] = {
+          up: value.up,
+          down: value.down,
+        }
+        return costBasis
+      }, {})
+
+    if (Object.keys(costBasisCentsByRound).length !== Object.keys(positionsByRound).length) {
+      return createInitialWalletState()
+    }
 
     return {
       version: PROTOTYPE_WALLET_VERSION,
       balanceCents: parsed.balanceCents,
       positionsByRound,
+      costBasisCentsByRound,
+      totalPurchasesCents: parsed.totalPurchasesCents,
+      totalReceivedCents: parsed.totalReceivedCents,
       creditedEventIds,
       revision: parsed.revision,
       updatedAt: parsed.updatedAt,
@@ -150,6 +210,45 @@ export const getWalletPosition = (
 ): PrototypeWalletPosition => (
   state.positionsByRound[String(roundStart)] ?? emptyPosition()
 )
+
+export const getWalletCostBasis = (
+  state: PrototypeWalletState,
+  roundStart: number,
+): PrototypeWalletCostBasis => (
+  state.costBasisCentsByRound[String(roundStart)] ?? emptyCostBasis()
+)
+
+export const getWalletProfileMetrics = (
+  state: PrototypeWalletState,
+  currentRoundStart: number,
+  currentRoundMarketValueCents: number | null,
+): PrototypeWalletProfileMetrics => {
+  const currentRoundKey = String(currentRoundStart)
+  const currentRoundCostBasis = state.costBasisCentsByRound[currentRoundKey]
+  const currentRoundFallbackCents = currentRoundCostBasis
+    ? currentRoundCostBasis.up + currentRoundCostBasis.down
+    : 0
+  const currentRoundValueCents = isNonNegativeInteger(currentRoundMarketValueCents)
+    ? currentRoundMarketValueCents
+    : currentRoundFallbackCents
+  const pendingEntriesCents = Object.entries(state.costBasisCentsByRound)
+    .reduce((total, [roundKey, costBasis]) => (
+      roundKey === currentRoundKey
+        ? total
+        : total + costBasis.up + costBasis.down
+    ), 0)
+  const openEntriesCents = currentRoundValueCents + pendingEntriesCents
+  const portfolioTotalCents = state.balanceCents + openEntriesCents
+
+  return {
+    availableBalanceCents: state.balanceCents,
+    portfolioTotalCents,
+    totalPurchasesCents: state.totalPurchasesCents,
+    openEntriesCents,
+    totalReceivedCents: state.totalReceivedCents,
+    netResultCents: portfolioTotalCents - INITIAL_BALANCE_CENTS,
+  }
+}
 
 export const getPendingWalletRoundStarts = (
   state: PrototypeWalletState,
@@ -185,6 +284,7 @@ export const applyWalletPurchase = (
 
   const key = String(roundStart)
   const position = getWalletPosition(state, roundStart)
+  const costBasis = getWalletCostBasis(state, roundStart)
   const positionsByRound = {
     ...state.positionsByRound,
     [key]: {
@@ -192,10 +292,18 @@ export const applyWalletPurchase = (
       [side]: position[side] + participations,
     },
   }
+  const costBasisCentsByRound = {
+    ...state.costBasisCentsByRound,
+    [key]: {
+      ...costBasis,
+      [side]: costBasis[side] + amountCents,
+    },
+  }
   const nextState = updateWallet(state, {
     balanceCents: state.balanceCents - amountCents,
     positionsByRound,
-    creditedEventIds: state.creditedEventIds,
+    costBasisCentsByRound,
+    totalPurchasesCents: state.totalPurchasesCents + amountCents,
   })
 
   return {
@@ -217,6 +325,7 @@ export const applyWalletSale = (
   } = sale
   const key = String(roundStart)
   const position = getWalletPosition(state, roundStart)
+  const costBasis = getWalletCostBasis(state, roundStart)
 
   if (
     !isValidRoundStart(roundStart)
@@ -234,20 +343,30 @@ export const applyWalletSale = (
     [side]: Math.max(0, position[side] - participations),
   }
   const positionsByRound = { ...state.positionsByRound }
+  const costBasisCentsByRound = { ...state.costBasisCentsByRound }
+  const soldRatio = Math.min(1, participations / position[side])
+  const soldCostBasisCents = Math.round(costBasis[side] * soldRatio)
+  const remainingCostBasis = {
+    ...costBasis,
+    [side]: Math.max(0, costBasis[side] - soldCostBasisCents),
+  }
 
   if (
     remainingPosition.up <= PARTICIPATION_EPSILON
     && remainingPosition.down <= PARTICIPATION_EPSILON
   ) {
     delete positionsByRound[key]
+    delete costBasisCentsByRound[key]
   } else {
     positionsByRound[key] = remainingPosition
+    costBasisCentsByRound[key] = remainingCostBasis
   }
 
   const nextState = updateWallet(state, {
     balanceCents: state.balanceCents + amountReceivedCents,
     positionsByRound,
-    creditedEventIds: state.creditedEventIds,
+    costBasisCentsByRound,
+    totalReceivedCents: state.totalReceivedCents + amountReceivedCents,
   })
 
   return {
@@ -276,13 +395,15 @@ export const settleWalletRound = (
   }
 
   const positionsByRound = { ...state.positionsByRound }
+  const costBasisCentsByRound = { ...state.costBasisCentsByRound }
   delete positionsByRound[key]
+  delete costBasisCentsByRound[key]
 
   if (state.creditedEventIds.includes(eventId)) {
     const nextState = updateWallet(state, {
       balanceCents: state.balanceCents,
       positionsByRound,
-      creditedEventIds: state.creditedEventIds,
+      costBasisCentsByRound,
     })
 
     return {
@@ -297,6 +418,8 @@ export const settleWalletRound = (
   const nextState = updateWallet(state, {
     balanceCents: state.balanceCents + payoutCents,
     positionsByRound,
+    costBasisCentsByRound,
+    totalReceivedCents: state.totalReceivedCents + payoutCents,
     creditedEventIds: nextCreditEventIds(
       state.creditedEventIds,
       eventId,
@@ -327,7 +450,7 @@ export const creditWalletEvent = (
 
   const nextState = updateWallet(state, {
     balanceCents: state.balanceCents + amountCents,
-    positionsByRound: state.positionsByRound,
+    totalReceivedCents: state.totalReceivedCents + amountCents,
     creditedEventIds: nextCreditEventIds(
       state.creditedEventIds,
       eventId,
