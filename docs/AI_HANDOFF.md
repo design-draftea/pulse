@@ -1,57 +1,257 @@
 # Handoff entre Codex e Claude
 
-Este é o estado operacional compartilhado da tarefa atual. Atualize apenas com fatos verificados e mantenha o conteúdo conciso.
-
 ## Estado atual
 
-- Atualizado em: 2026-08-28
+- Atualizado em: 2026-09-01
 - Agente que entrega: Codex
-- Agente esperado a seguir: nenhum
-- Status: pronto para revisão
-- Objetivo: criar a documentação inicial de colaboração e contexto do Pulse
-- Critérios de aceite: documentos adaptados ao Pulse, sem importar contexto de produto do Draftaco, com lint e build validados
-- Branch: `docs/project-context`
+- Status: publicação do protótipo em preparação para GitHub Pages, com proxy público mínimo da Polymarket implementado e validação pendente
+- Objetivo: publicar o Pulse em `/pulse/` preservando gráfico, rodadas, carteira e contingência, sem depender do proxy local do Vite
+- Critérios de aceite: build com base `/pulse/`; Worker restrito a BTC/15 min com CORS; workflows reproduzíveis; testes, lint, build e navegador aprovados; publicação e URL remota relatadas separadamente
+- Branch/worktree observado ao finalizar: `fix/betslip-quote-stability`
 
 ## Alterações realizadas
 
-- `AGENTS.md` criado como fonte única das regras do repositório.
-- `CLAUDE.md` criado para encaminhar o Claude às regras compartilhadas.
-- `docs/AI_CONTEXT.md` criado com o contexto durável confirmado do Pulse.
-- `docs/AI_HANDOFF.md` criado para continuidade operacional.
-- `README.md` atualizado para apresentar o novo projeto.
+- `vite.config.ts`: caminho-base configurável por `VITE_BASE_PATH`, mantendo `/` no desenvolvimento e usando `/pulse/` no artefato do GitHub Pages.
+- `src/services/marketData.ts`: preço objetivo usa `VITE_POLYMARKET_PROXY_ORIGIN` em produção; quando a variável não existe, entra imediatamente na contingência silenciosa já aprovada.
+- `infra/polymarket-proxy/`: Cloudflare Worker público, sem credenciais de produto, restrito a consultas GET válidas de BTC em janelas exatas de 15 minutos, com CORS e cache curto.
+- `.github/workflows/deploy-pages.yml`: instalação, testes, lint, build e publicação do `dist` no GitHub Pages.
+- `.github/workflows/deploy-market-proxy.yml`: publicação manual do Worker usando secrets da conta Cloudflare do repositório.
+- `tests/polymarketProxy.test.mjs`: cobertura de health check, CORS, caminhos/métodos bloqueados, validação da rodada, encaminhamento e falha da origem.
+- `README.md` e `infra/polymarket-proxy/README.md`: execução local, arquitetura de publicação e configuração necessária documentadas.
 
-## Decisões e limites
+- `src/services/quotePresentation.ts`: tipos `PresentedQuoteSnapshot` e `QuoteProtectionResult`, regras puras de publicação visual e proteção simétrica de `1¢` para compra e venda.
+- `src/hooks/usePresentedQuotes.ts`: snapshots atômicos para `MarketChoice`, monto livre, venda e as três opções de `Un toque`; mercado continua interno a `250ms`, enquanto a apresentação automática fica limitada a uma vez por segundo.
+- `src/components/MarketChoice/`, `src/components/BuyBetslip/` e `src/components/PurchaseSuccessToast/`: percentuais estabilizados; textos visíveis preservados como `Precio promedio`, `Ganancia potencial` e `Monto a recibir`; a proteção de `1¢` permanece interna, sem linha permanente, e só o feedback acessível de recotação/indisponibilidade aparece quando necessário.
+- `src/components/BuyBetslip/` e `src/App.tsx`: compra e venda revalidam no livro mais recente, alteram carteira/posição no início da confirmação e congelam a cotação aceita; o loading de `2s` não recalcula nem permite interação, e o toaster usa exatamente os detalhes executados.
+- `src/hooks/useOutcomeMarket.ts`: `ExecutionQuote.quotedAt` passa a refletir o timestamp do snapshot real ou sintético do livro.
+- `tests/quotePresentation.test.ts`: onze cenários para tolerância, direção da venda, dados inválidos, rodada/pedido divergentes, intervalo de `1s`, limiar de `1¢`, disponibilidade e cotações independentes de `Un toque`.
+- Desenvolvimento: `?testQuoteReprice=buy|sell|both` força uma piora única de `2¢` por operação/rodada para tornar a recotação determinística.
 
-- O Pulse é um projeto independente; regras de produto, rotas, componentes e decisões visuais do Draftaco não foram importados.
-- React, TypeScript, Vite, CSS e pnpm formam a fundação técnica atual.
-- Arquitetura de produto, dados, design system, CI e deploy permanecem a definir.
-- `AGENTS.md` é a fonte única das regras compartilhadas entre agentes.
+- `src/components/priceChartModel.ts`: modelo puro para buffer ordenado/deduplicado por rodada, lacunas, domínio, histerese, interpolação de `280ms` e continuidade na borda esquerda.
+- `src/hooks/useResilientBtcMarketRound.ts`: série limitada a 120 pontos, preservada durante troca/reconexão e reiniciada apenas quando `roundStart` muda, com o último preço válido como seed.
+- `src/components/PriceChart.tsx` e `MarketPriceChart`: linha ancorada em `x=0`, domínio de renderização animado, série sempre na opacidade final inclusive na troca de rodada e diagnósticos invisíveis de série, fonte, lacunas, continuidade e motivo do reset.
+- `tests/priceChartModel.test.ts`: nove cenários determinísticos para buffer, deduplicação, limite, virada, continuidade, lacunas, expansão, contração, tendência e interpolação.
+- `src/services/marketPriceDirection.ts`, `src/hooks/useAnimatedMarketPrice.ts` e `PriceChart.css`: direção baseada em janela de `1,5s`, confirmação por duas leituras, ciclos completos de `740ms` com pausa de `120ms`, inversão somente na fronteira do ciclo e neutralização após `2s` sem movimento relevante; o fade duplicado do contêiner foi removido.
+- `tests/marketPriceDirection.test.ts`: quatro cenários para confirmação, inversão, ruído isolado e expiração da tendência.
+
+- `src/services/marketData.ts`: geração determinística das dez janelas anteriores a partir do início da rodada atual; a consulta oficial valida a sequência mais recente antes de publicar o histórico.
+- `src/services/marketData.ts`: fallback com candles reais de 15 minutos da Coinbase preenche somente as janelas em que a Polymarket não respondeu, preservando os valores da Polymarket quando disponíveis.
+- `src/hooks/useBtcMarketRound.ts`: sincronização imediata do relógio e nova consulta do histórico ao carregar, virar a rodada e retornar à página por foco, `pageshow` ou visibilidade.
+- `src/hooks/useResilientBtcMarketRound.ts`: cache e respostas são filtrados pela lista exata dos dez `roundStart` esperados, evitando que rodadas antigas ocupem lacunas recentes.
+- `tests/marketData.test.ts`: cobertura da janela `10:15–10:30`, cuja primeira rodada anterior é `10:00–10:15` e a décima é `07:45–08:00`.
+
+- `src/services/marketFallback.ts`: funções puras para frescor/prioridade dos feeds, probabilidade complementar de `3%` a `97%`, suavização, livro sintético de cinco níveis e cache seguro de até 12 rodadas.
+- `src/hooks/useBtcPriceFeeds.ts`: Chainlink, Coinbase e Kraken conectados em paralelo, stale timeout de `10s`, troca silenciosa sem zerar o preço e parâmetros de falha exclusivos de desenvolvimento.
+- `src/hooks/useResilientBtcMarketRound.ts`: alvo oficial/cache/virada bloqueado por rodada, persistência de alvo/final/resultado, histórico local e liquidação de rodadas durante falha oficial.
+- `src/hooks/useOutcomeMarket.ts`: livro local imediato enquanto conecta, bloqueio local após `3s`, falha do CLOB ou interação, persistência do bloqueio após F5 e retorno à Polymarket somente na rodada seguinte.
+- `src/App.tsx`: consumo dos hooks resilientes, liquidação pelo histórico cacheado e diagnósticos invisíveis em `data-*`.
+- `tests/marketFallback.test.ts`: seis testes de prioridade/frescor, limites, complementaridade, suavização, profundidade/liquidez, compra/venda e cache corrompido/limitado.
+- `src/components/MobileOnly/MobileOnly.tsx`: aviso copiado da implementação-fonte do Draftaco.
+- `src/components/MobileOnly/MobileOnly.css`: breakpoint, dimensões, tipografia, cores e espaçamentos equivalentes.
+- `src/App.tsx`: aviso montado sobre a aplicação.
+- `src/components/Header/`: header próprio com logo, saldo, ação de adicionar saldo e perfil.
+- `src/assets/`: assets locais do header e fundo fixo.
+- `src/styles/tokens/mode-1.tokens.json`: export original dos tokens do Figma, com 80 tokens de cor em 39 valores hexadecimais.
+- `src/styles/tokens/colors.css`: variáveis CSS dos dois extremos do gradiente primário já consumido pelo header.
+- `src/components/Header/`: botão de saldo corrigido com círculo de `32px` e gradiente primário do Figma.
+- `src/components/SubHeader/`: componente de `64px` montado abaixo do header conforme o nó `188:2920`, com identificação da rodada e contador estático inicial.
+- `src/components/SubHeader/`: estado compacto de `40px` conforme o nó `198:3358`, integrado à pilha fixa compartilhada com o PriceComparison.
+- `src/assets/logoBTC.png`: asset local utilizado pelo `SubHeader`.
+- `src/components/PriceComparison/`: preço objetivo e preço atual reais, diferença calculada e direção UP/DOWN correspondente, mantendo o layout dos nós `188:2941` e `198:3376`.
+- `src/components/PriceComparison/`: mesma instância logo abaixo do `SubHeader`, animando para `55px` conforme o nó `198:3376` dentro da pilha fixa compartilhada.
+- `src/components/PriceComparison/PriceComparison.css`: borda visível movida para uma camada interna com o token de 12%, preservando o espaço transparente de `1px` e reproduzindo o stroke `Inside` sem deslocar o conteúdo.
+- `src/assets/lightPriceTarget.svg`, `lightPriceCurrent.svg` e `arrowUpGreen.svg`: assets locais utilizados pelos cards de preço.
+- `src/components/PreviousRounds/`: carrossel `Últimas 10 rondas` com as 10 rodadas reais concluídas mais recentes conforme o nó `188:3013`, formatando horário local, data, preço objetivo, preço final e resultado.
+- `src/components/PreviousRounds/PreviousRounds.css`: borda dos cards movida para uma camada interna de `1px` com o token de 12%, preservando o espaço estrutural transparente e a largura do carrossel.
+- `src/assets/iconClock.svg`, `iconDoubleChevronsUp.svg` e `iconDoubleChevronsDown.svg`: assets locais utilizados nos cards das rodadas.
+- `src/components/PulseFooter/`: footer informativo responsivo conforme o nó `188:3060`, com logo, explicação e os links estáticos `Términos y condiciones`, `Aviso de privacidad`, `Preguntas frecuentes` e `Soporte`.
+- `src/assets/iconChevronRight.svg`: asset local reutilizado nos links do footer.
+- `src/components/Navbar/`: navbar inferior fixa e responsiva, com Home ativo e Movimientos/Entradas inativos.
+- `src/components/Navbar/Navbar.css`: fade preto inferior da variante `navbar--liquid-v2` do Draftaco adaptado como camada atrás da Navbar do Pulse, incluindo a área segura inferior.
+- `src/assets/iconHomeActive.svg`, `iconMovimientos.svg` e `iconEntradas.svg`: assets locais atualizados utilizados na navbar.
+- `src/components/Navbar/` e `src/App.tsx`: `Entradas` recebe um ponto vermelho com onda pulsante quando a carteira possui participações UP ou DOWN na rodada atual; o estado deriva diretamente da posição persistida e inclui nome acessível `Entradas, participación activa`.
+- `src/components/MarketChoice/`: os botões UP/DOWN agora abrem o betslip já com o lado escolhido.
+- `src/components/MarketChoice/`: percentuais fixos removidos; cada lado usa o preço ativo da Polymarket ou da contingência local sem indicar a origem na interface.
+- `src/components/MarketChoice/`: nos últimos `5s`, os botões são bloqueados e substituídos por `Cerrando ronda…`; um betslip aberto é desmontado antes do fechamento.
+- `src/components/RoundWinToast/`: toast compacto do nó `320:13133`, exibido somente para uma participação vencedora, com valor total recebido, entrada e saída equivalentes ao toast de compra.
+- `src/assets/iconRoundWin.svg`: export exato do ícone circular de confirmação usado no nó `320:13133`.
+- `src/components/BuyBetslip/`: novo componente responsivo com estados expandido, teclado e recolhido; troca UP/DOWN, edição de monto, teclado numérico, handle e confirmação por deslize.
+- `src/components/BuyBetslip/`: `SIDE_PRICE` e `SIDE_PERCENTAGE` removidos; monto livre, cada valor de `Un toque` e venda calculam VWAP na profundidade correspondente. A confirmação congela a cotação e novas participações permanecem disponíveis na mesma rodada.
+- `src/components/BuyBetslip/` e `src/components/PurchaseSuccessToast/`: venda deixou de recolher o betslip; agora executa loading de `2s` com bloqueio global, remove as participações vendidas, desmonta o betslip e exibe `¡VENTA EN UP/DOWN!` com monto recebido, participações e preço médio.
+- `src/App.tsx` e `src/services/outcomeMarket.ts`: posições UP/DOWN começam em `0/0` e voltam a `0/0` na troca da rodada; uma compra confirmada acrescenta participações somente ao lado executado para disponibilizá-las em `Vender`.
+- `src/hooks/useOutcomeMarket.ts`: descoberta do slug atual pela Gamma, assinatura dos tokens UP/DOWN no canal CLOB, snapshots, deltas, última negociação, heartbeat, reconexão e publicação limitada a quatro atualizações por segundo, com livro local silencioso na indisponibilidade.
+- `src/services/outcomeMarket.ts`: tipos `OutcomeMarketState` e `ExecutionQuote`, mapeamento outcomes/tokens, manutenção do livro, regra de exibição e VWAP de asks/bids.
+- `tests/outcomeMarket.test.ts`: dez testes unitários das posições iniciais, entrada da compra, baixa da venda no lado executado, mapeamento, midpoint, última negociação, snapshot/deltas, VWAP e liquidez insuficiente.
+- `src/services/prototypeWallet.ts`: carteira local versionada com saldo em centavos, posições UP/DOWN por rodada, histórico limitado de créditos aplicados e mutações puras de compra, venda e liquidação.
+- `src/hooks/usePrototypeWallet.ts`: restauração e persistência no `localStorage`, revalidação atômica das operações, sincronização pelo evento `storage`, liquidação de rodadas pendentes e reset por `?resetWallet=1`.
+- `src/components/Header/` e `src/App.tsx`: balance substituído por valor dinâmico em USD; compra, venda e resultado agora atualizam saldo e posição pela carteira centralizada.
+- `src/components/BuyBetslip/`: deixou de alterar posições diretamente; valores acima do saldo exibem `Saldo insuficiente`, bloqueiam o swipe e desabilitam opções de `Un toque`, mantendo a compra exata do saldo permitida.
+- `src/services/marketData.ts`: expõe a consulta validada de uma rodada concluída para liquidar posições restauradas após F5 quando o resultado oficial estiver disponível.
+- `tests/prototypeWallet.test.ts`: onze testes para saldo inicial, restauração, compra parcial/total, saldo insuficiente, venda parcial/total, vitórias UP/DOWN, derrota, venda antes do encerramento, rodadas pendentes e créditos idempotentes.
+- `src/assets/iconChange.svg`, `iconEdit.svg`, `iconDelete.svg` e `iconCheck.svg`: exports exatos do Figma usados no novo fluxo.
+- `src/App.tsx`: estado do lado selecionado e alternância entre `MarketChoice` e `BuyBetslip`.
+- `src/App.tsx`: snapshot do último preço válido na virada, cálculo imediato do resultado e registro em memória das compras da rodada para compor a mensagem personalizada sem persistir saldo.
+- `src/App.tsx` e `RoundWinToast`: modo local `?previewRoundResult=won` conta de `00:05` até `00:00` e reproduz o toast vencedor temporário; derrotas e rodadas sem compra não criam feedback de resultado.
+- `src/App.tsx` e `src/components/PreviousRounds/`: a rodada encerrada entra imediatamente como o primeiro card usando o snapshot local, sem aguardar a confirmação da API; a resposta oficial substitui os valores pela mesma `roundStart`, sem duplicar ou reiniciar a animação.
+- `src/components/PreviousRounds/`: somente o card realmente adicionado na virada anima; o carregamento inicial permanece neutro. A nova rodada é revelada da esquerda para a direita durante `860ms`, recebe brilho e borda temporários na cor do resultado e acompanha um badge `Nueva` de `1,8s`; uma região `aria-live` anuncia a atualização e o resultado.
+- `src/components/PriceChart.tsx`, `PriceChart.css`, `priceChartGeometry.ts`, `priceChartLayout.ts` e `entryFeedCadence.ts`: implementação responsiva do gráfico importada da tarefa `Implementar gráfico dinâmico do BTC`.
+- `src/components/PriceChart.tsx` e `src/components/MarketPriceChart/MarketPriceChart.tsx`: preços limitados a duas casas decimais e grade com 7 níveis; domínio calculado pelos 20 pontos recentes, intervalo-base de `$2,50` e expansão automática para `$5`, `$10` ou mais em maior volatilidade. O eixo temporal usa marcações a cada `5s`. Todos os rótulos do eixo continuam renderizados, inclusive o nível atrás da etiqueta atual. A tendência dos seis pontos mais recentes desloca o domínio em dois intervalos quando o preço entra nas duas faixas superiores ou inferiores, criando espaço antecipado na direção do movimento; os sete níveis mantêm posições e opacidade estáveis e apenas atualizam seus valores durante a interpolação de `280ms`, sem fade.
+- `src/components/MarketPriceChart/MarketPriceChart.tsx`: série real recebida do Chainlink TWAP via Polymarket RTDS e domínio vertical recalculado conforme preço objetivo e dados visíveis.
+- `src/hooks/useResilientBtcMarketRound.ts`: estado da rodada, relógio regressivo, janela de 15 minutos, alvo bloqueado, feeds resilientes, histórico persistido, frescor e reconexão automática; a virada reutiliza imediatamente o último preço válido e registra os novos pontos pelo horário de recebimento.
+- `src/hooks/useAnimatedMarketPrice.ts`, `src/App.tsx`, `PriceComparison` e `PriceChart`: animação centralizada de `360ms` para o preço atual; card, diferença, ponto e etiqueta do gráfico compartilham o mesmo valor em cada frame, enquanto a seta usa a tendência estabilizada em um ciclo independente.
+- `src/hooks/useMockChartEntries.ts`, `src/App.tsx` e `MarketPriceChart`: restaurada a alimentação simulada das entradas que sobem no gráfico; UP usa verde, DOWN usa vermelho e a sequência fica isolada dos dados reais de preço.
+- `src/services/marketData.ts`: cálculo determinístico da rodada, busca validada do `openPrice` atual e consulta paralela das rodadas concluídas com `openPrice` e `closePrice` da Polymarket.
+- `vite.config.ts`: proxy local para a rota de preço da Polymarket, necessário porque a origem não expõe CORS ao navegador.
+- `src/assets/arrowDownRed.svg`: direção negativa usada pela comparação real de preços.
+- `docs/MARKET_DATA_SPIKE.md`: prova técnica trazida para a branch e complementada com a decisão aplicada nesta implementação.
+- `src/components/PriceChart.tsx` e `PriceChart.css`: sincronizados com a revisão atual da tarefa do gráfico, incluindo chevrons animados inline; o fundo preto do indicador foi removido e o fade lateral passou de sobreposição preta para máscara transparente.
+- `src/components/PriceChart.css`: indicador refinado para uma sequência única de aproximadamente `740ms`, com cada chevron animando por `620ms`, diferença de `120ms` e deslocamento direcional sutil.
+- `src/hooks/useAnimatedMarketPrice.ts` e `src/components/PriceChart.tsx`: seta desacoplada dos `360ms` da animação numérica; atualizações na mesma direção não reiniciam o glyph, cada sequência termina pelo evento real do segundo chevron e possui fallback de `800ms`. A zona limpa permanece após o desaparecimento.
+- `src/components/PriceChart.tsx`: máscara lateral ampliada para `96px` e suavizada com progressão equivalente a smoothstep, reduzindo a borda perceptível no preenchimento da área.
+- `src/components/PriceChart.tsx` e `PriceChart.css`: zona limpa quadrada de `30px` atrás dos chevrons, recortando linha, área e grids; círculo e contorno visual removidos.
+- `src/components/PriceChart.tsx`: tooltip nativo removido do SVG; o nome e a descrição acessíveis permanecem disponíveis por `aria-label` e `aria-describedby`.
+- `src/App.tsx`: gráfico montado imediatamente antes de `PreviousRounds`.
+- `src/styles/tokens/colors.css`: variáveis semânticas adicionais já existentes no design para betslip, teclado e ganho.
+- `src/App.css`: estrutura mobile e `bgHeader.png` fixo abaixo do conteúdo, limitado a `300px` de altura.
+- `src/App.css`: altura artificial de `200svh` removida; o scroll agora é determinado somente pelo conteúdo real da página.
+- `src/App.css`: pilha de mercado alterada de uma troca por JavaScript para `position: fixed` para `position: sticky` nativo; o estado de scroll agora altera apenas a compactação, eliminando o salto no momento da fixação.
+- `src/App.tsx` e `src/App.css`: o fundo da pilha sticky deixou de depender do evento de scroll; agora é opaco desde o primeiro frame e usa o mesmo asset alinhado ao viewport, evitando vazamento visual do gráfico em scrolls rápidos.
+- `index.html`: Red Hat Display, Red Hat Text e idioma `es-MX`.
+- `docs/AI_CONTEXT.md`: decisão mobile-only e breakpoint registrada.
+- `design-qa.md`: evidências disponíveis e bloqueio visual documentados.
 
 ## Validações executadas
 
-- `pnpm lint`: passou sem erros.
-- `pnpm build`: passou com TypeScript e Vite 8.2.2.
+- Publicação estática validada com `VITE_BASE_PATH=/pulse/`: 86 módulos transformados, assets emitidos sob `/pulse/assets/` e aplicação carregada em `http://127.0.0.1:4175/pulse/` com título, fontes, imagens, preço ao vivo, gráfico e dez rodadas; nenhum asset local ficou quebrado.
+- Build alternativo com `VITE_POLYMARKET_PROXY_ORIGIN` configurado também passou e incorporou a origem pública no bundle.
+- `pnpm test:proxy`: 5 testes passaram; o bundle do Worker também passou em `wrangler deploy --dry-run` com 2,85 KiB, sem bindings ou segredos.
+- Suíte desta tarefa: `pnpm test:chart` (13), `pnpm test:fallback` (6), `pnpm test:market` (23), `pnpm test:proxy` (5), `pnpm test:wallet` (11), `pnpm lint`, `pnpm build`, validação YAML e `git diff --check` passaram.
+- Links do footer validados no navegador a `428px`: `Términos y condiciones`, `Aviso de privacidad`, `Preguntas frecuentes` e `Soporte` renderizaram em quatro linhas de `21px`, com largura interna de `362px` e sem overflow horizontal.
+- Cadência da seta validada no navegador a `428px` durante `9s`: a direção permaneceu DOWN apesar das atualizações do preço, os ciclos visíveis duraram aproximadamente `740ms`, os reinícios ficaram entre `867ms` e `900ms` e as pausas entre ciclos ficaram entre `108ms` e `150ms`. O contêiner não possui transição adicional, o gráfico preservou `428px` e não houve overflow horizontal.
+- Troca direta dos níveis validada no navegador a `428px`: os sete grupos e seus nós de texto preservaram a mesma identidade enquanto os valores passaram de `$78.340–$78.220` para `$78.380–$78.260`; grupos, textos, linha e área permaneceram com `opacity: 1` e `animation: none`. O gráfico ocupou os mesmos `428px` do viewport sem overflow horizontal.
+- Estabilidade observada no navegador: após a primeira atualização já em curso, três mudanças consecutivas do grupo visual ocorreram com intervalos de `1.227ms` e `1.000ms`, sem animação ou anúncio acessível automático.
+- Compra livre validada: o saldo simulado foi descontado no início da confirmação, o app recebeu `aria-busy`/`inert` durante o loading e a cotação aceita permaneceu congelada.
+- `Un toque` validado: toque em `$10` atualizou o saldo imediatamente e, após `2s`, exibiu `Ganancia potencial`, participações e `Precio promedio` efetivos no toaster.
+- Venda validada em dois passos: uma piora real acima de `1¢` exibiu `El precio cambió. Revisa la nueva cotización.` sem alterar o saldo; a nova tentativa aceita creditou o saldo no início e exibiu `Monto recibido` e preço médio efetivos.
+- Recotação determinística validada com `?testQuoteReprice=buy`: piora forçada de `2¢`, saldo inalterado, ausência de loading e nova cotação apresentada.
+- Falha do CLOB validada com `?testDataFailure=clob`: origem `local`, status `live`, nenhuma mensagem de fallback e operação habilitada.
+- Uma origem limpa em `127.0.0.1:5176` confirmou a entrada silenciosa do fallback após `3s`, mas não permitiu validar o CLOB real: o host retornou `ENOTFOUND` para `polymarket.com` e o navegador não resolveu `gamma-api.polymarket.com`. A aplicação permaneceu operacional e sem erros no console.
+- Responsividade validada em `320px`, `375px` e `499px`: betslip sem overflow horizontal e scroll até o footer; em `375px`, o padding inferior dinâmico ficou em `324px` e o footer terminou exatamente no topo do betslip.
+- Ajuste de nomenclatura validado novamente a `375 × 812px`: compra, venda e `Un toque` exibem `Precio promedio`, `Ganancia potencial` e `Monto a recibir`, sem a linha permanente de proteção; o feedback condicional de recotação/indisponibilidade continua preservado.
+- Ritmo vertical do betslip de monto livre comparado com a captura exata da primeira versão a aproximadamente `430 × 868px`: o estágio atual ficou com `251px` contra cerca de `249px` da referência, o intervalo entre o handle e o cabeçalho ficou em aproximadamente `17px` contra `16,5px`, e divisor, métricas e controle de deslize permaneceram alinhados dentro da variação de poucos pixels esperada da captura.
+- A mesma composição foi validada em `320px`, `375px` e `499px`: `Monto`, `Precio promedio` e `Ganancia potencial` permanecem completos, centralizados e em uma linha, sem overflow horizontal. Nenhum cálculo, estado ou interação do betslip foi alterado nesse ajuste.
+- No resumo recolhido de compra, o rótulo do retorno foi encurtado para `Ganancia`; `Ganancia potencial` permanece no betslip expandido e no toaster, e o resumo de venda continua usando `Recibe`. O estado foi comparado com a referência em `428 × 832px`: o novo rótulo ficou em uma única linha, sem alterar dimensões, valores ou alinhamento, e um carregamento limpo não apresentou erros ou avisos no console.
+- A edição de `Monto` agora preserva o valor anterior antes de limpar o campo. O fluxo foi validado no navegador partindo de `$100`: abrir e pressionar `Hecho` vazio restaurou `$100`; abrir novamente, digitar `25` e pressionar `Hecho` manteve `$25`. O protótipo foi devolvido a `$100` ao final.
+- `pnpm test:market`: 23 testes passaram; `pnpm test:wallet`: 11; `pnpm test:fallback`: 6. Oxlint e build de produção passaram.
+
+- Monitoramento acumulado de `180s`: série cresceu até 120 pontos e permaneceu no limite; em todas as amostras com continuidade, o início do path ficou em `x=0`, sem queda de contagem dentro da rodada.
+- Virada real validada de `10:45–11:00` para `11:00–11:15`: `seriesKey` mudou uma única vez, `resetReason` passou para `round-change`, `seriesStart` coincidiu exatamente com o novo `roundStart` e o gráfico não exibiu estado vazio.
+- Domínio validado em alta frequência: mudanças produziram valores intermediários de bottom/top; após a confirmação de tendência de `750ms`, uma amostra de `8s` permaneceu em um único domínio estável.
+- Contingência validada sem estado vazio: falha de Chainlink selecionou Coinbase; falha conjunta de Chainlink e Coinbase selecionou Kraken, ambos com status `live` e pontos ativos.
+- Responsividade preservada nas verificações de `375px` e `499px`: altura de `256px`, linha ancorada em `x=0` e sem overflow horizontal.
+- `pnpm test:chart`: 9 testes passaram; mercado: 23; contingência: 6; carteira: 11. Oxlint, TypeScript, build de produção e `git diff --check` passaram; uma aba limpa carregou sem erros ou avisos no console.
+
+- Atualização das últimas 10 rodadas: `pnpm test:market` passou com 12 testes; lint, TypeScript e build de produção passaram.
+- Navegador validado na rodada atual `10:30–10:45`: os 10 cards ficaram consecutivos de `10:15–10:30` até `08:00–08:15`, todos em `01/09`, sem salto para o histórico de `31/08`.
+
+- Oxlint: passou sem erros.
+- TypeScript e build de produção: `pnpm build` passou com 82 módulos transformados.
 - `git diff --check`: passou.
+- `pnpm test:fallback`: 6 testes passaram.
+- `pnpm test:market`: 10 testes passaram.
+- `pnpm test:wallet`: 11 testes passaram.
+- Contingência total validada em `428 × 832px` com `?testDataFailure=all-polymarket`: Coinbase manteve o preço e o gráfico, alvo/cache ficaram ativos, odds locais publicaram cinco asks e cinco bids por lado, UP/DOWN e betslip permaneceram habilitados e nenhum texto de contingência apareceu.
+- Fallback de preço validado separadamente: falha de Chainlink selecionou Coinbase; falha conjunta de Chainlink e Coinbase selecionou Kraken; todos os estados permaneceram `live`.
+- Falha do CLOB validada com Chainlink ativo: odds complementares locais continuaram atualizando, o betslip abriu com cotação, teclado e confirmação disponíveis, e o bloqueio local permaneceu após F5 e após restaurar a URL no meio da mesma rodada.
+- Rolagem mobile validada até o footer sem overflow horizontal; nova aba de cada cenário carregou sem erros ou avisos no console.
+- Uma virada real ocorreu durante a validação: a rodada encerrada entrou no histórico local, a posição pendente foi liquidada uma única vez e a rodada nova manteve alvo, saldo e série.
+- JSON dos tokens validado com `jq empty`.
+- Preview local iniciado em `http://127.0.0.1:5175/`.
+- Estrutura do header: `375 × 56px`, padding horizontal ajustado para `16px`, padding vertical `4px`, gap `8px` e ações `32/36px`.
+- A pilha de mercado agora possui dois limiares: fixa no topo em `56px`, ainda com alturas normais, e inicia a compactação conjunta somente em `80px`.
+- Fixação suave validada a `375px` com `position: sticky`: durante a aproximação, o topo percorreu `4px` em `scrollY=52`, `2px` em `54`, `0px` em `56` e permaneceu em `0px` após `58`, sem troca de posicionamento nem salto. Em `scrollY=85`, a pilha compactou para `40px/55px`; ao retornar para `70`, expandiu para `64px/90px` ainda fixa no topo e sem overflow horizontal.
+- Scroll rápido validado a `375px` com salto imediato de `scrollY=0` para `342`: antes do React aplicar a classe compacta, a pilha já estava fixa em `top=0`, com o pseudo-fundo em opacidade `1`, asset carregado e o próprio market header cobrindo o ponto testado; após a animação estabilizou em `95px`, sem overflow horizontal nem frame transparente para o gráfico.
+- Separação validada no navegador a `375px`: em `scrollY=60`, a pilha estava fixa no topo com alturas `64px/90px`; em `scrollY=85`, estava compacta em `40px/55px`; ao retornar para `scrollY=70`, expandiu mantendo-se fixa. Console sem erros ou avisos.
+- PriceComparison validado a `375px`: estado normal em `y=120`, `90px` de altura; estado fixo em `top=40px`, `55px` de altura, cards de `47px` e valores de `16px`.
+- Stroke interno de `PriceComparison` validado a `375px`: os dois cards mantiveram `74px` de altura e `167,5px` de largura, borda estrutural transparente e camada interna de `1px` em `rgba(251, 251, 251, 0.12)`; no estado compacto, preservaram `47px` de altura e não criaram overflow.
+- SubHeader e PriceComparison recebem o mesmo estado compacto controlado pelo `App`, garantindo início e reversão simultâneos em `80px` de scroll; a pilha já está fixa desde `56px` e mantém as bordas dos componentes encostadas durante toda a animação.
+- PreviousRounds validado a `375px`: título `Últimas 10 rondas` com linha de `24px`, card responsivo de `335 × 96px`, padding inicial `16px`, área livre à direita de `24px`, gap entre cards de `8px` e cinco bullets dinâmicos.
+- Navegação validada com scroll horizontal responsivo de `343px` em `375px`: segundo card ativo e bullets alterados de `6/4/2/2/2px` para `4/6/4/2/2px`.
+- Largura responsiva validada em `375px` e `499px`: o card usa `100vw - 40px` e mantém exatamente `24px` livres à direita; console sem erros ou avisos.
+- Chevrons de resultado UP/DOWN ajustados para `stroke: var(--Fill-Colors-fillDark, #000)` e validados no navegador com assets `24 × 24px` carregados.
+- Brilho dos cards de PreviousRounds esticado com o asset original e validado em `375px`: largura `287px` dentro do card de `335px`, deixando exatamente `24px` em cada lateral.
+- PulseFooter validado em `375px`: padding superior `40px`, margens laterais `16px`, card com `328px` de altura, padding interno `16px`, gap `20px` e descrição em quatro linhas.
+- Responsividade do footer validada em `320px` e `499px`: cards de `288px` e `467px`, respectivamente, sem overflow horizontal; descrição cresce e reduz naturalmente conforme a largura. Console sem erros ou avisos.
+- Navbar validada em `375px`: altura `58px`, margem lateral `16px`, distância inferior `8px`, três itens de `46px` e Home ativo.
+- Navbar permaneceu fixa com `scrollY=600`; responsividade validada em `320px` e `499px`, com larguras de `288px` e `467px`, sem overflow ou truncamento dos labels. Console sem erros ou avisos.
+- Fade inferior da Navbar validado a `375px`: pseudo-elemento de `98px`, gradiente preto de `100%` para transparente, cobrindo até a borda inferior da viewport e permanecendo fixo durante o scroll. Console sem erros ou avisos.
+- MarketChoice validado em `375px`: altura `40px`, margem lateral `16px`, gap interno `8px`, botões iguais e distância exata de `8px` para a navbar.
+- MarketChoice permaneceu fixo com `scrollY=600`; responsividade validada em `320px` e `499px`, com botões de `140px` e `229.5px`, sem overflow horizontal ou de conteúdo. Console sem erros ou avisos.
+- Fechamento acelerado validado a `375px`: `Cerrando ronda…` usa `Background/backgroundPrimGradStart` (`#191919`) e borda `0`; ao chegar em `00:00`, o card grande de resultado não existe mais.
+- Toast vencedor validado a `375px` em `?previewRoundResult=won`: `Ganaste $149.25`, topo em `12px`, altura de `45px`, ícone `16 × 16px`, fundo `#04110C`, borda `#34D399`, raio `56px` e saída concluída após `4s + 300ms`. Nenhum erro de página foi registrado.
+- Entrada da nova rodada validada a `430px` em `?previewRoundResult=won&demo=toast`: aos `00:00`, o snapshot entrou imediatamente na primeira posição, a lista permaneceu limitada a 10 cards e o trilho ficou em `scrollLeft=0`. A animação iniciou em `translateX(-40px) scale(0.98)`, opacidade `0,16` e recorte horizontal completo; no ápice, o card estava quase totalmente revelado, com badge `Nueva`, borda verde a 72%, brilho interno a 20% e sweep ativo; após o ciclo, badge e sweep ficaram invisíveis, a borda retornou a 12%, o transform ficou neutro e a mensagem acessível permaneceu `Nueva ronda añadida. Resultado: arriba.`. Console sem erros.
+- BuyBetslip expandido validado em `375px`: card responsivo com `16px` laterais, `242px` de altura e distância de `8px` para a Navbar; UP e DOWN abrem com cor, preço médio e ganho correspondentes.
+- Teclado do nó `244:3941` validado com `160px` e quatro linhas de `40px`; ao abrir, o card chega a `403px`. Entrada `25`, exclusão, `Hecho` e recálculo para `$37,31` foram exercitados no navegador.
+- Estado recolhido do nó `244:4222` validado com `56px`, distância de `8px` para a Navbar e reabertura por toque. A confirmação acessível por teclado exercitou o mesmo caminho final do swipe.
+- Responsividade validada em `320px` e `499px`, com larguras de `288px` e `467px`, sem overflow. O bloqueio `MobileOnly` permanece ativo a partir de `500px`.
+- Console do navegador sem erros ou avisos de aplicação.
+- PriceChart validado a `375px`: posição logo após a pilha de mercado, largura `375px`, altura `256px`, seguido imediatamente por `PreviousRounds` e sem overflow horizontal.
+- Atualização dinâmica validada no navegador: o valor visível mudou de `$80,208.472` para `$80,208.714` após um novo ponto simulado.
+- Responsividade do PriceChart validada a `499px`: largura `499px`, altura preservada em `256px`, bloqueio mobile oculto e console sem erros ou avisos.
+- Sincronização mais recente do PriceChart validada a `375px`: fundo computado transparente, indicador com opacidade `1`, dimensões `375 × 256px`, sem overflow e sem erros no console.
+- Correção visual do gráfico validada a `375px`: a linha e a área usam máscara lateral para transparência, o overlay preto anterior não existe mais, o indicador possui somente dois paths sem retângulo de fundo e a animação dos chevrons permanece ativa. Console sem erros ou avisos.
+- Fade lateral refinado e validado a `375px`: largura `96px`, 11 níveis de opacidade seguindo uma curva suave, sem overlay legado, sem overflow e sem linha vertical perceptível no preenchimento. Console sem erros ou avisos.
+- Zona limpa revisada e validada a `375px`: as três máscaras usam um recorte quadrado preto de `30 × 30px`, sem círculos; o glyph contém apenas os dois chevrons, sem outline ou borda, e o gráfico permanece com `375 × 256px` e sem overflow horizontal.
+- Fade sequencial dos chevrons validado a `375px`: quatro atualizações consecutivas atingiram opacidade entre `0,85` e `1`; uma sequência UP passou de `0` para `0,98` e recebeu a atualização seguinte após `784ms`, enquanto DOWN atingiu `0,87` e terminou com `data-direction-visible=false`. O segundo chevron inicia `120ms` depois do primeiro e o ciclo reinicia por sequência.
+- Dados reais validados a `375px`: rodada `btc-updown-15m-1788202800`, preço objetivo `$79,000.54`, preço atual `$79,159.23`, ambos com status `live`; o valor atual mudou para `$79,167.94` sem recarregar.
+- Timer real validado no navegador: passou de `06:05` para `05:51`; a exibição fixa em `America/New_York` usada naquele teste foi posteriormente substituída pelo fuso local do dispositivo.
+- Série real do gráfico validada: cresceu de 25 para 39 pontos, atualizou o valor visível e manteve largura de `375px` sem overflow.
+- Reconexão forçada validada em modo de desenvolvimento: status passou por `reconnecting` e voltou a `live` após o próximo pacote Chainlink, preservando e retomando a série.
+- Proxy local validado para a rodada atual: retornou `openPrice: 79000.54393019216`, o mesmo valor bruto renderizado em `Precio objetivo`.
+- Responsividade dos dados reais validada em `499px`: bloqueio mobile permaneceu oculto, largura do documento e gráfico em `499px`, feed `live` e 18 pontos recebidos, sem overflow horizontal.
+- Indicador de movimento validado a `375px`: a sequência visual permanece ativa até o fim de seu próprio ciclo, independentemente do término do preço; o recorte quadrado de `30px` continua permanente e impede que linha, área e tracejados reapareçam atrás do espaço da seta.
+- Sincronização do preço atual validada a `375px` durante uma atualização real: 10 frames consecutivos da transição compartilhada apresentaram igualdade exata entre os valores numéricos e formatados do card e da etiqueta do gráfico; a seta agora usa ciclo independente.
+- Tooltip do gráfico validado a `375px`: nenhum elemento SVG `title` nem atributo HTML `title` permanece no componente; o SVG conserva `aria-label="Precio en tiempo real"` e uma descrição acessível.
+- Entradas simuladas do gráfico validadas a `375px`: UP apareceu como `+$40` em `rgb(52, 211, 153)` e percorreu 28 amostras de `y=170,84` até `y=58,47`; DOWN apareceu em `rgb(248, 113, 113)` e subiu de `y=167,65` para `y=121,14` nas 12 amostras observadas. O feed BTC permaneceu `live`, com 30 pontos reais e sem overflow horizontal.
+- Atualização após a virada corrigida e validada a `375px`: preço atual e gráfico apareceram como `live` no primeiro pacote recebido, com idade de `418ms`; após `2,2s`, o valor mudou novamente, o gráfico passou de 1 para 2 pontos e a idade do último recebimento permaneceu em `653ms`.
+- `PreviousRounds` real validado a `375px`: status `live`, 10 cards renderizados e largura total rolável de `3454px`, mantendo `375px` de viewport sem overflow da página. A primeira rodada `15:15 - 15:30` exibiu `$79,173.74` → `$79,079.86`, resultado DOWN; a décima `13:00 - 13:15` exibiu `$78,620.60` → `$78,719.56`, resultado UP.
+- Responsividade das 10 rodadas reais validada em `499px`: card de `459px`, exatamente `24px` livres à direita e nenhum overflow horizontal da página.
+- Stroke interno de `PreviousRounds` validado a `375px` e `499px`: card preservou `335px`/`459px` de largura, `96px` de altura, `24px` livres à direita e camada interna em `rgba(251, 251, 251, 0.12)`, sem overflow horizontal.
+- Os valores brutos da primeira rodada foram comparados diretamente com a resposta da fonte: `openPrice: 79173.74234981783`, `closePrice: 79079.85742148713` e `completed: true`.
+- Densidade do gráfico validada a `375px`: 7 linhas e 7 rótulos horizontais em `256px`, com referências-base em intervalos de `$2,50` e faixa total de `$15`; o rótulo alinhado ao marcador atual permanece no SVG atrás da etiqueta. O eixo temporal apresentou diferenças exatas de `5.000ms` entre as marcações. Gráfico, documento e viewport conservaram `375px`, sem overflow horizontal.
+- Persistência dos rótulos validada com o feed real a `375px`: os 7 números permaneceram presentes; o nível `$78,810.00`, a apenas `8,64px` do marcador atual, continuou renderizado atrás da etiqueta, enquanto gráfico, documento e viewport mantiveram `375px` sem overflow.
+- Reenquadramento por tendência validado com o feed real a `375px`: durante uma alta curta, o domínio passou de `$78.890–$78.920` para `$78.900–$78.930`, deslocando exatamente dois intervalos de `$5` para cima. A grade permaneceu com 7 níveis, gráfico e documento conservaram `375px` e não houve overflow horizontal; a queda usa a mesma regra simétrica para baixo.
+- Entrada dos novos níveis validada com o feed real a `375px`: durante uma atualização do domínio em `$2,50`, os dois níveis acrescentados (`$78,835.00` e `$78,832.50`) iniciaram com `opacity: 0` na animação de `280ms`, enquanto os cinco níveis reaproveitados permaneceram em `opacity: 1` e apenas receberam a transição de posição. A grade conservou 7 rótulos e `375px` de largura sem overflow.
+- Fuso local validado a `375px`: o navegador identificou `America/Sao_Paulo`; SubHeader exibiu `16:30 - 16:45`, a rodada anterior `16:15 - 16:30` e o eixo do gráfico `16:42:08`, todos no mesmo fuso, sem alterar o ciclo UTC real das rodadas.
+- Mercado UP/DOWN real validado no navegador: o slug `btc-updown-15m-1788216300` publicou UP `12,5%` e DOWN `87,5%`, com 87/12 níveis de asks e 12/87 níveis de bids; os valores continuaram mudando pelo WebSocket sem recarregar.
+- VWAP validado nos fluxos: `$100` em UP consumiu múltiplos níveis e exibiu preço médio/participações dinâmicos; os três valores de `Un toque` produziram resultados diferentes pela própria profundidade; venda recalculou `Precio promedio` e `Monto a recibir` pelos bids.
+- Loading e congelamento exercitados em `Un toque`: todos os controles ficaram bloqueados e o toast reutilizou exatamente as participações e o preço médio da cotação capturada antes dos dois segundos.
+- Liquidez insuficiente exercitada com `$99.999`: `Precio promedio` e `Ganancia` passaram para `—`, o texto mudou para `Cotización no disponible` e o swipe ficou desabilitado.
+- Virada real observada: próximo do fechamento o livro sem cotação válida mostrou `—`; na troca, o slug passou para `btc-updown-15m-1788217200` e somente depois de novos snapshots voltou a `live`, sem reutilizar os preços anteriores.
+- Betslip real validado em `320px`, `375px` e `499px`: largura acompanhou exatamente o viewport, documento sem overflow horizontal e operação disponível apenas com cotação completa.
+- Venda zerada validada na rodada `btc-updown-15m-1788218100`: UP e DOWN começaram com `0 participaciones`, `Precio promedio` e `Monto a recibir` ficaram em `—`, e o swipe exibiu `No tienes participaciones para vender` desabilitado.
+- Entrada da compra em venda validada no navegador: uma compra de `$10` em UP resultou em `19,21` participações disponíveis somente em UP, manteve DOWN em `0` e liberou o swipe de venda com preço médio de `$51¢` e recebimento estimado de `$9,80` pelos bids daquele snapshot.
+- Confirmação de venda validada com arraste real: durante `Preparando tu venta`, o swipe ficou em loading, a aplicação recebeu `inert` e o betslip permaneceu expandido. Após `2s`, o betslip foi desmontado e o toaster exibiu `¡VENTA EN UP!`, `$9,80 Monto recibido`, `19,61` participações vendidas e preço médio de `50¢` do snapshot congelado.
+- Baixa da posição validada após o toaster: ao reabrir `Vender`, UP e DOWN estavam em `0`, o betslip continuou expandido e o swipe voltou a `No tienes participaciones para vender`, desabilitado.
+- Carteira validada no navegador a `430 × 832px`: `?resetWallet=1` restaurou `$2,000.00`, removeu o parâmetro da URL e o header expôs `200000` centavos.
+- Compra de `$100` em UP descontou o saldo para `$1,900.00`, exibiu o toast com a cotação congelada e restaurou saldo e `116,18` participações após F5.
+- Venda total das `116,18` participações creditou o `grossValue` de `$16.18`, atualizando o saldo para `$1,916.18` e o toast para `Monto recibido`.
+- Saldo insuficiente validado com `$99,999`: o controle exibiu `Saldo insuficiente` e permaneceu desabilitado, sem alterar a carteira.
+- Vitória demonstrativa validada: após `00:05`, o saldo passou de `$2,000.00` para `$2,149.25`; um novo F5 repetiu o toast, mas manteve `$2,149.25`, comprovando crédito único por rodada.
+- Sincronização entre abas validada: reset atualizou ambas para `$2,000.00` e uma compra subsequente atualizou ambas para `$1,900.00`. O protótipo foi restaurado ao saldo inicial ao fim da validação.
+- Nova aba limpa carregou sem erros ou avisos no console.
+- Indicador de entrada ativa validado a `430 × 832px`: começou ausente, apareceu após compra de `$100` em UP, usou `8 × 8px`, `rgb(248, 113, 113)` e animação `navbar-live-pulse` de `1,6s`, permaneceu após F5 e desapareceu após a venda total. O estado de teste foi limpo para `$2,000.00` e uma nova aba carregou sem erros ou avisos.
 
-## Pendências
+## Pendências e riscos
 
-- Apresentar a documentação para revisão antes de Pull Request, merge ou publicação.
+- O controle automatizado do navegador não oferece gesto de arraste contínuo; o swipe foi validado pelo caminho equivalente de teclado e sua implementação mantém os eventos de ponteiro e o limiar de 60% da referência do Draftaco.
+- Falta comparar capturas do bloqueio completo nos viewports de `499px` e `500px`; até isso acontecer, `design-qa.md` permanece bloqueado.
+- O proxy de produção foi implementado, mas a publicação do Worker depende de uma conta Cloudflare com `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` configurados no GitHub. Sem isso, o Pages continua funcional pela contingência silenciosa, porém sem o alvo oficial da Polymarket.
+- Neste computador, `wrangler whoami` confirmou ausência de sessão Cloudflare e o GitHub CLI informou token expirado para `design-draftea`; o acesso Git por SSH ao mesmo repositório permanece válido.
+- Compra, venda e saldo continuam simulados e persistem somente no navegador; taxas taker não entram no VWAP. Durante falha da Polymarket, preços UP/DOWN e profundidade também são sintéticos e existem apenas para continuidade do protótipo.
+- Repetir a observação dos snapshots reais do CLOB quando o ambiente voltar a resolver `polymarket.com` e `gamma-api.polymarket.com`; nesta sessão somente o caminho resiliente local pôde ser exercitado de ponta a ponta.
+- Pull Request, merge e deploy ainda precisam ser confirmados após a validação local desta tarefa.
 
 ## Próximo passo
 
-- Validar os documentos e decidir o primeiro fluxo de predictions a ser explorado.
-
-## Modelo para o próximo handoff
-
-- Atualizado em:
-- Agente que entrega:
-- Agente esperado a seguir:
-- Status: em andamento | bloqueado | pronto para revisão | concluído
-- Objetivo:
-- Critérios de aceite:
-- Branch/worktree:
-- Arquivos alterados:
-- Decisões tomadas:
-- Validações executadas e resultados:
-- Pendências ou riscos:
-- Próximo passo concreto:
+- Executar a suíte completa, validar o build em `/pulse/`, verificar autenticação do GitHub/Cloudflare e então publicar somente as etapas autorizadas. Antes de transformar o protótipo em produto, definir backend, autenticação, carteira real, taxas e envio de ordens.

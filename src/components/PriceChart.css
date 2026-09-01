@@ -1,0 +1,214 @@
+.price-chart {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 256px;
+  margin: 0;
+  overflow: hidden;
+  color: #fbfbfb;
+  background: transparent;
+  font-feature-settings:
+    'lnum' 1,
+    'tnum' 1;
+}
+
+.price-chart__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.price-chart__grid-tick {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.price-chart__grid line {
+  stroke: rgba(251, 251, 251, 0.11);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.price-chart__grid text,
+.price-chart__time-axis text {
+  fill: rgba(251, 251, 251, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.price-chart__time-axis text {
+  font-size: 10px;
+}
+
+.price-chart__time-axis line {
+  stroke: rgba(251, 251, 251, 0.45);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.price-chart__time-tick {
+  will-change: opacity;
+}
+
+.price-chart__line {
+  fill: none;
+  stroke: #fbfbfb;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.price-chart__current-line {
+  stroke: rgba(251, 251, 251, 0.55);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.price-chart__point-halo {
+  fill: rgba(251, 251, 251, 0.08);
+  stroke: rgba(251, 251, 251, 0.2);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: price-chart-pulse 2s ease-out infinite;
+}
+
+.price-chart__point-ring {
+  fill: #111;
+  stroke: rgba(251, 251, 251, 0.55);
+  stroke-width: 1;
+}
+
+.price-chart__point {
+  fill: #fbfbfb;
+}
+
+.price-chart__direction {
+  pointer-events: none;
+}
+
+.price-chart__direction-state {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.price-chart__direction-state--down {
+  transform: rotate(180deg);
+}
+
+.price-chart__direction-state--active {
+  opacity: 1;
+}
+
+.price-chart__direction-chevron {
+  fill: none;
+  stroke: rgba(251, 251, 251, 0.5);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: price-chart-chevron-flow 620ms ease-in-out both;
+}
+
+.price-chart__direction-chevron--second {
+  animation-delay: 120ms;
+}
+
+.price-chart__current-label text {
+  fill: #fbfbfb;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.price-chart__entry {
+  will-change: transform, opacity;
+}
+
+.price-chart__entry text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.price-chart__entry--up text {
+  fill: #34d399;
+}
+
+.price-chart__entry--down text {
+  fill: #f87171;
+}
+
+.price-chart__live-value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.price-chart--empty {
+  display: grid;
+  min-height: 256px;
+  place-items: center;
+  color: rgba(251, 251, 251, 0.5);
+  font-size: 12px;
+}
+
+@keyframes price-chart-pulse {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.75);
+  }
+
+  65%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes price-chart-chevron-flow {
+  0%,
+  12%,
+  100% {
+    opacity: 0;
+    transform: translateY(1.5px);
+  }
+
+  34% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  56% {
+    opacity: 0.85;
+    transform: translateY(-0.5px);
+  }
+
+  82% {
+    opacity: 0;
+    transform: translateY(-1.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-chart__point-halo {
+    animation: none;
+  }
+
+  .price-chart__direction-chevron {
+    opacity: 1;
+    animation: none;
+  }
+}
