@@ -23,7 +23,7 @@
   -webkit-backdrop-filter: blur(8px);
   cursor: pointer;
   pointer-events: auto;
-  animation: movement-detail-modal-overlay-enter 200ms ease-out both;
+  animation: movement-detail-modal-overlay-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .movement-detail-modal {
@@ -44,7 +44,7 @@
   font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
   pointer-events: auto;
   transform-origin: center;
-  animation: movement-detail-modal-enter 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: movement-detail-modal-enter 360ms cubic-bezier(0.16, 1, 0.3, 1) 24ms both;
   will-change: opacity, transform;
 }
 
@@ -235,12 +235,20 @@
 }
 
 @keyframes movement-detail-modal-enter {
-  from {
+  0% {
     opacity: 0;
-    transform: translate3d(0, 12px, 0) scale(0.94);
+    transform: translate3d(0, 10px, 0) scale(0.975);
   }
 
-  to {
+  48% {
+    opacity: 1;
+  }
+
+  76% {
+    transform: translate3d(0, -1px, 0) scale(1.004);
+  }
+
+  100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
@@ -261,6 +269,7 @@
 @media (prefers-reduced-motion: reduce) {
   .movement-detail-modal,
   .movement-detail-modal__overlay {
+    animation-delay: 0ms;
     animation-duration: 1ms;
   }
 }
