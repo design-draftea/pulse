@@ -61,6 +61,7 @@ const balanceFormatter = new Intl.NumberFormat('en-US', {
 
 function App() {
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
+  const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(null)
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false)
   const [purchaseSuccess, setPurchaseSuccess] = useState<
@@ -98,6 +99,7 @@ function App() {
     ROUND_RESULT_PREVIEW_MODE ? ROUND_RESULT_PREVIEW_SECONDS : null
   ))
   const [pendingSettlementRetry, setPendingSettlementRetry] = useState(0)
+  const marketHeaderSlotRef = useRef<HTMLDivElement>(null)
   const roundSnapshotRef = useRef({
     roundStart: marketRound.roundStart,
     targetPrice: marketRound.targetPrice,
@@ -115,6 +117,9 @@ function App() {
 
   useEffect(() => {
     const updateMarketHeaderState = () => {
+      setIsMarketHeaderPinned(
+        (marketHeaderSlotRef.current?.getBoundingClientRect().top ?? 1) <= 0,
+      )
       setIsMarketHeaderCompact(
         window.scrollY >= MARKET_HEADER_COMPACT_SCROLL_Y,
       )
@@ -378,9 +383,9 @@ function App() {
         <div className="pulse-app__background" aria-hidden="true" />
 
         <Header balance={formattedBalance} balanceCents={balanceCents} />
-        <div className="pulse-app__market-header-slot">
+        <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">
           <div
-            className={`pulse-app__market-header${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
+            className={`pulse-app__market-header${isMarketHeaderPinned ? ' pulse-app__market-header--pinned' : ''}${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
             data-round-slug={marketRound.roundSlug}
             data-target-status={marketRound.targetStatus}
             data-target-source={marketRound.targetSource ?? ''}

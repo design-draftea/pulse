@@ -32,7 +32,7 @@
   pointer-events: auto;
 }
 
-.pulse-app__market-header::before {
+.pulse-app__market-header--pinned::before {
   position: absolute;
   z-index: -1;
   inset: 0;
