@@ -27,16 +27,15 @@ export function MobileOnly() {
           </svg>
         </div>
 
-        <h1 className="mobile-only__title">Versão Mobile Only</h1>
+        <h1 className="mobile-only__title">Versión solo móvil</h1>
 
         <p className="mobile-only__description">
-          Esta aplicação foi desenhada exclusivamente para dispositivos móveis.
-          Por favor, reduza a largura do seu navegador ou acesse através do seu
-          celular.
+          Esta aplicación fue diseñada exclusivamente para dispositivos móviles.
+          Por favor, reduce el ancho de tu navegador o entra desde tu celular.
         </p>
 
         <span className="mobile-only__hint">
-          Largura máxima suportada: 499px
+          Ancho máximo compatible: 499px
         </span>
       </div>
     </div>

@@ -94,6 +94,15 @@ const timeFormatter = new Intl.DateTimeFormat('es-MX', {
   minute: '2-digit',
   hour12: false,
 })
+const ENTRY_SIDE_ORDER: Record<OutcomeSide, number> = { down: 0, up: 1 }
+
+export interface OpenEntryExit {
+  side: OutcomeSide
+  position: PrototypeWalletPosition
+  costBasis: PrototypeWalletCostBasis
+  isLeaving: boolean
+}
+
 const TAB_FADE_OUT_MS = 110
 const TAB_FADE_IN_MS = 180
 type EntriesTab = 'open' | 'won' | 'past'
@@ -111,6 +120,8 @@ interface EntryCardProps {
   seconds: string
   targetPrice: number | null
   currentPrice: number | null
+  isLeaving?: boolean
+  onLeaveEnd?: () => void
   onViewMarket: () => void
   onSell: (side: OutcomeSide) => void
 }
@@ -123,6 +134,8 @@ function EntryCard({
   seconds,
   targetPrice,
   currentPrice,
+  isLeaving = false,
+  onLeaveEnd,
   onViewMarket,
   onSell,
 }: EntryCardProps) {
@@ -134,8 +147,14 @@ function EntryCard({
 
   return (
     <article
-      className="open-entry-card"
+      className={`open-entry-card${isLeaving ? ' open-entry-card--leaving' : ''}`}
       data-entry-side={entry.side}
+      onAnimationEnd={(event) => {
+        if (event.target !== event.currentTarget
+          || event.animationName !== 'open-entry-card-leave') return
+
+        onLeaveEnd?.()
+      }}
       data-node-id={entry.side === 'down' ? '383:8508' : '383:9204'}
     >
       <img
@@ -235,7 +254,15 @@ function SettledEntryCard({ entry }: { entry: PrototypeWalletSettledEntry }) {
     : entry.outcome === 'lost'
       ? entry.side === 'up' ? 'down' : 'up'
       : entry.side
-  const statusLabel = entry.outcome === 'lost' ? 'NO GANADOR' : 'CANCELADO'
+  const isSold = entry.outcome === 'sold'
+  // Numa saída antecipada o preço relevante é o da execução da venda, e não o
+  // preço médio de compra mostrado nas demais entradas.
+  const salePriceCents = isSold && entry.participations > 0
+    ? entry.payoutCents / entry.participations
+    : 0
+  const statusLabel = entry.outcome === 'lost'
+    ? 'NO GANADOR'
+    : isSold ? 'VENTA' : 'CANCELADO'
 
   return (
     <article
@@ -267,7 +294,11 @@ function SettledEntryCard({ entry }: { entry: PrototypeWalletSettledEntry }) {
             Monto:{' '}
             <strong>{amountFormatter.format(entry.amountCents / 100)}</strong>
           </span>
-          <span>Precio promedio {Math.round(averagePriceCents)}¢</span>
+          <span>
+            {isSold
+              ? `Precio de venta ${Math.round(salePriceCents)}¢`
+              : `Precio promedio ${Math.round(averagePriceCents)}¢`}
+          </span>
         </div>
       </header>
 
@@ -282,7 +313,7 @@ function SettledEntryCard({ entry }: { entry: PrototypeWalletSettledEntry }) {
 
         <div className="won-entry-card__position">
           <strong>
-            COMPRA EN{' '}
+            {isSold ? 'VENTA EN' : 'COMPRA EN'}{' '}
             <span className={`open-entry-card__side--${entry.side}`}>
               {entry.side.toUpperCase()}
             </span>
@@ -295,16 +326,22 @@ function SettledEntryCard({ entry }: { entry: PrototypeWalletSettledEntry }) {
             <span>Precio objetivo</span>
             <strong>{formatPrice(entry.targetPrice)}</strong>
           </div>
-          <div className="won-entry-card__final-price">
-            <span>Precio final</span>
-            <strong>{formatPrice(entry.finalPrice)}</strong>
-          </div>
-          <span className={`won-entry-card__result won-entry-card__result--${resultSide}`}>
-            <img
-              src={resultSide === 'up' ? iconDoubleChevronsUp : iconDoubleChevronsDown}
-              alt={resultSide === 'up' ? 'Resultado arriba' : 'Resultado abajo'}
-            />
-          </span>
+          {!isSold && (
+            <div className="won-entry-card__final-price">
+              <span>Precio final</span>
+              <strong>{formatPrice(entry.finalPrice)}</strong>
+            </div>
+          )}
+          {/* Numa saída antecipada a rodada não tem resultado para indicar, e o
+              chevron leria como se o lado da entrada tivesse vencido. */}
+          {!isSold && (
+            <span className={`won-entry-card__result won-entry-card__result--${resultSide}`}>
+              <img
+                src={resultSide === 'up' ? iconDoubleChevronsUp : iconDoubleChevronsDown}
+                alt={resultSide === 'up' ? 'Resultado arriba' : 'Resultado abajo'}
+              />
+            </span>
+          )}
         </div>
       </div>
     </article>
@@ -321,6 +358,8 @@ interface OpenEntriesProps {
   targetPrice: number | null
   currentPrice: number | null
   settledEntries: PrototypeWalletSettledEntry[]
+  exitingEntry?: OpenEntryExit | null
+  onExitEnd?: () => void
   onViewMarket: () => void
   onSell: (side: OutcomeSide) => void
 }
@@ -335,6 +374,8 @@ export function OpenEntries({
   targetPrice,
   currentPrice,
   settledEntries,
+  exitingEntry,
+  onExitEnd,
   onViewMarket,
   onSell,
 }: OpenEntriesProps) {
@@ -344,7 +385,17 @@ export function OpenEntries({
   const tabsRef = useRef<HTMLDivElement>(null)
   const tabSwapTimerRef = useRef<number | null>(null)
   const tabSettleTimerRef = useRef<number | null>(null)
-  const entries = getOpenEntrySummaries(position, costBasis)
+  const liveEntries = getOpenEntrySummaries(position, costBasis)
+  // O instantâneo anterior à venda mantém o card na lista enquanto a carteira
+  // já está atualizada, e sai da lista só ao fim da animação de saída.
+  const heldEntry = exitingEntry
+    ? getOpenEntrySummaries(exitingEntry.position, exitingEntry.costBasis)
+      .find(({ side }) => side === exitingEntry.side) ?? null
+    : null
+  const entries = heldEntry
+    ? [...liveEntries, heldEntry]
+      .toSorted((left, right) => ENTRY_SIDE_ORDER[left.side] - ENTRY_SIDE_ORDER[right.side])
+    : liveEntries
   const visibleSettledEntries = ENTRIES_PREVIEW_MODE === 'past'
     ? PAST_ENTRIES_PREVIEW
     : ENTRIES_PREVIEW_MODE === 'won' && settledEntries.length === 0
@@ -459,6 +510,9 @@ export function OpenEntries({
             seconds={seconds}
             targetPrice={targetPrice}
             currentPrice={currentPrice}
+            isLeaving={exitingEntry?.isLeaving === true
+              && exitingEntry.side === entry.side}
+            onLeaveEnd={onExitEnd}
             onViewMarket={onViewMarket}
             onSell={onSell}
             key={entry.side}

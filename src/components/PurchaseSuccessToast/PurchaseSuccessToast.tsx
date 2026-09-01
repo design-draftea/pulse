@@ -8,7 +8,6 @@ const TOAST_VISIBLE_MS = 4000
 const TOAST_EXIT_MS = 300
 const TOAST_FRAME_STROKE_WIDTH_PX = 4
 const TOAST_FRAME_CORNER_RADIUS_PX = 24
-const TOAST_FRAME_NOTCH_CENTER_Y_PX = 60
 const TOAST_FRAME_NOTCH_RADIUS_PX = 15
 
 interface ToastFrameSize {
@@ -33,9 +32,11 @@ const getToastFramePath = ({ height, width }: ToastFrameSize) => {
     TOAST_FRAME_NOTCH_RADIUS_PX,
     Math.max(0, (bottom - top - cornerRadius * 2) / 2),
   )
+  // A dobra acompanha o centro vertical do quadro medido. Uma posição fixa
+  // ficava acima do meio e passava a divergir a cada mudança de altura.
   const notchCenterY = Math.min(
     Math.max(
-      TOAST_FRAME_NOTCH_CENTER_Y_PX,
+      (top + bottom) / 2,
       top + cornerRadius + notchRadius,
     ),
     bottom - cornerRadius - notchRadius,
@@ -176,7 +177,7 @@ export function PurchaseSuccessToast({
   const participations = participationFormatter.format(details.participations)
   const averagePriceCents = Math.round(details.averagePrice * 100)
   const ariaLabel = isSale
-    ? `Venta en ${direction} confirmada. Monto recibido ${primaryAmount}. Participaciones ${participations}.`
+    ? `Venta en ${direction} confirmada. Monto recibido ${primaryAmount}. Precio de venta ${averagePriceCents} centavos. Participaciones ${participations}.`
     : `Compra en ${direction} confirmada. Ganancia potencial ${primaryAmount}. Monto ${amount}. Precio promedio ${averagePriceCents} centavos.`
 
   return (
@@ -207,14 +208,15 @@ export function PurchaseSuccessToast({
             <div className="purchase-success-toast__details">
               {isSale ? (
                 <>
-                  <span>Participaciones vendidas: {participations}</span>
-                  <span>Precio promedio: {averagePriceCents}¢</span>
+                  <span>Precio de venta {averagePriceCents}¢</span>
+                  <span>Participaciones: {participations}</span>
                 </>
               ) : (
                 <>
                   <span>Monto: {amount}</span>
-                  <span>Participaciones: {participations}</span>
-                  <span>Precio promedio: {averagePriceCents}¢</span>
+                  <span>
+                    Participaciones: {participations} - {averagePriceCents}¢
+                  </span>
                 </>
               )}
             </div>

@@ -51,7 +51,12 @@ import {
   fetchCompletedBtcRound,
   getBtcRoundSlug,
 } from './services/marketData'
-import { getWalletProfileMetrics } from './services/prototypeWallet'
+import {
+  getWalletPosition,
+  getWalletProfileMetrics,
+  type PrototypeWalletCostBasis,
+  type PrototypeWalletPosition,
+} from './services/prototypeWallet'
 import './App.css'
 
 const MARKET_HEADER_COMPACT_SCROLL_Y = 80
@@ -98,6 +103,16 @@ const getAppSection = (): AppSection => {
   if (window.location.hash === MOVEMENTS_HASH) return 'movements'
   if (window.location.hash === ENTRIES_HASH) return 'entries'
   return 'home'
+}
+
+// O topo é reafirmado no frame seguinte porque a rota anterior deixa o fluxo no
+// mesmo instante do reset: a altura do documento encolhe logo depois da
+// chamada síncrona e o Chrome do iOS reaplica o deslocamento anterior.
+const resetScrollTop = () => {
+  window.scrollTo({ top: 0, left: 0 })
+  window.requestAnimationFrame(() => {
+    if (window.scrollY !== 0) window.scrollTo({ top: 0, left: 0 })
+  })
 }
 
 function App() {
@@ -184,6 +199,15 @@ function App() {
     ROUND_RESULT_PREVIEW_MODE ? ROUND_RESULT_PREVIEW_SECONDS : null
   ))
   const [pendingSettlementRetry, setPendingSettlementRetry] = useState(0)
+  // A carteira muda no início da confirmação da venda, então a posição zera
+  // cerca de 2,3s antes do aviso de sucesso. O card fica retido com este
+  // instantâneo até o aviso aparecer, e só então sai animado.
+  const [saleExit, setSaleExit] = useState<{
+    side: MarketSide
+    position: PrototypeWalletPosition
+    costBasis: PrototypeWalletCostBasis
+    isLeaving: boolean
+  } | null>(null)
   const activeSectionRef = useRef(activeSection)
   const pageTransitionRef = useRef<PageTransitionState | null>(null)
   const pageTransitionTimerRef = useRef<number | null>(null)
@@ -205,7 +229,7 @@ function App() {
 
   const commitSectionChange = useCallback((nextSection: AppSection) => {
     activeSectionRef.current = nextSection
-    window.scrollTo({ top: 0, left: 0 })
+    resetScrollTop()
     if (nextSection === 'home') {
       setIsMarketHeaderCompact(false)
       setIsMarketHeaderPinned(false)
@@ -281,7 +305,7 @@ function App() {
     const currentTransition = pageTransitionRef.current
     if (!currentTransition || currentTransition.phase !== 'exiting') return
 
-    window.scrollTo({ top: 0, left: 0 })
+    resetScrollTop()
     if (currentTransition.target === 'home') {
       setIsMarketHeaderCompact(false)
       setIsMarketHeaderPinned(false)
@@ -316,6 +340,19 @@ function App() {
   useEffect(() => () => {
     if (pageTransitionTimerRef.current !== null) {
       window.clearTimeout(pageTransitionTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    // A Navbar navega por pushState e a aplicação reposiciona o scroll sozinha.
+    // Sem isto o navegador restaura o deslocamento salvo da entrada de
+    // histórico e desfaz o reset durante a transição.
+    if (!('scrollRestoration' in window.history)) return
+    const previousScrollRestoration = window.history.scrollRestoration
+
+    window.history.scrollRestoration = 'manual'
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration
     }
   }, [])
 
@@ -565,18 +602,52 @@ function App() {
   }, [marketRound.roundStart, purchase])
 
   const handleSaleExecute = useCallback((details: SaleSuccessDetails) => {
+    const positionBeforeSale = currentPosition
+    const costBasisBeforeSale = currentCostBasis
     const result = sell({
       roundStart: marketRound.roundStart,
       side: details.side,
       amountReceived: details.amountReceived,
       participations: details.participations,
+      targetPrice: marketRound.targetPrice,
     })
 
+    if (result.applied) {
+      const remaining = getWalletPosition(
+        result.state,
+        marketRound.roundStart,
+      )[details.side]
+
+      // Venda parcial mantém o card, apenas com números menores; só a venda
+      // total precisa da retenção, porque é a que faria o card sumir.
+      if (remaining <= 0) {
+        setSaleExit({
+          side: details.side,
+          position: positionBeforeSale,
+          costBasis: costBasisBeforeSale,
+          isLeaving: false,
+        })
+      }
+    }
+
     return result.applied
-  }, [marketRound.roundStart, sell])
+  }, [
+    currentCostBasis,
+    currentPosition,
+    marketRound.roundStart,
+    marketRound.targetPrice,
+    sell,
+  ])
+
+  const handleSaleExitEnd = useCallback(() => setSaleExit(null), [])
 
   const handleBetslipSuccess = useCallback((details: BetslipSuccessDetails) => {
     setPurchaseSuccess(details)
+    if (details.operation === 'sell') {
+      setSaleExit((current) => (
+        current ? { ...current, isLeaving: true } : null
+      ))
+    }
     setSelectedSide(null)
     setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
   }, [])
@@ -728,6 +799,8 @@ function App() {
               targetPrice={marketRound.targetPrice}
               currentPrice={animatedMarketPrice.value}
               settledEntries={settledEntries}
+              exitingEntry={saleExit}
+              onExitEnd={handleSaleExitEnd}
               onViewMarket={() => handleNavigate('home')}
               onSell={handleEntrySell}
             />
@@ -736,6 +809,13 @@ function App() {
   )
   const shouldShowHomeAction = activeSection === 'home'
     || pageTransition?.target === 'home'
+  const shouldShowEntriesAction = activeSection === 'entries'
+    || pageTransition?.target === 'entries'
+  // `Vender` em Entradas seleciona um lado, mas o betslip só era montado na
+  // Home, então o toque não abria nada. O controle de escolha UP/DOWN continua
+  // exclusivo da Home.
+  const shouldShowBetslip = selectedSide !== null
+    && (shouldShowHomeAction || shouldShowEntriesAction)
 
   return (
     <>
@@ -778,7 +858,7 @@ function App() {
           </div>
         </div>
 
-        {shouldShowHomeAction && (selectedSide ? (
+        {shouldShowBetslip ? (
           <BuyBetslip
             market={betslipMarket}
             side={selectedSide}
@@ -792,7 +872,7 @@ function App() {
             onSaleExecute={handleSaleExecute}
             onSuccess={handleBetslipSuccess}
           />
-        ) : (
+        ) : shouldShowHomeAction && (
           <MarketChoice
             isClosing={isRoundClosing}
             prices={LOCKED_MARKET_CHOICE_PREVIEW_MODE
@@ -801,7 +881,7 @@ function App() {
             roundSlug={outcomeMarket.roundSlug}
             onSelect={handleMarketSideSelect}
           />
-        ))}
+        )}
         <Navbar
           activeItem={pageTransition?.target ?? activeSection}
           hasActiveEntry={hasActiveEntry}

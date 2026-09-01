@@ -390,6 +390,17 @@ test('liquida somente as participações restantes do lado vencedor', () => {
     targetPrice: entry.targetPrice,
     finalPrice: entry.finalPrice,
   })), [
+    // A saída antecipada e a liquidação do restante são eventos distintos da
+    // mesma rodada, então convivem no histórico sem se sobrescrever.
+    {
+      side: 'up',
+      outcome: 'sold',
+      amountCents: 1_340,
+      participations: 20,
+      payoutCents: 2_000,
+      targetPrice: null,
+      finalPrice: null,
+    },
     {
       side: 'down',
       outcome: 'lost',
@@ -569,4 +580,68 @@ test('usa o custo da rodada atual quando a cotação de venda está indisponíve
     totalReceivedCents: 0,
     netResultCents: 0,
   })
+})
+
+test('vendas sucessivas acumulam numa única entrada vendida', () => {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountCents: 10_000,
+    participations: 100,
+  }).state
+  const partial = applyWalletSale(purchased, {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountReceivedCents: 3_333,
+    participations: 40,
+    targetPrice: 80_194.33,
+  })
+
+  // A parcial já realizou dinheiro, então entra no histórico de imediato.
+  assert.equal(partial.state.settledEntries.length, 1)
+  assert.equal(partial.state.settledEntries[0].participations, 40)
+  assert.equal(partial.state.settledEntries[0].payoutCents, 3_333)
+  assert.equal(partial.state.settledEntries[0].amountCents, 4_000)
+
+  const total = applyWalletSale(partial.state, {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountReceivedCents: 4_500,
+    participations: 60,
+    targetPrice: 80_194.33,
+  })
+
+  // A segunda venda soma na mesma entrada em vez de substituí-la.
+  assert.equal(total.state.settledEntries.length, 1)
+  const [sold] = total.state.settledEntries
+  assert.equal(sold.outcome, 'sold')
+  assert.equal(sold.side, 'up')
+  assert.equal(sold.participations, 100)
+  assert.equal(sold.payoutCents, 7_833)
+  assert.equal(sold.amountCents, 10_000)
+  assert.equal(sold.targetPrice, 80_194.33)
+  assert.equal(sold.finalPrice, null)
+
+  // O preço de venta exibido é a média ponderada das duas execuções.
+  assert.equal(Math.round(sold.payoutCents / sold.participations), 78)
+})
+
+test('entrada vendida sobrevive à serialização e dispensa preço objetivo', () => {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
+    roundStart: ROUND_START,
+    side: 'down',
+    amountCents: 4_000,
+    participations: 50,
+  }).state
+  const sold = applyWalletSale(purchased, {
+    roundStart: ROUND_START,
+    side: 'down',
+    amountReceivedCents: 5_000,
+    participations: 50,
+  }).state
+
+  assert.equal(sold.settledEntries[0].targetPrice, null)
+
+  const restored = deserializeWalletState(JSON.stringify(sold))
+  assert.deepEqual(restored.settledEntries, sold.settledEntries)
 })
