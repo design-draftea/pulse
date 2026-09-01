@@ -28,17 +28,20 @@
 }
 
 .pulse-app__route--outgoing {
-  position: fixed;
+  position: relative;
   z-index: 1;
-  top: 56px;
-  right: 0;
-  left: 0;
   pointer-events: none;
   will-change: opacity;
 }
 
 .pulse-app__route--incoming {
+  position: fixed;
   z-index: 2;
+  top: 56px;
+  right: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
   will-change: opacity;
 }
 
@@ -49,7 +52,23 @@
 
 .pulse-app__route--incoming.pulse-app__route--forward,
 .pulse-app__route--incoming.pulse-app__route--backward {
-  animation: pulse-route-fade-in 180ms 120ms ease-out both;
+  animation: none;
+}
+
+.pulse-app--page-transition-entering .pulse-app__route--outgoing {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  left: 0;
+}
+
+.pulse-app--page-transition-entering .pulse-app__route--incoming {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  pointer-events: auto;
+  animation: pulse-route-fade-in 180ms ease-out both;
 }
 
 .pulse-app__market-header-slot {
@@ -107,7 +126,16 @@
 
 .pulse-app--page-transition-backward .market-choice,
 .pulse-app--page-transition-backward .buy-betslip {
-  animation: pulse-home-action-fade-in 180ms 120ms ease-out both;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pulse-app--page-transition-backward.pulse-app--page-transition-entering
+  .market-choice,
+.pulse-app--page-transition-backward.pulse-app--page-transition-entering
+  .buy-betslip {
+  pointer-events: auto;
+  animation: pulse-home-action-fade-in 180ms ease-out both;
 }
 
 @keyframes pulse-route-fade-out {

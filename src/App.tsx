@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type AnimationEvent as ReactAnimationEvent,
   type CSSProperties,
 } from 'react'
 import {
@@ -56,7 +57,7 @@ const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
     === 'won'
 const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
-const PAGE_TRANSITION_MS = 300
+const PAGE_TRANSITION_FALLBACK_MS = 700
 const MOVEMENTS_HASH = '#movimientos'
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -67,9 +68,12 @@ const balanceFormatter = new Intl.NumberFormat('en-US', {
 
 type AppSection = 'home' | 'movements'
 type PageTransitionDirection = 'forward' | 'backward'
+type PageTransitionPhase = 'exiting' | 'entering'
 
 interface PageTransitionState {
   direction: PageTransitionDirection
+  phase: PageTransitionPhase
+  scrollY: number
   source: AppSection
   target: AppSection
 }
@@ -142,6 +146,15 @@ function App() {
     ? marketRound.seconds
     : String(previewRemainingSeconds).padStart(2, '0')
 
+  const commitSectionChange = useCallback((nextSection: AppSection) => {
+    activeSectionRef.current = nextSection
+    window.scrollTo({ top: 0, left: 0 })
+    setActiveSection(nextSection)
+    setSelectedSide(null)
+    setPurchaseSuccess(null)
+    setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
+  }, [])
+
   const transitionToSection = useCallback((nextSection: AppSection) => {
     const currentTransition = pageTransitionRef.current
 
@@ -153,7 +166,7 @@ function App() {
         }
         pageTransitionRef.current = null
         setPageTransition(null)
-        window.scrollTo({ top: 0, left: 0 })
+        window.scrollTo({ top: currentTransition.scrollY, left: 0 })
       }
       return
     }
@@ -164,42 +177,74 @@ function App() {
     const direction: PageTransitionDirection = nextSection === 'movements'
       ? 'forward'
       : 'backward'
-    const commitSectionChange = () => {
-      activeSectionRef.current = nextSection
-      window.scrollTo({ top: 0, left: 0 })
-      setActiveSection(nextSection)
-      setSelectedSide(null)
-      setPurchaseSuccess(null)
-      setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
-    }
     const prefersReducedMotion = window.matchMedia(
       '(prefers-reduced-motion: reduce)',
     ).matches
 
     if (prefersReducedMotion) {
-      commitSectionChange()
+      commitSectionChange(nextSection)
       return
     }
 
     const transition: PageTransitionState = {
       direction,
+      phase: 'exiting',
+      scrollY: window.scrollY,
       source: currentSection,
       target: nextSection,
     }
 
     pageTransitionRef.current = transition
     setPageTransition(transition)
-    window.scrollTo({ top: 0, left: 0 })
 
     pageTransitionTimerRef.current = window.setTimeout(() => {
-      if (pageTransitionRef.current !== transition) return
+      const current = pageTransitionRef.current
+      if (!current || current.source !== transition.source
+        || current.target !== transition.target) return
 
       pageTransitionTimerRef.current = null
       pageTransitionRef.current = null
-      commitSectionChange()
+      commitSectionChange(current.target)
       setPageTransition(null)
-    }, PAGE_TRANSITION_MS)
+    }, PAGE_TRANSITION_FALLBACK_MS)
+  }, [commitSectionChange])
+
+  const handleOutgoingRouteAnimationEnd = useCallback((
+    event: ReactAnimationEvent<HTMLDivElement>,
+  ) => {
+    if (event.target !== event.currentTarget
+      || event.animationName !== 'pulse-route-fade-out') return
+
+    const currentTransition = pageTransitionRef.current
+    if (!currentTransition || currentTransition.phase !== 'exiting') return
+
+    window.scrollTo({ top: 0, left: 0 })
+    const enteringTransition: PageTransitionState = {
+      ...currentTransition,
+      phase: 'entering',
+    }
+
+    pageTransitionRef.current = enteringTransition
+    setPageTransition(enteringTransition)
   }, [])
+
+  const handleIncomingRouteAnimationEnd = useCallback((
+    event: ReactAnimationEvent<HTMLDivElement>,
+  ) => {
+    if (event.target !== event.currentTarget
+      || event.animationName !== 'pulse-route-fade-in') return
+
+    const currentTransition = pageTransitionRef.current
+    if (!currentTransition || currentTransition.phase !== 'entering') return
+
+    if (pageTransitionTimerRef.current !== null) {
+      window.clearTimeout(pageTransitionTimerRef.current)
+      pageTransitionTimerRef.current = null
+    }
+    pageTransitionRef.current = null
+    commitSectionChange(currentTransition.target)
+    setPageTransition(null)
+  }, [commitSectionChange])
 
   useEffect(() => () => {
     if (pageTransitionTimerRef.current !== null) {
@@ -569,7 +614,7 @@ function App() {
   return (
     <>
       <div
-        className={`pulse-app pulse-app--${activeSection}${pageTransition ? ` pulse-app--page-transition-${pageTransition.direction}` : ''}${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
+        className={`pulse-app pulse-app--${activeSection}${pageTransition ? ` pulse-app--page-transition-${pageTransition.direction} pulse-app--page-transition-${pageTransition.phase}` : ''}${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
         style={appStyle}
         aria-busy={isPurchaseLoading}
         inert={isPurchaseLoading ? true : undefined}
@@ -585,6 +630,7 @@ function App() {
               aria-hidden="true"
               inert
               key={pageTransition.source}
+              onAnimationEnd={handleOutgoingRouteAnimationEnd}
             >
               {getSectionContent(pageTransition.source)}
             </div>
@@ -593,6 +639,9 @@ function App() {
             className={`pulse-app__route${pageTransition ? ` pulse-app__route--incoming pulse-app__route--${pageTransition.direction}` : ''}`}
             data-active-section={pageTransition?.target ?? activeSection}
             key={pageTransition?.target ?? activeSection}
+            onAnimationEnd={pageTransition
+              ? handleIncomingRouteAnimationEnd
+              : undefined}
           >
             {getSectionContent(pageTransition?.target ?? activeSection)}
           </div>
