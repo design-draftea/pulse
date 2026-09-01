@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import iconDoubleChevronsUp from '../../assets/iconDoubleChevronsUp.svg'
+import iconLock from '../../assets/iconLock.svg'
 import { usePresentedOutcomePrices } from '../../hooks/usePresentedQuotes'
 import './MarketChoice.css'
 
@@ -67,7 +68,7 @@ export function MarketChoice({
         ) : (
           <>
             <button
-              className={`market-choice__button market-choice__button--up${selectedSide === 'up' ? ' market-choice__button--selected' : ''}`}
+              className={`market-choice__button market-choice__button--up${presentedPrices.up === null ? ' market-choice__button--locked' : ''}${selectedSide === 'up' ? ' market-choice__button--selected' : ''}`}
               type="button"
               aria-pressed={selectedSide === 'up'}
               aria-label={presentedPrices.up === null
@@ -78,13 +79,17 @@ export function MarketChoice({
               tabIndex={selectedSide === null ? 0 : -1}
               onClick={() => selectSide('up')}
             >
-              <img src={iconDoubleChevronsUp} alt="" aria-hidden="true" />
+              <img className="market-choice__direction-icon" src={iconDoubleChevronsUp} alt="" aria-hidden="true" />
               <span>UP</span>
-              <span>{formatPercentage(presentedPrices.up)}</span>
+              {presentedPrices.up === null ? (
+                <img className="market-choice__lock-icon" src={iconLock} alt="" aria-hidden="true" />
+              ) : (
+                <span>{formatPercentage(presentedPrices.up)}</span>
+              )}
             </button>
 
             <button
-              className={`market-choice__button market-choice__button--down${selectedSide === 'down' ? ' market-choice__button--selected' : ''}`}
+              className={`market-choice__button market-choice__button--down${presentedPrices.down === null ? ' market-choice__button--locked' : ''}${selectedSide === 'down' ? ' market-choice__button--selected' : ''}`}
               type="button"
               aria-pressed={selectedSide === 'down'}
               aria-label={presentedPrices.down === null
@@ -95,9 +100,13 @@ export function MarketChoice({
               tabIndex={selectedSide === null ? 0 : -1}
               onClick={() => selectSide('down')}
             >
-              <img src={iconDoubleChevronsUp} alt="" aria-hidden="true" />
+              <img className="market-choice__direction-icon" src={iconDoubleChevronsUp} alt="" aria-hidden="true" />
               <span>DOWN</span>
-              <span>{formatPercentage(presentedPrices.down)}</span>
+              {presentedPrices.down === null ? (
+                <img className="market-choice__lock-icon" src={iconLock} alt="" aria-hidden="true" />
+              ) : (
+                <span>{formatPercentage(presentedPrices.down)}</span>
+              )}
             </button>
           </>
         )}

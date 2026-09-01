@@ -14,6 +14,7 @@ import iconChevronRight from '../../assets/iconChevronRight.svg'
 import iconDelete from '../../assets/iconDelete.svg'
 import iconDoubleChevronsUp from '../../assets/iconDoubleChevronsUp.svg'
 import iconEdit from '../../assets/iconEdit.svg'
+import iconLock from '../../assets/iconLock.svg'
 import iconLoading from '../../assets/iconLoading.svg'
 import quickAmountLight from '../../assets/quickAmountLight.svg'
 import { usePresentedQuoteSnapshot } from '../../hooks/usePresentedQuotes'
@@ -1168,27 +1169,37 @@ export function BuyBetslip({
             <div className={`buy-betslip__side-control buy-betslip__side-control--${side}`}>
               {(['up', 'down'] as const).map((option) => {
                 const isSelected = option === side
+                const isUnavailable = presentedQuote.percentages[option] === null
                 const shouldAnimateArrow = sideArrowAnimation?.side === option
 
                 return (
                   <button
-                    className={`buy-betslip__side buy-betslip__side--${option}${isSelected ? ' buy-betslip__side--selected' : ''}`}
+                    className={`buy-betslip__side buy-betslip__side--${option}${isUnavailable ? ' buy-betslip__side--locked' : ''}${isSelected ? ' buy-betslip__side--selected' : ''}`}
                     type="button"
                     aria-pressed={isSelected}
-                    aria-disabled={presentedQuote.percentages[option] === null || isUiTransitioning}
-                    disabled={presentedQuote.percentages[option] === null}
+                    aria-disabled={isUnavailable || isUiTransitioning}
+                    disabled={isUnavailable}
                     key={option}
                     onClick={() => selectMarketSide(option)}
                   >
                     <img
-                      className={shouldAnimateArrow ? `buy-betslip__side-arrow--${option}` : undefined}
+                      className={`buy-betslip__side-direction-icon${shouldAnimateArrow ? ` buy-betslip__side-arrow--${option}` : ''}`}
                       src={iconDoubleChevronsUp}
                       alt=""
                       aria-hidden="true"
                       key={shouldAnimateArrow ? `${option}-${sideArrowAnimation.id}` : option}
                     />
                     <span>{option.toUpperCase()}</span>
-                    <span>{formatPercentage(presentedQuote.percentages[option])}</span>
+                    {isUnavailable ? (
+                      <img
+                        className="buy-betslip__side-lock-icon"
+                        src={iconLock}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <span>{formatPercentage(presentedQuote.percentages[option])}</span>
+                    )}
                   </button>
                 )
               })}
