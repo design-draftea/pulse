@@ -18,7 +18,7 @@
 - `src/services/prototypeWallet.ts` e `src/hooks/usePrototypeWallet.ts`: a carteira v2 passa a persistir as entradas liquidadas com lado, custo-base, participações, pagamento, preço objetivo e preço final, mantendo compatibilidade com estados v2 anteriores.
 - `src/services/wonEntries.ts`: filtro determinístico das vencedoras, ordenadas da rodada mais recente para a mais antiga.
 - `src/App.tsx`: liquidação ao vivo e de rodadas restauradas fornece todos os dados necessários ao histórico de Ganadas.
-- `origin/main` atualizada até `abd2593`: Perfil, Movimientos publicado, correção de blur e transição de rotas foram integrados; `Entradas` agora participa do mesmo fade-through da Navbar, inclusive em voltar/avançar.
+- `origin/main` atualizada até `8f31ec8`: Perfil, contagem animada das métricas, Movimientos publicado, correção de blur e transição de rotas foram integrados; `Entradas` agora participa do mesmo fade-through da Navbar, inclusive em voltar/avançar.
 - `tests/prototypeWallet.test.ts` e `tests/wonEntries.test.ts`: cobertura de liquidação, custo-base após venda parcial, persistência, filtro e ordenação.
 
 - `vite.config.ts`: caminho-base configurável por `VITE_BASE_PATH`, mantendo `/` no desenvolvimento e usando `/pulse/` no artefato do GitHub Pages.
@@ -131,6 +131,9 @@
 - `design-qa.md`: evidências disponíveis e bloqueio visual documentados.
 
 ## Validações executadas
+
+- Sincronização com produção validada após os merges de `origin/main`: Home → Entradas, retorno pelo histórico e rota direta preservaram seção, hash e indicador ativo; uma aba limpa permaneceu sem erros ou avisos no console.
+- Suíte integrada após produção: `test:chart` 13, `test:fallback` 6, `test:market` 23, `test:wallet` 14 e `test:entries` 7; lint, build com 121 módulos e `git diff --check` passaram.
 
 - `GANADAS` validada no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: cards de `296px`, `351px` e `404px`, respectivamente, sempre com `196px` de altura, `12px` de margem lateral e sem overflow horizontal.
 - `PASADAS` validada no navegador com os três estados em `320px`, `375px` e `428px`: cards de `296px`, `351px` e `404px`, todos com `196px`, badges/cores correspondentes, chips estáveis e console limpo.
