@@ -56,6 +56,7 @@ const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
     === 'won'
 const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
+const PAGE_TRANSITION_MS = 360
 const MOVEMENTS_HASH = '#movimientos'
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -65,6 +66,14 @@ const balanceFormatter = new Intl.NumberFormat('en-US', {
 })
 
 type AppSection = 'home' | 'movements'
+type PageTransitionDirection = 'forward' | 'backward'
+
+interface PageTransitionState {
+  direction: PageTransitionDirection
+  scrollY: number
+  source: AppSection
+  target: AppSection
+}
 
 const getAppSection = (): AppSection => (
   window.location.hash === MOVEMENTS_HASH ? 'movements' : 'home'
@@ -72,6 +81,9 @@ const getAppSection = (): AppSection => (
 
 function App() {
   const [activeSection, setActiveSection] = useState<AppSection>(getAppSection)
+  const [pageTransition, setPageTransition] = useState<
+    PageTransitionState | null
+  >(null)
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(null)
@@ -112,6 +124,9 @@ function App() {
     ROUND_RESULT_PREVIEW_MODE ? ROUND_RESULT_PREVIEW_SECONDS : null
   ))
   const [pendingSettlementRetry, setPendingSettlementRetry] = useState(0)
+  const activeSectionRef = useRef(activeSection)
+  const pageTransitionRef = useRef<PageTransitionState | null>(null)
+  const pageTransitionTimerRef = useRef<number | null>(null)
   const marketHeaderSlotRef = useRef<HTMLDivElement>(null)
   const roundSnapshotRef = useRef({
     roundStart: marketRound.roundStart,
@@ -128,9 +143,75 @@ function App() {
     ? marketRound.seconds
     : String(previewRemainingSeconds).padStart(2, '0')
 
+  const transitionToSection = useCallback((nextSection: AppSection) => {
+    const currentTransition = pageTransitionRef.current
+
+    if (currentTransition) {
+      if (nextSection === currentTransition.source) {
+        if (pageTransitionTimerRef.current !== null) {
+          window.clearTimeout(pageTransitionTimerRef.current)
+          pageTransitionTimerRef.current = null
+        }
+        pageTransitionRef.current = null
+        setPageTransition(null)
+        window.scrollTo({ top: currentTransition.scrollY, left: 0 })
+      }
+      return
+    }
+
+    const currentSection = activeSectionRef.current
+    if (nextSection === currentSection) return
+
+    const direction: PageTransitionDirection = nextSection === 'movements'
+      ? 'forward'
+      : 'backward'
+    const commitSectionChange = () => {
+      activeSectionRef.current = nextSection
+      window.scrollTo({ top: 0, left: 0 })
+      setActiveSection(nextSection)
+      setSelectedSide(null)
+      setPurchaseSuccess(null)
+      setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
+    }
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+
+    if (prefersReducedMotion) {
+      commitSectionChange()
+      return
+    }
+
+    const transition: PageTransitionState = {
+      direction,
+      scrollY: window.scrollY,
+      source: currentSection,
+      target: nextSection,
+    }
+
+    pageTransitionRef.current = transition
+    setPageTransition(transition)
+    window.scrollTo({ top: 0, left: 0 })
+
+    pageTransitionTimerRef.current = window.setTimeout(() => {
+      if (pageTransitionRef.current !== transition) return
+
+      pageTransitionTimerRef.current = null
+      pageTransitionRef.current = null
+      commitSectionChange()
+      setPageTransition(null)
+    }, PAGE_TRANSITION_MS)
+  }, [])
+
+  useEffect(() => () => {
+    if (pageTransitionTimerRef.current !== null) {
+      window.clearTimeout(pageTransitionTimerRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     const syncSectionWithUrl = () => {
-      setActiveSection(getAppSection())
+      transitionToSection(getAppSection())
     }
 
     window.addEventListener('hashchange', syncSectionWithUrl)
@@ -140,7 +221,7 @@ function App() {
       window.removeEventListener('hashchange', syncSectionWithUrl)
       window.removeEventListener('popstate', syncSectionWithUrl)
     }
-  }, [])
+  }, [transitionToSection])
 
   useEffect(() => {
     const updateMarketHeaderState = () => {
@@ -383,16 +464,16 @@ function App() {
     const nextSection: AppSection = item === 'movements'
       ? 'movements'
       : 'home'
+    const currentNavigationTarget = pageTransitionRef.current?.target
+      ?? activeSectionRef.current
+    if (nextSection === currentNavigationTarget) return
+
     const url = new URL(window.location.href)
 
     url.hash = nextSection === 'movements' ? MOVEMENTS_HASH : ''
     window.history.pushState(window.history.state, '', url)
-    setActiveSection(nextSection)
-    setSelectedSide(null)
-    setPurchaseSuccess(null)
-    setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
-    window.scrollTo({ top: 0 })
-  }, [])
+    transitionToSection(nextSection)
+  }, [transitionToSection])
 
   const visiblePreviousRounds = useMemo(() => {
     if (!latestCompletedRound) return marketRound.previousRounds
@@ -412,14 +493,86 @@ function App() {
 
   const appStyle = {
     '--pulse-content-bottom-inset': `${contentBottomInset}px`,
+    '--pulse-outgoing-scroll-y': `${pageTransition?.scrollY ?? 0}px`,
   } as CSSProperties
   const formattedBalance = balanceFormatter.format(balanceCents / 100)
   const hasActiveEntry = currentPosition.up > 0 || currentPosition.down > 0
+  const homeSection = (
+    <>
+      <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">
+        <div
+          className={`pulse-app__market-header${isMarketHeaderPinned ? ' pulse-app__market-header--pinned' : ''}${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
+          data-round-slug={marketRound.roundSlug}
+          data-target-status={marketRound.targetStatus}
+          data-target-source={marketRound.targetSource ?? ''}
+          data-current-status={marketRound.currentStatus}
+          data-current-source={marketRound.currentPriceSource ?? ''}
+          data-current-updated-at={marketRound.currentPriceUpdatedAt ?? ''}
+          data-animated-market-price={animatedMarketPrice.value ?? ''}
+          data-display-time-zone={BTC_DISPLAY_TIME_ZONE}
+          data-previous-rounds-status={marketRound.previousRoundsStatus}
+          data-outcome-market-status={outcomeMarket.status}
+          data-outcome-market-source={outcomeMarket.source}
+          data-outcome-market-locked={outcomeMarket.lockedForRound}
+          data-outcome-market-up={outcomeMarket.displayPrices.up ?? ''}
+          data-outcome-market-down={outcomeMarket.displayPrices.down ?? ''}
+          data-outcome-market-up-asks={outcomeMarket.books.up?.asks.length ?? 0}
+          data-outcome-market-down-asks={outcomeMarket.books.down?.asks.length ?? 0}
+          data-outcome-market-up-bids={outcomeMarket.books.up?.bids.length ?? 0}
+          data-outcome-market-down-bids={outcomeMarket.books.down?.bids.length ?? 0}
+          data-outcome-market-updated-at={outcomeMarket.updatedAt ?? ''}
+          data-wallet-pending-rounds={pendingRoundStartsKey}
+        >
+          <SubHeader
+            isCompact={isMarketHeaderCompact}
+            date={marketRound.date}
+            startTime={marketRound.startTime}
+            endTime={marketRound.endTime}
+            minutes={displayedMinutes}
+            seconds={displayedSeconds}
+          />
+          <PriceComparison
+            isCompact={isMarketHeaderCompact}
+            targetPrice={marketRound.targetPrice}
+            currentPrice={animatedMarketPrice.value}
+          />
+        </div>
+      </div>
+      <main className="pulse-app__content">
+        <MarketPriceChart
+          points={marketRound.points}
+          targetPrice={marketRound.targetPrice}
+          currentPrice={animatedMarketPrice.value}
+          priceDirection={animatedMarketPrice.direction}
+          directionAnimationSequence={
+            animatedMarketPrice.directionAnimationSequence
+          }
+          entries={chartEntries}
+          roundStart={marketRound.roundStart}
+          currentSource={marketRound.currentPriceSource}
+          currentStatus={marketRound.currentStatus}
+          currentUpdatedAt={marketRound.currentPriceUpdatedAt}
+        />
+        <PreviousRounds
+          animatedRoundStart={latestCompletedRound?.roundStart ?? null}
+          rounds={visiblePreviousRounds}
+        />
+        <PulseFooter />
+      </main>
+    </>
+  )
+  const getSectionContent = (section: AppSection) => (
+    section === 'movements'
+      ? <Movements movements={movements} />
+      : homeSection
+  )
+  const shouldShowHomeAction = activeSection === 'home'
+    || pageTransition?.target === 'home'
 
   return (
     <>
       <div
-        className={`pulse-app pulse-app--${activeSection}${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
+        className={`pulse-app pulse-app--${activeSection}${pageTransition ? ` pulse-app--page-transition-${pageTransition.direction}` : ''}${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
         style={appStyle}
         aria-busy={isPurchaseLoading}
         inert={isPurchaseLoading ? true : undefined}
@@ -427,96 +580,50 @@ function App() {
         <div className="pulse-app__background" aria-hidden="true" />
 
         <Header balance={formattedBalance} balanceCents={balanceCents} />
-        {activeSection === 'movements' ? (
-          <Movements movements={movements} />
-        ) : (
-          <>
-            <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">
-              <div
-                className={`pulse-app__market-header${isMarketHeaderPinned ? ' pulse-app__market-header--pinned' : ''}${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
-                data-round-slug={marketRound.roundSlug}
-                data-target-status={marketRound.targetStatus}
-                data-target-source={marketRound.targetSource ?? ''}
-                data-current-status={marketRound.currentStatus}
-                data-current-source={marketRound.currentPriceSource ?? ''}
-                data-current-updated-at={marketRound.currentPriceUpdatedAt ?? ''}
-                data-animated-market-price={animatedMarketPrice.value ?? ''}
-                data-display-time-zone={BTC_DISPLAY_TIME_ZONE}
-                data-previous-rounds-status={marketRound.previousRoundsStatus}
-                data-outcome-market-status={outcomeMarket.status}
-                data-outcome-market-source={outcomeMarket.source}
-                data-outcome-market-locked={outcomeMarket.lockedForRound}
-                data-outcome-market-up={outcomeMarket.displayPrices.up ?? ''}
-                data-outcome-market-down={outcomeMarket.displayPrices.down ?? ''}
-                data-outcome-market-up-asks={outcomeMarket.books.up?.asks.length ?? 0}
-                data-outcome-market-down-asks={outcomeMarket.books.down?.asks.length ?? 0}
-                data-outcome-market-up-bids={outcomeMarket.books.up?.bids.length ?? 0}
-                data-outcome-market-down-bids={outcomeMarket.books.down?.bids.length ?? 0}
-                data-outcome-market-updated-at={outcomeMarket.updatedAt ?? ''}
-                data-wallet-pending-rounds={pendingRoundStartsKey}
-              >
-                <SubHeader
-                  isCompact={isMarketHeaderCompact}
-                  date={marketRound.date}
-                  startTime={marketRound.startTime}
-                  endTime={marketRound.endTime}
-                  minutes={displayedMinutes}
-                  seconds={displayedSeconds}
-                />
-                <PriceComparison
-                  isCompact={isMarketHeaderCompact}
-                  targetPrice={marketRound.targetPrice}
-                  currentPrice={animatedMarketPrice.value}
-                />
-              </div>
+        <div className="pulse-app__route-stage">
+          {pageTransition && (
+            <div
+              className={`pulse-app__route pulse-app__route--outgoing pulse-app__route--${pageTransition.direction}`}
+              data-active-section={pageTransition.source}
+              aria-hidden="true"
+              inert
+              key={pageTransition.source}
+            >
+              {getSectionContent(pageTransition.source)}
             </div>
-            <main className="pulse-app__content">
-              <MarketPriceChart
-                points={marketRound.points}
-                targetPrice={marketRound.targetPrice}
-                currentPrice={animatedMarketPrice.value}
-                priceDirection={animatedMarketPrice.direction}
-                directionAnimationSequence={
-                  animatedMarketPrice.directionAnimationSequence
-                }
-                entries={chartEntries}
-                roundStart={marketRound.roundStart}
-                currentSource={marketRound.currentPriceSource}
-                currentStatus={marketRound.currentStatus}
-                currentUpdatedAt={marketRound.currentPriceUpdatedAt}
-              />
-              <PreviousRounds
-                animatedRoundStart={latestCompletedRound?.roundStart ?? null}
-                rounds={visiblePreviousRounds}
-              />
-              <PulseFooter />
-            </main>
+          )}
+          <div
+            className={`pulse-app__route${pageTransition ? ` pulse-app__route--incoming pulse-app__route--${pageTransition.direction}` : ''}`}
+            data-active-section={pageTransition?.target ?? activeSection}
+            key={pageTransition?.target ?? activeSection}
+          >
+            {getSectionContent(pageTransition?.target ?? activeSection)}
+          </div>
+        </div>
 
-            {selectedSide ? (
-              <BuyBetslip
-                market={outcomeMarket}
-                side={selectedSide}
-                onSideChange={setSelectedSide}
-                availableBalanceCents={balanceCents}
-                participations={currentPosition}
-                onOcclusionHeightChange={handleBetslipOcclusionHeightChange}
-                onPurchaseLoadingChange={handlePurchaseLoadingChange}
-                onPurchaseExecute={handlePurchaseExecute}
-                onSaleExecute={handleSaleExecute}
-                onSuccess={handleBetslipSuccess}
-              />
-            ) : (
-              <MarketChoice
-                isClosing={isRoundClosing}
-                prices={outcomeMarket.displayPrices}
-                roundSlug={outcomeMarket.roundSlug}
-                onSelect={setSelectedSide}
-              />
-            )}
-          </>
-        )}
+        {shouldShowHomeAction && (selectedSide ? (
+          <BuyBetslip
+            market={outcomeMarket}
+            side={selectedSide}
+            onSideChange={setSelectedSide}
+            availableBalanceCents={balanceCents}
+            participations={currentPosition}
+            onOcclusionHeightChange={handleBetslipOcclusionHeightChange}
+            onPurchaseLoadingChange={handlePurchaseLoadingChange}
+            onPurchaseExecute={handlePurchaseExecute}
+            onSaleExecute={handleSaleExecute}
+            onSuccess={handleBetslipSuccess}
+          />
+        ) : (
+          <MarketChoice
+            isClosing={isRoundClosing}
+            prices={outcomeMarket.displayPrices}
+            roundSlug={outcomeMarket.roundSlug}
+            onSelect={setSelectedSide}
+          />
+        ))}
         <Navbar
-          activeItem={activeSection}
+          activeItem={pageTransition?.target ?? activeSection}
           hasActiveEntry={hasActiveEntry}
           onNavigate={handleNavigate}
         />

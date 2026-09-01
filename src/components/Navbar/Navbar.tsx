@@ -51,7 +51,8 @@ export function Navbar({
       data-node-id="188:3113"
       data-has-active-entry={hasActiveEntry}
     >
-      <div className="navbar">
+      <div className="navbar" data-active-item={activeItem}>
+        <span className="navbar__active-pill" aria-hidden="true" />
         {NAV_ITEMS.map((item) => {
           const isActive = item.id === activeItem
           const showsLiveIndicator = item.label === 'Entradas' && hasActiveEntry
@@ -69,8 +70,14 @@ export function Navbar({
             >
               <span className="navbar__icon-wrap">
                 <img
-                  className="navbar__icon"
-                  src={isActive ? item.activeIcon : item.icon}
+                  className="navbar__icon navbar__icon--default"
+                  src={item.icon}
+                  alt=""
+                  aria-hidden="true"
+                />
+                <img
+                  className="navbar__icon navbar__icon--active"
+                  src={item.activeIcon}
                   alt=""
                   aria-hidden="true"
                 />
