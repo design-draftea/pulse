@@ -3,12 +3,17 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react'
 import closeIcon from '../../assets/iconClose.svg'
 import type { ProfileInfoDefinition } from './profileInfoContent'
 import './ProfileInfoModal.css'
 
 const MODAL_MOTION_MS = 300
+const OVERLAY_BLUR_STYLE = {
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+} satisfies CSSProperties
 
 interface ProfileInfoModalProps {
   info: ProfileInfoDefinition
@@ -59,6 +64,7 @@ export function ProfileInfoModal({ info, onClose }: ProfileInfoModalProps) {
     >
       <button
         className="profile-info-modal__overlay"
+        style={OVERLAY_BLUR_STYLE}
         type="button"
         aria-label={`Cerrar información sobre ${info.title}`}
         onClick={requestClose}

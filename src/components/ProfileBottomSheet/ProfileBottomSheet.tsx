@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
@@ -29,6 +30,10 @@ import './ProfileBottomSheet.css'
 const SHEET_MOTION_MS = 300
 const HEADER_DRAG_INTENT_PX = 8
 const HEADER_CLOSE_THRESHOLD_PX = 48
+const OVERLAY_BLUR_STYLE = {
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+} satisfies CSSProperties
 
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -356,6 +361,7 @@ export function ProfileBottomSheet({
       <button
         ref={overlayRef}
         className={`profile-sheet__overlay${isClosing ? ' profile-sheet__overlay--closing' : ''}`}
+        style={OVERLAY_BLUR_STYLE}
         type="button"
         aria-label="Cerrar mi perfil"
         onClick={() => requestClose()}

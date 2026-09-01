@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react'
 import { createPortal } from 'react-dom'
 import iconClose from '../../assets/iconClose.svg'
@@ -17,6 +18,10 @@ import {
 import './MovementDetailModal.css'
 
 const MODAL_MOTION_MS = 300
+const OVERLAY_BLUR_STYLE = {
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+} satisfies CSSProperties
 
 interface MovementDetailModalProps {
   movement: PrototypeWalletMovement
@@ -87,6 +92,7 @@ export function MovementDetailModal({
     >
       <button
         className="movement-detail-modal__overlay"
+        style={OVERLAY_BLUR_STYLE}
         type="button"
         aria-label="Cerrar detalle al tocar fuera"
         onClick={requestClose}
