@@ -18,7 +18,11 @@ import {
   type MarketSide,
 } from './components/MarketChoice/MarketChoice'
 import { MobileOnly } from './components/MobileOnly/MobileOnly'
-import { Navbar } from './components/Navbar/Navbar'
+import { Movements } from './components/Movements/Movements'
+import {
+  Navbar,
+  type NavbarItemId,
+} from './components/Navbar/Navbar'
 import { MarketPriceChart } from './components/MarketPriceChart/MarketPriceChart'
 import { PriceComparison } from './components/PriceComparison/PriceComparison'
 import { PulseFooter } from './components/PulseFooter/PulseFooter'
@@ -52,6 +56,7 @@ const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
     === 'won'
 const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
+const MOVEMENTS_HASH = '#movimientos'
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -59,7 +64,14 @@ const balanceFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 })
 
+type AppSection = 'home' | 'movements'
+
+const getAppSection = (): AppSection => (
+  window.location.hash === MOVEMENTS_HASH ? 'movements' : 'home'
+)
+
 function App() {
+  const [activeSection, setActiveSection] = useState<AppSection>(getAppSection)
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(null)
@@ -114,6 +126,20 @@ function App() {
   const displayedSeconds = previewRemainingSeconds === null
     ? marketRound.seconds
     : String(previewRemainingSeconds).padStart(2, '0')
+
+  useEffect(() => {
+    const syncSectionWithUrl = () => {
+      setActiveSection(getAppSection())
+    }
+
+    window.addEventListener('hashchange', syncSectionWithUrl)
+    window.addEventListener('popstate', syncSectionWithUrl)
+
+    return () => {
+      window.removeEventListener('hashchange', syncSectionWithUrl)
+      window.removeEventListener('popstate', syncSectionWithUrl)
+    }
+  }, [])
 
   useEffect(() => {
     const updateMarketHeaderState = () => {
@@ -350,6 +376,23 @@ function App() {
     setContentBottomInset(Math.max(DEFAULT_CONTENT_BOTTOM_INSET, height))
   }, [])
 
+  const handleNavigate = useCallback((item: NavbarItemId) => {
+    if (item === 'entries') return
+
+    const nextSection: AppSection = item === 'movements'
+      ? 'movements'
+      : 'home'
+    const url = new URL(window.location.href)
+
+    url.hash = nextSection === 'movements' ? MOVEMENTS_HASH : ''
+    window.history.pushState(window.history.state, '', url)
+    setActiveSection(nextSection)
+    setSelectedSide(null)
+    setPurchaseSuccess(null)
+    setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
+    window.scrollTo({ top: 0 })
+  }, [])
+
   const visiblePreviousRounds = useMemo(() => {
     if (!latestCompletedRound) return marketRound.previousRounds
 
@@ -375,7 +418,7 @@ function App() {
   return (
     <>
       <div
-        className={`pulse-app${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
+        className={`pulse-app pulse-app--${activeSection}${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
         style={appStyle}
         aria-busy={isPurchaseLoading}
         inert={isPurchaseLoading ? true : undefined}
@@ -383,89 +426,99 @@ function App() {
         <div className="pulse-app__background" aria-hidden="true" />
 
         <Header balance={formattedBalance} balanceCents={balanceCents} />
-        <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">
-          <div
-            className={`pulse-app__market-header${isMarketHeaderPinned ? ' pulse-app__market-header--pinned' : ''}${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
-            data-round-slug={marketRound.roundSlug}
-            data-target-status={marketRound.targetStatus}
-            data-target-source={marketRound.targetSource ?? ''}
-            data-current-status={marketRound.currentStatus}
-            data-current-source={marketRound.currentPriceSource ?? ''}
-            data-current-updated-at={marketRound.currentPriceUpdatedAt ?? ''}
-            data-animated-market-price={animatedMarketPrice.value ?? ''}
-            data-display-time-zone={BTC_DISPLAY_TIME_ZONE}
-            data-previous-rounds-status={marketRound.previousRoundsStatus}
-            data-outcome-market-status={outcomeMarket.status}
-            data-outcome-market-source={outcomeMarket.source}
-            data-outcome-market-locked={outcomeMarket.lockedForRound}
-            data-outcome-market-up={outcomeMarket.displayPrices.up ?? ''}
-            data-outcome-market-down={outcomeMarket.displayPrices.down ?? ''}
-            data-outcome-market-up-asks={outcomeMarket.books.up?.asks.length ?? 0}
-            data-outcome-market-down-asks={outcomeMarket.books.down?.asks.length ?? 0}
-            data-outcome-market-up-bids={outcomeMarket.books.up?.bids.length ?? 0}
-            data-outcome-market-down-bids={outcomeMarket.books.down?.bids.length ?? 0}
-            data-outcome-market-updated-at={outcomeMarket.updatedAt ?? ''}
-            data-wallet-pending-rounds={pendingRoundStartsKey}
-          >
-            <SubHeader
-              isCompact={isMarketHeaderCompact}
-              date={marketRound.date}
-              startTime={marketRound.startTime}
-              endTime={marketRound.endTime}
-              minutes={displayedMinutes}
-              seconds={displayedSeconds}
-            />
-            <PriceComparison
-              isCompact={isMarketHeaderCompact}
-              targetPrice={marketRound.targetPrice}
-              currentPrice={animatedMarketPrice.value}
-            />
-          </div>
-        </div>
-        <main className="pulse-app__content">
-          <MarketPriceChart
-            points={marketRound.points}
-            targetPrice={marketRound.targetPrice}
-            currentPrice={animatedMarketPrice.value}
-            priceDirection={animatedMarketPrice.direction}
-            directionAnimationSequence={
-              animatedMarketPrice.directionAnimationSequence
-            }
-            entries={chartEntries}
-            roundStart={marketRound.roundStart}
-            currentSource={marketRound.currentPriceSource}
-            currentStatus={marketRound.currentStatus}
-            currentUpdatedAt={marketRound.currentPriceUpdatedAt}
-          />
-          <PreviousRounds
-            animatedRoundStart={latestCompletedRound?.roundStart ?? null}
-            rounds={visiblePreviousRounds}
-          />
-          <PulseFooter />
-        </main>
-
-        {selectedSide ? (
-          <BuyBetslip
-            market={outcomeMarket}
-            side={selectedSide}
-            onSideChange={setSelectedSide}
-            availableBalanceCents={balanceCents}
-            participations={currentPosition}
-            onOcclusionHeightChange={handleBetslipOcclusionHeightChange}
-            onPurchaseLoadingChange={handlePurchaseLoadingChange}
-            onPurchaseExecute={handlePurchaseExecute}
-            onSaleExecute={handleSaleExecute}
-            onSuccess={handleBetslipSuccess}
-          />
+        {activeSection === 'movements' ? (
+          <Movements />
         ) : (
-          <MarketChoice
-            isClosing={isRoundClosing}
-            prices={outcomeMarket.displayPrices}
-            roundSlug={outcomeMarket.roundSlug}
-            onSelect={setSelectedSide}
-          />
+          <>
+            <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">
+              <div
+                className={`pulse-app__market-header${isMarketHeaderPinned ? ' pulse-app__market-header--pinned' : ''}${isMarketHeaderCompact ? ' pulse-app__market-header--compact' : ''}`}
+                data-round-slug={marketRound.roundSlug}
+                data-target-status={marketRound.targetStatus}
+                data-target-source={marketRound.targetSource ?? ''}
+                data-current-status={marketRound.currentStatus}
+                data-current-source={marketRound.currentPriceSource ?? ''}
+                data-current-updated-at={marketRound.currentPriceUpdatedAt ?? ''}
+                data-animated-market-price={animatedMarketPrice.value ?? ''}
+                data-display-time-zone={BTC_DISPLAY_TIME_ZONE}
+                data-previous-rounds-status={marketRound.previousRoundsStatus}
+                data-outcome-market-status={outcomeMarket.status}
+                data-outcome-market-source={outcomeMarket.source}
+                data-outcome-market-locked={outcomeMarket.lockedForRound}
+                data-outcome-market-up={outcomeMarket.displayPrices.up ?? ''}
+                data-outcome-market-down={outcomeMarket.displayPrices.down ?? ''}
+                data-outcome-market-up-asks={outcomeMarket.books.up?.asks.length ?? 0}
+                data-outcome-market-down-asks={outcomeMarket.books.down?.asks.length ?? 0}
+                data-outcome-market-up-bids={outcomeMarket.books.up?.bids.length ?? 0}
+                data-outcome-market-down-bids={outcomeMarket.books.down?.bids.length ?? 0}
+                data-outcome-market-updated-at={outcomeMarket.updatedAt ?? ''}
+                data-wallet-pending-rounds={pendingRoundStartsKey}
+              >
+                <SubHeader
+                  isCompact={isMarketHeaderCompact}
+                  date={marketRound.date}
+                  startTime={marketRound.startTime}
+                  endTime={marketRound.endTime}
+                  minutes={displayedMinutes}
+                  seconds={displayedSeconds}
+                />
+                <PriceComparison
+                  isCompact={isMarketHeaderCompact}
+                  targetPrice={marketRound.targetPrice}
+                  currentPrice={animatedMarketPrice.value}
+                />
+              </div>
+            </div>
+            <main className="pulse-app__content">
+              <MarketPriceChart
+                points={marketRound.points}
+                targetPrice={marketRound.targetPrice}
+                currentPrice={animatedMarketPrice.value}
+                priceDirection={animatedMarketPrice.direction}
+                directionAnimationSequence={
+                  animatedMarketPrice.directionAnimationSequence
+                }
+                entries={chartEntries}
+                roundStart={marketRound.roundStart}
+                currentSource={marketRound.currentPriceSource}
+                currentStatus={marketRound.currentStatus}
+                currentUpdatedAt={marketRound.currentPriceUpdatedAt}
+              />
+              <PreviousRounds
+                animatedRoundStart={latestCompletedRound?.roundStart ?? null}
+                rounds={visiblePreviousRounds}
+              />
+              <PulseFooter />
+            </main>
+
+            {selectedSide ? (
+              <BuyBetslip
+                market={outcomeMarket}
+                side={selectedSide}
+                onSideChange={setSelectedSide}
+                availableBalanceCents={balanceCents}
+                participations={currentPosition}
+                onOcclusionHeightChange={handleBetslipOcclusionHeightChange}
+                onPurchaseLoadingChange={handlePurchaseLoadingChange}
+                onPurchaseExecute={handlePurchaseExecute}
+                onSaleExecute={handleSaleExecute}
+                onSuccess={handleBetslipSuccess}
+              />
+            ) : (
+              <MarketChoice
+                isClosing={isRoundClosing}
+                prices={outcomeMarket.displayPrices}
+                roundSlug={outcomeMarket.roundSlug}
+                onSelect={setSelectedSide}
+              />
+            )}
+          </>
         )}
-        <Navbar hasActiveEntry={hasActiveEntry} />
+        <Navbar
+          activeItem={activeSection}
+          hasActiveEntry={hasActiveEntry}
+          onNavigate={handleNavigate}
+        />
 
         <MobileOnly />
       </div>
