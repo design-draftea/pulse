@@ -41,6 +41,7 @@ const SHEET_DRAG_MAX_DISTANCE = 160
 const SHEET_COLLAPSED_HEIGHT = 56
 const CONTENT_FADE_OUT_MS = 110
 const CONTENT_FADE_IN_MS = 170
+const SHEET_EXIT_ANIMATION_MS = 280
 type ContentTransitionPhase = 'idle' | 'out' | 'in'
 type QuoteFeedback = 'requote' | 'unavailable' | null
 const TEST_QUOTE_REPRICE_MODE = import.meta.env.DEV
@@ -131,11 +132,20 @@ function SwipeToBuy({
   const dragStartProgressRef = useRef(0)
   const progressRef = useRef(0)
   const completeTimerRef = useRef<number | null>(null)
-  const [trackWidth, setTrackWidth] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [isLoadingVisible, setIsLoadingVisible] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [lastAmount, setLastAmount] = useState(amount)
+
+  // Substitui o remount por `key`: um controle meio arrastado não pode valer
+  // para um valor novo, mas recriar o componente a cada dígito descartava
+  // progresso, arrasto e confirmação junto. O ajuste acontece no render, e não
+  // num efeito, para não encadear uma renderização extra.
+  if (amount !== lastAmount) {
+    setLastAmount(amount)
+    setProgress(0)
+  }
   const isAmountEmpty = amount <= 0
   const isQuoteUnavailable = disabled && !isAmountEmpty
   const isInteractionDisabled = disabled || isCompleting || isLoadingVisible
@@ -149,14 +159,18 @@ function SwipeToBuy({
       ? `Desliza para vender: ${formattedValue ?? formatParticipations(amount)}`
       : `Desliza para comprar por: ${formatAmount(amount)}`
 
-  const innerWidth = Math.max(
-    SWIPE_KNOB_WIDTH,
-    trackWidth - SWIPE_TRACK_PADDING * 2,
-  )
-  const fillWidth = SWIPE_KNOB_WIDTH
-    + (innerWidth - SWIPE_KNOB_WIDTH) * (isCompleting ? 1 : progress)
+  // O preenchimento é publicado como fração e convertido em largura pelo CSS,
+  // contra a medida viva do trilho. Uma largura em pixels calculada aqui ficava
+  // presa à medição feita na montagem: o `key` remonta este componente a cada
+  // mudança de monto e a folha ainda estava em transição, então o valor
+  // congelado divergia do trilho e o preenchimento parava antes do fim.
+  // As medidas do trilho são publicadas daqui para o CSS, e não declaradas nos
+  // dois lados: a matemática do arrasto usa as mesmas constantes, então uma
+  // alteração só no CSS voltaria a divergir do gesto.
   const swipeStyle = {
-    '--buy-swipe-fill-width': `${fillWidth}px`,
+    '--buy-swipe-knob': `${SWIPE_KNOB_WIDTH}px`,
+    '--buy-swipe-inset': `${SWIPE_TRACK_PADDING}px`,
+    '--buy-swipe-progress': isCompleting ? 1 : progress,
   } as CSSProperties
 
   const setVisualProgress = useCallback((nextProgress: number) => {
@@ -198,18 +212,9 @@ function SwipeToBuy({
     }, SWIPE_COMPLETE_ANIMATION_MS)
   }, [amount, isInteractionDisabled, onComplete, onLock, setVisualProgress])
 
-  useLayoutEffect(() => {
-    const track = trackRef.current
-    if (!track) return undefined
-
-    const updateWidth = () => setTrackWidth(track.getBoundingClientRect().width)
-
-    updateWidth()
-    const resizeObserver = new ResizeObserver(updateWidth)
-    resizeObserver.observe(track)
-
-    return () => resizeObserver.disconnect()
-  }, [])
+  useEffect(() => {
+    progressRef.current = progress
+  }, [progress])
 
   useEffect(() => () => {
     if (completeTimerRef.current !== null) {
@@ -408,6 +413,8 @@ export function BuyBetslip({
   const [lockedSellParticipation, setLockedSellParticipation] = useState<number | null>(null)
   const [dragY, setDragY] = useState(0)
   const [sheetStageHeight, setSheetStageHeight] = useState<number | null>(null)
+  const [isClosing, setIsClosing] = useState(false)
+  const exitTimerRef = useRef<number | null>(null)
   const [isDraggingSheet, setIsDraggingSheet] = useState(false)
   const numericAmount = Number(amount || 0)
   const numericAmountCents = Math.round(numericAmount * 100)
@@ -780,7 +787,23 @@ export function BuyBetslip({
     lockedQuoteRef.current = null
     lockedSuccessDetailsRef.current = null
     setLockedSellParticipation(null)
-    onSuccess?.(details)
+
+    // `onSuccess` desmonta o betslip, então ele é adiado até o fim da saída
+    // para a folha descer em vez de sumir de uma vez. Sem movimento, entrega
+    // imediatamente e mantém o comportamento anterior.
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+
+    if (prefersReducedMotion) {
+      onSuccess?.(details)
+    } else {
+      setIsClosing(true)
+      exitTimerRef.current = window.setTimeout(() => {
+        exitTimerRef.current = null
+        onSuccess?.(details)
+      }, SHEET_EXIT_ANIMATION_MS)
+    }
 
     if (details.operation === 'buy') {
       setAmount(String(details.amount))
@@ -801,6 +824,12 @@ export function BuyBetslip({
   const completeBuy = () => finishSuccessfulExecution()
 
   const completeSell = () => finishSuccessfulExecution()
+
+  useEffect(() => () => {
+    if (exitTimerRef.current !== null) {
+      window.clearTimeout(exitTimerRef.current)
+    }
+  }, [])
 
   const clearCollapseTimer = useCallback(() => {
     if (collapseTimerRef.current === null) return
@@ -1078,6 +1107,7 @@ export function BuyBetslip({
     isSellMode ? 'buy-betslip--sell' : '',
     !isSellMode && amountMode === 'one-tap' ? 'buy-betslip--one-tap' : '',
     isDraggingSheet ? 'buy-betslip--dragging' : '',
+    isClosing ? 'buy-betslip--closing' : '',
   ].filter(Boolean).join(' ')
 
   return (
@@ -1314,7 +1344,9 @@ export function BuyBetslip({
                 </button>
                 <div className="buy-betslip__metric">
                   <span className="buy-betslip__metric-value">{averagePrice}</span>
-                  <span className="buy-betslip__metric-label">Precio promedio</span>
+                  <span className="buy-betslip__metric-label">
+                    {isSellMode ? 'Precio de venta' : 'Precio promedio'}
+                  </span>
                 </div>
                 <div className="buy-betslip__metric">
                   <span className="buy-betslip__metric-value buy-betslip__metric-value--gain">
@@ -1385,7 +1417,7 @@ export function BuyBetslip({
 
               <div className="buy-betslip__swipe-wrap">
                 <SwipeToBuy
-                  key={`${operationMode}-${side}-${isSellMode ? activeSellParticipation : amount}-${isKeyboardOpen ? 'keyboard' : 'regular'}`}
+                  key={`${operationMode}-${side}-${isKeyboardOpen ? 'keyboard' : 'regular'}`}
                   amount={isSellMode ? activeSellParticipation : numericAmount}
                   disabled={!isActiveQuoteComplete}
                   mode={operationMode}
@@ -1436,7 +1468,7 @@ export function BuyBetslip({
             </span>
             <span className="buy-betslip__summary-metric">
               <strong>{averagePrice}</strong>
-              <small>Precio promedio</small>
+              <small>{isSellMode ? 'Precio de venta' : 'Precio promedio'}</small>
             </span>
             <span className="buy-betslip__summary-metric">
               <strong>
