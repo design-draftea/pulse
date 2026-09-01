@@ -4,12 +4,16 @@
 
 - Atualizado em: 2026-09-01
 - Agente que entrega: Codex
-- Status: histórico inicial coerente da carteira implementado e pronto para revisão local
-- Objetivo: iniciar a persona com depósito de `$2,000.00`, quatro entradas passadas, saldo calculado de `$2,040.00` e nenhuma entrada aberta
-- Critérios de aceite: Header, Movimientos, Entradas e Perfil derivados do mesmo estado; duas ganadas e quatro pasadas; migração única para v3; compra posterior cria a única entrada aberta; testes, lint, build e navegador aprovados
-- Branch/worktree observado ao finalizar: `feature/seeded-wallet-history` em `/private/tmp/pulse-seeded-wallet-history`
+- Status: correção da animação de nova rodada validada localmente e autorizada para publicação
+- Objetivo: animar somente a rodada concluída que ainda não foi apresentada à pessoa usuária
+- Critérios de aceite: voltar de Movimientos/Entradas não repete uma rodada já vista; uma rodada concluída fora da Home anima uma vez ao retornar; `prefers-reduced-motion` registra a rodada sem depender de animação
+- Branch/worktree: `fix/last-round-seen-animation` em `/private/tmp/pulse-last-round-seen`
 
 ## Alterações realizadas
+
+- `src/App.tsx`: mantém a última `roundStart` apresentada e envia ao carrossel somente uma rodada concluída mais recente do que a já vista.
+- `src/components/PreviousRounds/PreviousRounds.tsx`: comunica ao App o término real de `previous-rounds-card-enter`; com `prefers-reduced-motion`, registra a rodada como apresentada imediatamente.
+- A correção funcional foi reaplicada sem conflitos sobre `origin/main` em `72e2269`, que já contém o histórico inicial publicado pelo PR #17; o handoff antigo em conflito foi substituído por este estado atual.
 
 - `src/services/prototypeWallet.ts`: carteira v3 com depósito de `$2,000.00`, quatro entradas liquidadas em três datas recentes, sete movimentos, compras totais de `$320.00`, total recebido de `$360.00`, saldo/portafolio de `$2,040.00` e resultado neto de `+$40.00`.
 - `src/hooks/usePrototypeWallet.ts`: chaves v1/v2 removidas na primeira carga da v3; o seed normalizado é persistido imediatamente e `?resetWallet=1` limpa todas as versões antes de restaurá-lo.
@@ -135,6 +139,11 @@
 - `design-qa.md`: evidências disponíveis e bloqueio visual documentados.
 
 ## Validações executadas
+
+- Após o rebase: `test:fallback` 6, `test:chart` 13, `test:market` 23, `test:proxy` 6, `test:wallet` 15 e `test:entries` 8; total de 71 testes aprovados.
+- `pnpm lint`, `pnpm build` com 123 módulos e `git diff --check` passaram sem erros.
+- Navegador em `390 × 844px`: na Home, a rodada simulada exibiu `Nueva` e `previous-rounds__card--entering` uma vez e removeu ambos ao final de `860ms`; Movimientos → Home depois do ciclo não repetiu a animação.
+- Rodada simulada enquanto Entradas estava ativa: durante o retorno, a animação permaneceu presente nas fases `exiting` e `entering`, continuou visível já na Home e terminou sem repetição; console sem erros ou avisos.
 
 - Histórico v3 validado no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: Header em `$2,040.00`, sete movimentos agrupados em quatro datas, modal de ganho em `$200.00`, `ABIERTAS` vazia, duas `GANADAS`, quatro `PASADAS` e Perfil em `$320 / $0 / $360 / +$40`, sem overflow horizontal.
 - Persistência validada após F5 com os mesmos sete movimentos e quatro grupos; `?resetWallet=1` removeu o parâmetro da URL. Uma compra real de `$100` em UP reduziu o saldo a `$1,940.00` e criou exatamente um card em `ABIERTAS`, preservando as abas históricas.
@@ -282,8 +291,8 @@
 - Neste computador, `wrangler whoami` confirmou ausência de sessão Cloudflare e o GitHub CLI informou token expirado para `design-draftea`; o acesso Git por SSH ao mesmo repositório permanece válido.
 - Compra, venda e saldo continuam simulados e persistem somente no navegador; taxas taker não entram no VWAP. Durante falha da Polymarket, preços UP/DOWN e profundidade também são sintéticos e existem apenas para continuidade do protótipo.
 - Repetir a observação dos snapshots reais do CLOB quando o ambiente voltar a resolver `polymarket.com` e `gamma-api.polymarket.com`; nesta sessão somente o caminho resiliente local pôde ser exercitado de ponta a ponta.
-- Pull Request, merge e deploy ainda precisam ser confirmados após a validação local desta tarefa.
+- Pull Request, merge e deploy desta correção foram autorizados e aguardam execução.
 
 ## Próximo passo
 
-- Revisar o diff da branch `feature/seeded-wallet-history` e, somente com autorização separada, decidir commit, Pull Request, merge ou publicação.
+- Publicar `fix/last-round-seen-animation`, mesclar o Pull Request e acompanhar o GitHub Pages até a conferência em produção.
