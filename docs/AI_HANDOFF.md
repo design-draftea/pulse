@@ -133,6 +133,7 @@
 ## Validações executadas
 
 - Sincronização com produção validada após os merges de `origin/main`: Home → Entradas, retorno pelo histórico e rota direta preservaram seção, hash e indicador ativo; uma aba limpa permaneceu sem erros ou avisos no console.
+- Retorno `PASADAS` → scroll → Home validado: a origem estava em `scrollY=222`; a Home entrou em `scrollY=0` diretamente com `SubHeader` em `64px` e `PriceComparison` em `90px`, sem classes compactas nem erros no console.
 - Suíte integrada após produção: `test:chart` 13, `test:fallback` 6, `test:market` 23, `test:wallet` 14 e `test:entries` 7; lint, build com 121 módulos e `git diff --check` passaram.
 
 - `GANADAS` validada no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: cards de `296px`, `351px` e `404px`, respectivamente, sempre com `196px` de altura, `12px` de margem lateral e sem overflow horizontal.

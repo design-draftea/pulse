@@ -188,6 +188,10 @@ function App() {
   const commitSectionChange = useCallback((nextSection: AppSection) => {
     activeSectionRef.current = nextSection
     window.scrollTo({ top: 0, left: 0 })
+    if (nextSection === 'home') {
+      setIsMarketHeaderCompact(false)
+      setIsMarketHeaderPinned(false)
+    }
     setActiveSection(nextSection)
     setSelectedSide(null)
     setBetslipInitialOperationMode('buy')
@@ -260,6 +264,10 @@ function App() {
     if (!currentTransition || currentTransition.phase !== 'exiting') return
 
     window.scrollTo({ top: 0, left: 0 })
+    if (currentTransition.target === 'home') {
+      setIsMarketHeaderCompact(false)
+      setIsMarketHeaderPinned(false)
+    }
     const enteringTransition: PageTransitionState = {
       ...currentTransition,
       phase: 'entering',
