@@ -34,6 +34,8 @@ const OVERLAY_BLUR_STYLE = {
   backdropFilter: 'blur(8px)',
   WebkitBackdropFilter: 'blur(8px)',
 } satisfies CSSProperties
+const METRIC_COUNT_DURATION_MS = 900
+const METRIC_UPDATE_DURATION_MS = 420
 
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -114,13 +116,116 @@ const formatBalance = (valueCents: number) => (
   balanceFormatter.format(valueCents / 100)
 )
 
-const formatMetric = (valueCents: number) => (
-  metricFormatter.format(valueCents / 100)
-)
+interface AnimatedCurrencyValueProps {
+  className?: string
+  delayMs?: number
+  formatter: Intl.NumberFormat
+  valueCents: number
+}
 
-const formatNetResult = (valueCents: number) => (
-  netResultFormatter.format(valueCents / 100)
-)
+function AnimatedCurrencyValue({
+  className,
+  delayMs = 0,
+  formatter,
+  valueCents,
+}: AnimatedCurrencyValueProps) {
+  const targetValueCents = Math.round(valueCents)
+  const prefersReducedMotion = window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches
+  const initialValueCents = prefersReducedMotion ? targetValueCents : 0
+  const currentValueRef = useRef(initialValueCents)
+  const hasAnimatedRef = useRef(false)
+  const [displayedValueCents, setDisplayedValueCents] = useState(initialValueCents)
+  const [animationPhase, setAnimationPhase] = useState<
+    'idle' | 'initial' | 'update'
+  >('idle')
+  const [canAnimate, setCanAnimate] = useState(
+    delayMs === 0 || prefersReducedMotion,
+  )
+
+  useEffect(() => {
+    if (canAnimate) return undefined
+
+    const delayTimerId = window.setTimeout(() => setCanAnimate(true), delayMs)
+    return () => window.clearTimeout(delayTimerId)
+  }, [canAnimate, delayMs])
+
+  useEffect(() => {
+    if (!canAnimate) return undefined
+
+    const startValueCents = currentValueRef.current
+    let animationFrameId = 0
+
+    if (startValueCents === targetValueCents) return undefined
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      animationFrameId = window.requestAnimationFrame(() => {
+        currentValueRef.current = targetValueCents
+        setDisplayedValueCents(targetValueCents)
+        setAnimationPhase('idle')
+      })
+
+      return () => window.cancelAnimationFrame(animationFrameId)
+    }
+
+    const nextAnimationPhase = hasAnimatedRef.current ? 'update' : 'initial'
+    const animationDurationMs = hasAnimatedRef.current
+      ? METRIC_UPDATE_DURATION_MS
+      : METRIC_COUNT_DURATION_MS
+    const startedAt = window.performance.now()
+    let isFirstFrame = true
+
+    hasAnimatedRef.current = true
+
+    const animate = (frameTime: number) => {
+      if (isFirstFrame) {
+        setAnimationPhase(nextAnimationPhase)
+        isFirstFrame = false
+      }
+
+      const progress = Math.min(
+        1,
+        (frameTime - startedAt) / animationDurationMs,
+      )
+      const easedProgress = 1 - (1 - progress) ** 4
+      const nextValueCents = Math.round(
+        startValueCents
+          + (targetValueCents - startValueCents) * easedProgress,
+      )
+
+      currentValueRef.current = nextValueCents
+      setDisplayedValueCents(nextValueCents)
+
+      if (progress < 1) {
+        animationFrameId = window.requestAnimationFrame(animate)
+        return
+      }
+
+      currentValueRef.current = targetValueCents
+      setDisplayedValueCents(targetValueCents)
+      setAnimationPhase('idle')
+    }
+
+    animationFrameId = window.requestAnimationFrame(animate)
+
+    return () => window.cancelAnimationFrame(animationFrameId)
+  }, [canAnimate, targetValueCents])
+
+  return (
+    <strong
+      className={className}
+      aria-label={formatter.format(targetValueCents / 100)}
+      data-animating={animationPhase !== 'idle'}
+      data-initial-animation={animationPhase === 'initial'}
+      data-target-cents={targetValueCents}
+    >
+      <span aria-hidden="true">
+        {formatter.format(displayedValueCents / 100)}
+      </span>
+    </strong>
+  )
+}
 
 export function ProfileBottomSheet({
   isOpen,
@@ -452,7 +557,11 @@ export function ProfileBottomSheet({
                   Portafolio total
                   <img src={infoIcon} alt="" aria-hidden="true" />
                 </button>
-                <strong>{formatBalance(metrics.portfolioTotalCents)}</strong>
+                <AnimatedCurrencyValue
+                  delayMs={80}
+                  formatter={balanceFormatter}
+                  valueCents={metrics.portfolioTotalCents}
+                />
               </span>
             </div>
 
@@ -470,7 +579,7 @@ export function ProfileBottomSheet({
 
           <div className="profile-sheet__metrics-scroll" aria-label="Métricas de la cuenta">
             <div className="profile-sheet__metrics">
-              {metricCards.map((card) => (
+              {metricCards.map((card, index) => (
                 <article className="profile-sheet__metric" key={card.label}>
                   <button
                     className="profile-sheet__label-with-info profile-sheet__info-trigger"
@@ -482,15 +591,16 @@ export function ProfileBottomSheet({
                     {card.label}
                     <img src={infoIcon} alt="" aria-hidden="true" />
                   </button>
-                  <strong
+                  <AnimatedCurrencyValue
                     className={card.isNetResult
                       ? `profile-sheet__metric-value profile-sheet__metric-value--${netResultTone}`
                       : 'profile-sheet__metric-value'}
-                  >
-                    {card.isNetResult
-                      ? formatNetResult(card.value)
-                      : formatMetric(card.value)}
-                  </strong>
+                    delayMs={160 + index * 80}
+                    formatter={card.isNetResult
+                      ? netResultFormatter
+                      : metricFormatter}
+                    valueCents={card.value}
+                  />
                 </article>
               ))}
             </div>
