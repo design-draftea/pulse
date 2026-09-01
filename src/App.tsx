@@ -55,7 +55,7 @@ import { getWalletProfileMetrics } from './services/prototypeWallet'
 import './App.css'
 
 const MARKET_HEADER_COMPACT_SCROLL_Y = 80
-const DEFAULT_CONTENT_BOTTOM_INSET = 130
+const DEFAULT_CONTENT_BOTTOM_INSET = 114
 const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('previewRoundResult')
     === 'won'
