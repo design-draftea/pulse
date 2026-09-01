@@ -18,13 +18,13 @@
   align-items: center;
   gap: 8px;
   padding: 16px 12px 8px;
-  background: linear-gradient(
-    180deg,
-    rgb(20 7 52 / 96%) 0%,
-    rgb(5 2 14 / 98%) 100%
-  );
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+}
+
+.open-entries__tabs--pinned {
+  background-image: url('../../assets/bgHeader.png');
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: max(100vw, 391px) auto;
 }
 
 .open-entries__tabs::before {

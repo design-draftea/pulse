@@ -340,6 +340,8 @@ export function OpenEntries({
 }: OpenEntriesProps) {
   const [activeTab, setActiveTab] = useState<EntriesTab>('open')
   const [tabTransitionPhase, setTabTransitionPhase] = useState<TabTransitionPhase>('idle')
+  const [areTabsPinned, setAreTabsPinned] = useState(false)
+  const tabsRef = useRef<HTMLDivElement>(null)
   const tabSwapTimerRef = useRef<number | null>(null)
   const tabSettleTimerRef = useRef<number | null>(null)
   const entries = getOpenEntrySummaries(position, costBasis)
@@ -365,6 +367,19 @@ export function OpenEntries({
     }
   }, [])
 
+  useEffect(() => {
+    const updateTabsPinnedState = () => {
+      setAreTabsPinned(
+        (tabsRef.current?.getBoundingClientRect().top ?? 1) <= 0,
+      )
+    }
+
+    updateTabsPinnedState()
+    window.addEventListener('scroll', updateTabsPinnedState, { passive: true })
+
+    return () => window.removeEventListener('scroll', updateTabsPinnedState)
+  }, [])
+
   const selectTab = (nextTab: EntriesTab) => {
     if (nextTab === activeTab || tabTransitionPhase !== 'idle') return
 
@@ -388,7 +403,8 @@ export function OpenEntries({
   return (
     <main className="open-entries" data-node-id="383:6851">
       <div
-        className={`open-entries__tabs open-entries__tabs--${activeTab}`}
+        ref={tabsRef}
+        className={`open-entries__tabs open-entries__tabs--${activeTab}${areTabsPinned ? ' open-entries__tabs--pinned' : ''}`}
         role="tablist"
         aria-label="Estados de entradas"
       >
