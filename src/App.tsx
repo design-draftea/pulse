@@ -56,7 +56,7 @@ const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
     === 'won'
 const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
-const PAGE_TRANSITION_MS = 360
+const PAGE_TRANSITION_MS = 300
 const MOVEMENTS_HASH = '#movimientos'
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -70,7 +70,6 @@ type PageTransitionDirection = 'forward' | 'backward'
 
 interface PageTransitionState {
   direction: PageTransitionDirection
-  scrollY: number
   source: AppSection
   target: AppSection
 }
@@ -154,7 +153,7 @@ function App() {
         }
         pageTransitionRef.current = null
         setPageTransition(null)
-        window.scrollTo({ top: currentTransition.scrollY, left: 0 })
+        window.scrollTo({ top: 0, left: 0 })
       }
       return
     }
@@ -184,7 +183,6 @@ function App() {
 
     const transition: PageTransitionState = {
       direction,
-      scrollY: window.scrollY,
       source: currentSection,
       target: nextSection,
     }
@@ -493,7 +491,6 @@ function App() {
 
   const appStyle = {
     '--pulse-content-bottom-inset': `${contentBottomInset}px`,
-    '--pulse-outgoing-scroll-y': `${pageTransition?.scrollY ?? 0}px`,
   } as CSSProperties
   const formattedBalance = balanceFormatter.format(balanceCents / 100)
   const hasActiveEntry = currentPosition.up > 0 || currentPosition.down > 0
