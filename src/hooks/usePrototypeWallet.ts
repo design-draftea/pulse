@@ -14,6 +14,7 @@ import {
   deserializeWalletState,
   getPendingWalletRoundStarts,
   getWalletPosition,
+  LEGACY_PROTOTYPE_WALLET_STORAGE_KEY,
   PROTOTYPE_WALLET_STORAGE_KEY,
   settleWalletRound,
   type PrototypeWalletState,
@@ -43,6 +44,7 @@ const loadWalletState = () => {
   if (url.searchParams.get('resetWallet') === '1') {
     try {
       window.localStorage.removeItem(PROTOTYPE_WALLET_STORAGE_KEY)
+      window.localStorage.removeItem(LEGACY_PROTOTYPE_WALLET_STORAGE_KEY)
     } catch {
       // The in-memory wallet still resets when storage is unavailable.
     }
@@ -53,6 +55,7 @@ const loadWalletState = () => {
   }
 
   try {
+    window.localStorage.removeItem(LEGACY_PROTOTYPE_WALLET_STORAGE_KEY)
     return deserializeWalletState(
       window.localStorage.getItem(PROTOTYPE_WALLET_STORAGE_KEY),
     )
@@ -147,6 +150,7 @@ export function usePrototypeWallet(currentRoundStart: number) {
     movements: state.movements,
     currentPosition,
     pendingRoundStarts,
+    walletState: state,
     purchase,
     sell,
     settleRound,

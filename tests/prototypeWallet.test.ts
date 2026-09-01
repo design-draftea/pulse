@@ -7,8 +7,11 @@ import {
   createInitialWalletState,
   deserializeWalletState,
   getPendingWalletRoundStarts,
+  getWalletCostBasis,
+  getWalletProfileMetrics,
   getWalletPosition,
   INITIAL_BALANCE_CENTS,
+  PROTOTYPE_WALLET_VERSION,
   settleWalletRound,
 } from '../src/services/prototypeWallet.ts'
 
@@ -18,7 +21,11 @@ test('inicia a carteira com US$ 2.000,00 e sem posições', () => {
   const wallet = createInitialWalletState()
 
   assert.equal(wallet.balanceCents, INITIAL_BALANCE_CENTS)
+  assert.equal(wallet.version, PROTOTYPE_WALLET_VERSION)
   assert.deepEqual(wallet.positionsByRound, {})
+  assert.deepEqual(wallet.costBasisCentsByRound, {})
+  assert.equal(wallet.totalPurchasesCents, 0)
+  assert.equal(wallet.totalReceivedCents, 0)
   assert.deepEqual(wallet.creditedEventIds, [])
   assert.deepEqual(
     wallet.movements.map(({ id, type, amountCents }) => ({
@@ -34,7 +41,7 @@ test('inicia a carteira com US$ 2.000,00 e sem posições', () => {
   )
 })
 
-test('restaura uma carteira válida e descarta armazenamento inválido', () => {
+test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválido', () => {
   const wallet = applyWalletPurchase(createInitialWalletState(), {
     roundStart: ROUND_START,
     side: 'up',
@@ -67,8 +74,16 @@ test('restaura uma carteira válida e descarta armazenamento inválido', () => {
     depositTimestamp,
   )
   assert.equal(
-    deserializeWalletState('{"version":1,"balanceCents":-1}').balanceCents,
+    deserializeWalletState('{"version":1,"balanceCents":200000}').version,
+    PROTOTYPE_WALLET_VERSION,
+  )
+  assert.equal(
+    deserializeWalletState('{"version":2,"balanceCents":-1}').balanceCents,
     INITIAL_BALANCE_CENTS,
+  )
+  assert.deepEqual(
+    deserializeWalletState('{"version":1,"balanceCents":200000}').positionsByRound,
+    {},
   )
 })
 
@@ -97,6 +112,12 @@ test('compra parcial desconta centavos e adiciona a posição correta', () => {
       { type: 'purchase', amountCents: -12_345 },
     ],
   )
+  assert.deepEqual(getWalletCostBasis(result.state, ROUND_START), {
+    up: 0,
+    down: 12_345,
+  })
+  assert.equal(result.state.totalPurchasesCents, 12_345)
+  assert.equal(result.state.totalReceivedCents, 0)
 })
 
 test('permite usar todo o saldo e bloqueia compra acima dele', () => {
@@ -141,6 +162,8 @@ test('venda parcial e total creditam o grossValue sem deixar posição negativa'
 
   assert.equal(partial.state.balanceCents, 193_333)
   assert.equal(getWalletPosition(partial.state, ROUND_START).up, 60)
+  assert.equal(getWalletCostBasis(partial.state, ROUND_START).up, 6_000)
+  assert.equal(partial.state.totalReceivedCents, 3_333)
   assert.equal(total.state.balanceCents, 197_833)
   assert.deepEqual(total.state.positionsByRound, {})
   assert.deepEqual(
@@ -155,6 +178,8 @@ test('venda parcial e total creditam o grossValue sem deixar posição negativa'
       { type: 'sale', amountCents: 4_500 },
     ],
   )
+  assert.deepEqual(total.state.costBasisCentsByRound, {})
+  assert.equal(total.state.totalReceivedCents, 7_833)
 })
 
 test('liquida somente as participações restantes do lado vencedor', () => {
@@ -192,6 +217,9 @@ test('liquida somente as participações restantes do lado vencedor', () => {
       side: 'up',
     },
   )
+  assert.deepEqual(settled.state.costBasisCentsByRound, {})
+  assert.equal(settled.state.totalPurchasesCents, 15_000)
+  assert.equal(settled.state.totalReceivedCents, 14_925)
 })
 
 test('derrota remove a posição sem crédito', () => {
@@ -210,6 +238,8 @@ test('derrota remove a posição sem crédito', () => {
     settled.state.movements.map(({ type }) => type),
     ['deposit', 'purchase'],
   )
+  assert.deepEqual(settled.state.costBasisCentsByRound, {})
+  assert.equal(settled.state.totalReceivedCents, 0)
 })
 
 test('vitória DOWN paga somente as participações DOWN', () => {
@@ -305,4 +335,49 @@ test('protege liquidação e crédito de demonstração contra duplicidade', () 
     duplicateDemo.state.movements.filter(({ type }) => type === 'win').length,
     2,
   )
+  assert.equal(duplicateDemo.state.totalReceivedCents, 24_925)
+})
+
+test('calcula métricas de perfil pelo preço atual e usa custo nas rodadas pendentes', () => {
+  const previousRound = ROUND_START - 900_000
+  const withPending = applyWalletPurchase(createInitialWalletState(), {
+    roundStart: previousRound,
+    side: 'down',
+    amountCents: 5_000,
+    participations: 60,
+  }).state
+  const withCurrent = applyWalletPurchase(withPending, {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountCents: 10_000,
+    participations: 149.25,
+  }).state
+  const metrics = getWalletProfileMetrics(withCurrent, ROUND_START, 12_000)
+
+  assert.deepEqual(metrics, {
+    availableBalanceCents: 185_000,
+    portfolioTotalCents: 202_000,
+    totalPurchasesCents: 15_000,
+    openEntriesCents: 17_000,
+    totalReceivedCents: 0,
+    netResultCents: 2_000,
+  })
+})
+
+test('usa o custo da rodada atual quando a cotação de venda está indisponível', () => {
+  const purchased = applyWalletPurchase(createInitialWalletState(), {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountCents: 12_345,
+    participations: 150.75,
+  }).state
+
+  assert.deepEqual(getWalletProfileMetrics(purchased, ROUND_START, null), {
+    availableBalanceCents: 187_655,
+    portfolioTotalCents: INITIAL_BALANCE_CENTS,
+    totalPurchasesCents: 12_345,
+    openEntriesCents: 12_345,
+    totalReceivedCents: 0,
+    netResultCents: 0,
+  })
 })

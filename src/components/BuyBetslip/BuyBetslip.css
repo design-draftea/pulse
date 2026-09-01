@@ -34,7 +34,11 @@
 }
 
 .buy-betslip--keyboard .buy-betslip__stage {
-  --buy-betslip-expanded-stage-height: 422px;
+  --buy-betslip-expanded-stage-height: 411px;
+}
+
+.buy-betslip--keyboard {
+  --buy-betslip-keyboard-expanded-y: 12px;
 }
 
 .buy-betslip--one-tap .buy-betslip__stage {
@@ -46,7 +50,7 @@
 }
 
 .buy-betslip--sell.buy-betslip--keyboard .buy-betslip__stage {
-  --buy-betslip-expanded-stage-height: 358px;
+  --buy-betslip-expanded-stage-height: 347px;
 }
 
 .buy-betslip--collapsed .buy-betslip__stage {
@@ -73,7 +77,14 @@
   border-radius: inherit;
   opacity: var(--buy-betslip-expanded-opacity, 1);
   transform:
-    translate3d(0, var(--buy-betslip-expanded-y, 0), 0)
+    translate3d(
+      0,
+      calc(
+        var(--buy-betslip-expanded-y, 0px)
+        + var(--buy-betslip-keyboard-expanded-y, 0px)
+      ),
+      0
+    )
     scale(var(--buy-betslip-expanded-scale, 1));
   transform-origin: center bottom;
   transition:
