@@ -100,6 +100,16 @@ const getAppSection = (): AppSection => {
   return 'home'
 }
 
+// O topo é reafirmado no frame seguinte porque a rota anterior deixa o fluxo no
+// mesmo instante do reset: a altura do documento encolhe logo depois da
+// chamada síncrona e o Chrome do iOS reaplica o deslocamento anterior.
+const resetScrollTop = () => {
+  window.scrollTo({ top: 0, left: 0 })
+  window.requestAnimationFrame(() => {
+    if (window.scrollY !== 0) window.scrollTo({ top: 0, left: 0 })
+  })
+}
+
 function App() {
   const [activeSection, setActiveSection] = useState<AppSection>(getAppSection)
   const [pageTransition, setPageTransition] = useState<
@@ -205,7 +215,7 @@ function App() {
 
   const commitSectionChange = useCallback((nextSection: AppSection) => {
     activeSectionRef.current = nextSection
-    window.scrollTo({ top: 0, left: 0 })
+    resetScrollTop()
     if (nextSection === 'home') {
       setIsMarketHeaderCompact(false)
       setIsMarketHeaderPinned(false)
@@ -281,7 +291,7 @@ function App() {
     const currentTransition = pageTransitionRef.current
     if (!currentTransition || currentTransition.phase !== 'exiting') return
 
-    window.scrollTo({ top: 0, left: 0 })
+    resetScrollTop()
     if (currentTransition.target === 'home') {
       setIsMarketHeaderCompact(false)
       setIsMarketHeaderPinned(false)
@@ -316,6 +326,19 @@ function App() {
   useEffect(() => () => {
     if (pageTransitionTimerRef.current !== null) {
       window.clearTimeout(pageTransitionTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    // A Navbar navega por pushState e a aplicação reposiciona o scroll sozinha.
+    // Sem isto o navegador restaura o deslocamento salvo da entrada de
+    // histórico e desfaz o reset durante a transição.
+    if (!('scrollRestoration' in window.history)) return
+    const previousScrollRestoration = window.history.scrollRestoration
+
+    window.history.scrollRestoration = 'manual'
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration
     }
   }, [])
 
