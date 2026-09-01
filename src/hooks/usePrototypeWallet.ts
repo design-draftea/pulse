@@ -144,6 +144,7 @@ export function usePrototypeWallet(currentRoundStart: number) {
   return {
     balanceCents: state.balanceCents,
     creditedEventIds: state.creditedEventIds,
+    movements: state.movements,
     currentPosition,
     pendingRoundStarts,
     purchase,

@@ -86,6 +86,7 @@ function App() {
   const {
     balanceCents,
     currentPosition,
+    movements,
     pendingRoundStarts,
     purchase,
     sell,
@@ -427,7 +428,7 @@ function App() {
 
         <Header balance={formattedBalance} balanceCents={balanceCents} />
         {activeSection === 'movements' ? (
-          <Movements />
+          <Movements movements={movements} />
         ) : (
           <>
             <div ref={marketHeaderSlotRef} className="pulse-app__market-header-slot">

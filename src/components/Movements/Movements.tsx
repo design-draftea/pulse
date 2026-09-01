@@ -2,130 +2,167 @@ import iconChevronRight from '../../assets/iconChevronRight.svg'
 import iconDeposito from '../../assets/iconDeposito.svg'
 import iconMoney from '../../assets/iconMoney.svg'
 import iconSaque from '../../assets/iconSaque.svg'
+import type {
+  PrototypeWalletMovement,
+  WalletMovementType,
+} from '../../services/prototypeWallet'
 import './Movements.css'
 
-type MovementTone = 'positive' | 'negative'
-
-interface MovementItem {
-  id: string
-  title: string
-  time: string
-  amount: string
-  tone: MovementTone
-  icon: string
+interface MovementsProps {
+  movements: PrototypeWalletMovement[]
 }
 
 interface MovementGroup {
+  key: string
   label: string
-  items: MovementItem[]
+  items: PrototypeWalletMovement[]
 }
 
-const MOVEMENT_GROUPS: MovementGroup[] = [
-  {
-    label: 'Hoy',
-    items: [
-      {
-        id: 'deposit-today',
-        title: 'Depósito',
-        time: '12:45',
-        amount: '+ $200.00',
-        tone: 'positive',
-        icon: iconDeposito,
-      },
-      {
-        id: 'win-today',
-        title: 'Ganó BTC / 15 min',
-        time: '12:45',
-        amount: '+ $200.00',
-        tone: 'positive',
-        icon: iconMoney,
-      },
-    ],
-  },
-  {
-    label: '01 Set. 2026',
-    items: [
-      {
-        id: 'purchase-september',
-        title: 'Compró BTC / 15 min',
-        time: '16:54',
-        amount: '- $90.00',
-        tone: 'negative',
-        icon: iconMoney,
-      },
-      {
-        id: 'withdrawal-september',
-        title: 'Retiro de ganancias',
-        time: '16:54',
-        amount: '- $90.00',
-        tone: 'negative',
-        icon: iconSaque,
-      },
-      {
-        id: 'card-deposit-september',
-        title: 'Depósito tarjeta',
-        time: '12:45',
-        amount: '+ $200.00',
-        tone: 'positive',
-        icon: iconDeposito,
-      },
-      {
-        id: 'sale-september',
-        title: 'Vendió BTC / 15 min',
-        time: '12:45',
-        amount: '+ $200.00',
-        tone: 'positive',
-        icon: iconMoney,
-      },
-      {
-        id: 'cancelled-september',
-        title: 'Cancelado BTC / 15 min',
-        time: '12:45',
-        amount: '+ $200.00',
-        tone: 'positive',
-        icon: iconMoney,
-      },
-    ],
-  },
+const MONTH_LABELS = [
+  'Ene.',
+  'Feb.',
+  'Mar.',
+  'Abr.',
+  'May.',
+  'Jun.',
+  'Jul.',
+  'Ago.',
+  'Set.',
+  'Oct.',
+  'Nov.',
+  'Dic.',
 ]
 
-export function Movements() {
+const movementTitles: Record<WalletMovementType, string> = {
+  deposit: 'Depósito',
+  withdrawal: 'Retiro de ganancias',
+  purchase: 'Compró BTC / 15 min',
+  sale: 'Vendió BTC / 15 min',
+  win: 'Ganó BTC / 15 min',
+  cancellation: 'Cancelado BTC / 15 min',
+}
+
+const movementIcons: Record<WalletMovementType, string> = {
+  deposit: iconDeposito,
+  withdrawal: iconSaque,
+  purchase: iconMoney,
+  sale: iconMoney,
+  win: iconMoney,
+  cancellation: iconMoney,
+}
+
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+const timeFormatter = new Intl.DateTimeFormat('es-MX', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+const getDateKey = (date: Date) => (
+  `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+)
+
+const getDateLabel = (date: Date, today: Date) => {
+  if (getDateKey(date) === getDateKey(today)) return 'Hoy'
+
+  return [
+    String(date.getDate()).padStart(2, '0'),
+    MONTH_LABELS[date.getMonth()],
+    date.getFullYear(),
+  ].join(' ')
+}
+
+const groupMovements = (
+  movements: PrototypeWalletMovement[],
+): MovementGroup[] => {
+  const today = new Date()
+
+  return [...movements].reverse().reduce<MovementGroup[]>((groups, movement) => {
+    const occurredAt = new Date(movement.occurredAt)
+    const key = getDateKey(occurredAt)
+    const currentGroup = groups.at(-1)
+
+    if (currentGroup?.key === key) {
+      currentGroup.items.push(movement)
+      return groups
+    }
+
+    groups.push({
+      key,
+      label: getDateLabel(occurredAt, today),
+      items: [movement],
+    })
+    return groups
+  }, [])
+}
+
+const formatMovementAmount = (amountCents: number) => (
+  `${amountCents >= 0 ? '+' : '-'} ${currencyFormatter.format(
+    Math.abs(amountCents) / 100,
+  )}`
+)
+
+export function Movements({ movements }: MovementsProps) {
+  const movementGroups = groupMovements(movements)
+
   return (
     <main
       className="movements"
       aria-label="Movimientos"
       data-node-id="381:6271"
     >
-      {MOVEMENT_GROUPS.map((group) => (
-        <section className="movements__group" key={group.label}>
+      {movementGroups.map((group) => (
+        <section className="movements__group" key={group.key}>
           <h2 className="movements__date">{group.label}</h2>
           <ul className="movements__list">
-            {group.items.map((item) => (
-              <li className="movements__item" key={item.id}>
-                <span className="movements__icon-wrap" aria-hidden="true">
-                  <img className="movements__icon" src={item.icon} alt="" />
-                </span>
+            {group.items.map((item) => {
+              const occurredAt = new Date(item.occurredAt)
+              const isPositive = item.amountCents >= 0
 
-                <span className="movements__info">
-                  <span className="movements__title">{item.title}</span>
-                  <time className="movements__time">{item.time}</time>
-                </span>
-
-                <span className="movements__value-wrap">
-                  <span
-                    className={`movements__value movements__value--${item.tone}`}
-                  >
-                    {item.amount}
+              return (
+                <li className="movements__item" key={item.id}>
+                  <span className="movements__icon-wrap" aria-hidden="true">
+                    <img
+                      className="movements__icon"
+                      src={movementIcons[item.type]}
+                      alt=""
+                    />
                   </span>
-                  <img
-                    className="movements__chevron"
-                    src={iconChevronRight}
-                    alt=""
-                    aria-hidden="true"
-                  />
-                </span>
-              </li>
-            ))}
+
+                  <span className="movements__info">
+                    <span className="movements__title">
+                      {movementTitles[item.type]}
+                    </span>
+                    <time
+                      className="movements__time"
+                      dateTime={occurredAt.toISOString()}
+                    >
+                      {timeFormatter.format(occurredAt)}
+                    </time>
+                  </span>
+
+                  <span className="movements__value-wrap">
+                    <span
+                      className={`movements__value movements__value--${isPositive ? 'positive' : 'negative'}`}
+                    >
+                      {formatMovementAmount(item.amountCents)}
+                    </span>
+                    <img
+                      className="movements__chevron"
+                      src={iconChevronRight}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </section>
       ))}

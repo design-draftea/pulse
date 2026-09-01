@@ -5,7 +5,26 @@ export const PROTOTYPE_WALLET_VERSION = 1
 export const INITIAL_BALANCE_CENTS = 200_000
 
 const MAX_CREDIT_EVENT_IDS = 100
+const MAX_MOVEMENTS = 100
 const PARTICIPATION_EPSILON = 1e-8
+const INITIAL_DEPOSIT_MOVEMENT_ID = 'initial-deposit'
+
+export type WalletMovementType =
+  | 'deposit'
+  | 'withdrawal'
+  | 'purchase'
+  | 'sale'
+  | 'win'
+  | 'cancellation'
+
+export interface PrototypeWalletMovement {
+  id: string
+  type: WalletMovementType
+  amountCents: number
+  occurredAt: number
+  roundStart?: number
+  side?: OutcomeSide
+}
 
 export interface PrototypeWalletPosition {
   up: number
@@ -17,6 +36,7 @@ export interface PrototypeWalletState {
   balanceCents: number
   positionsByRound: Record<string, PrototypeWalletPosition>
   creditedEventIds: string[]
+  movements: PrototypeWalletMovement[]
   revision: number
   updatedAt: number
 }
@@ -55,6 +75,108 @@ const isValidRoundStart = (value: number) => (
   Number.isInteger(value) && value > 0
 )
 
+const isWalletMovementType = (value: unknown): value is WalletMovementType => (
+  value === 'deposit'
+  || value === 'withdrawal'
+  || value === 'purchase'
+  || value === 'sale'
+  || value === 'win'
+  || value === 'cancellation'
+)
+
+const hasValidMovementAmount = (
+  type: WalletMovementType,
+  amountCents: number,
+) => (
+  type === 'purchase' || type === 'withdrawal'
+    ? amountCents < 0
+    : amountCents > 0
+)
+
+const createInitialDepositMovement = (
+  occurredAt: number,
+): PrototypeWalletMovement => ({
+  id: INITIAL_DEPOSIT_MOVEMENT_ID,
+  type: 'deposit',
+  amountCents: INITIAL_BALANCE_CENTS,
+  occurredAt,
+})
+
+const normalizeMovement = (
+  value: unknown,
+): PrototypeWalletMovement | null => {
+  if (typeof value !== 'object' || value === null) return null
+
+  const movement = value as Partial<PrototypeWalletMovement>
+
+  if (
+    typeof movement.id !== 'string'
+    || movement.id.length === 0
+    || !isWalletMovementType(movement.type)
+    || typeof movement.amountCents !== 'number'
+    || !Number.isInteger(movement.amountCents)
+    || !hasValidMovementAmount(movement.type, movement.amountCents)
+    || !isNonNegativeFinite(movement.occurredAt)
+    || (
+      movement.roundStart !== undefined
+      && !isValidRoundStart(movement.roundStart)
+    )
+    || (
+      movement.side !== undefined
+      && movement.side !== 'up'
+      && movement.side !== 'down'
+    )
+  ) {
+    return null
+  }
+
+  return {
+    id: movement.id,
+    type: movement.type,
+    amountCents: movement.amountCents,
+    occurredAt: movement.occurredAt,
+    ...(movement.roundStart === undefined
+      ? {}
+      : { roundStart: movement.roundStart }),
+    ...(movement.side === undefined ? {} : { side: movement.side }),
+  }
+}
+
+const normalizeMovements = (
+  values: unknown,
+  fallbackInitialDepositOccurredAt: number,
+) => {
+  const parsedMovements = Array.isArray(values)
+    ? values
+      .map(normalizeMovement)
+      .filter((movement): movement is PrototypeWalletMovement => movement !== null)
+    : []
+  const initialDeposit = parsedMovements.find(
+    ({ id }) => id === INITIAL_DEPOSIT_MOVEMENT_ID,
+  )
+  const normalized = parsedMovements.filter(
+    ({ id }) => id !== INITIAL_DEPOSIT_MOVEMENT_ID,
+  )
+  const unique = normalized.filter((movement, index, movements) => (
+    movements.findLastIndex(({ id }) => id === movement.id) === index
+  ))
+
+  return [
+    createInitialDepositMovement(
+      initialDeposit?.occurredAt ?? fallbackInitialDepositOccurredAt,
+    ),
+    ...unique.slice(-(MAX_MOVEMENTS - 1)),
+  ]
+}
+
+const appendMovement = (
+  state: PrototypeWalletState,
+  movement: PrototypeWalletMovement,
+) => normalizeMovements(
+  [...state.movements, movement],
+  state.movements[0]?.occurredAt ?? state.updatedAt,
+)
+
 const nextCreditEventIds = (eventIds: string[], eventId: string) => (
   [...eventIds.filter((value) => value !== eventId), eventId]
     .slice(-MAX_CREDIT_EVENT_IDS)
@@ -64,7 +186,7 @@ const updateWallet = (
   state: PrototypeWalletState,
   update: Pick<
     PrototypeWalletState,
-    'balanceCents' | 'positionsByRound' | 'creditedEventIds'
+    'balanceCents' | 'positionsByRound' | 'creditedEventIds' | 'movements'
   >,
 ): PrototypeWalletState => ({
   ...state,
@@ -73,14 +195,19 @@ const updateWallet = (
   updatedAt: Date.now(),
 })
 
-export const createInitialWalletState = (): PrototypeWalletState => ({
-  version: PROTOTYPE_WALLET_VERSION,
-  balanceCents: INITIAL_BALANCE_CENTS,
-  positionsByRound: {},
-  creditedEventIds: [],
-  revision: 0,
-  updatedAt: Date.now(),
-})
+export const createInitialWalletState = (): PrototypeWalletState => {
+  const createdAt = Date.now()
+
+  return {
+    version: PROTOTYPE_WALLET_VERSION,
+    balanceCents: INITIAL_BALANCE_CENTS,
+    positionsByRound: {},
+    creditedEventIds: [],
+    movements: [createInitialDepositMovement(createdAt)],
+    revision: 0,
+    updatedAt: createdAt,
+  }
+}
 
 export const deserializeWalletState = (
   serialized: string | null,
@@ -130,12 +257,14 @@ export const deserializeWalletState = (
         (value): value is string => typeof value === 'string' && value.length > 0,
       ),
     )].slice(-MAX_CREDIT_EVENT_IDS)
+    const movements = normalizeMovements(parsed.movements, parsed.updatedAt)
 
     return {
       version: PROTOTYPE_WALLET_VERSION,
       balanceCents: parsed.balanceCents,
       positionsByRound,
       creditedEventIds,
+      movements,
       revision: parsed.revision,
       updatedAt: parsed.updatedAt,
     }
@@ -196,6 +325,14 @@ export const applyWalletPurchase = (
     balanceCents: state.balanceCents - amountCents,
     positionsByRound,
     creditedEventIds: state.creditedEventIds,
+    movements: appendMovement(state, {
+      id: `purchase:${roundStart}:${side}:${state.revision + 1}`,
+      type: 'purchase',
+      amountCents: -amountCents,
+      occurredAt: Date.now(),
+      roundStart,
+      side,
+    }),
   })
 
   return {
@@ -248,6 +385,14 @@ export const applyWalletSale = (
     balanceCents: state.balanceCents + amountReceivedCents,
     positionsByRound,
     creditedEventIds: state.creditedEventIds,
+    movements: appendMovement(state, {
+      id: `sale:${roundStart}:${side}:${state.revision + 1}`,
+      type: 'sale',
+      amountCents: amountReceivedCents,
+      occurredAt: Date.now(),
+      roundStart,
+      side,
+    }),
   })
 
   return {
@@ -283,6 +428,7 @@ export const settleWalletRound = (
       balanceCents: state.balanceCents,
       positionsByRound,
       creditedEventIds: state.creditedEventIds,
+      movements: state.movements,
     })
 
     return {
@@ -301,6 +447,16 @@ export const settleWalletRound = (
       state.creditedEventIds,
       eventId,
     ),
+    movements: payoutCents > 0
+      ? appendMovement(state, {
+        id: `win:${roundStart}`,
+        type: 'win',
+        amountCents: payoutCents,
+        occurredAt: Date.now(),
+        roundStart,
+        side: winner,
+      })
+      : state.movements,
   })
 
   return {
@@ -332,6 +488,12 @@ export const creditWalletEvent = (
       state.creditedEventIds,
       eventId,
     ),
+    movements: appendMovement(state, {
+      id: `win:${eventId}`,
+      type: 'win',
+      amountCents,
+      occurredAt: Date.now(),
+    }),
   })
 
   return {
