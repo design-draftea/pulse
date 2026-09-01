@@ -27,6 +27,18 @@ test('inicia a carteira com US$ 2.000,00 e sem posições', () => {
   assert.equal(wallet.totalPurchasesCents, 0)
   assert.equal(wallet.totalReceivedCents, 0)
   assert.deepEqual(wallet.creditedEventIds, [])
+  assert.deepEqual(
+    wallet.movements.map(({ id, type, amountCents }) => ({
+      id,
+      type,
+      amountCents,
+    })),
+    [{
+      id: 'initial-deposit',
+      type: 'deposit',
+      amountCents: INITIAL_BALANCE_CENTS,
+    }],
+  )
 })
 
 test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválido', () => {
@@ -40,6 +52,26 @@ test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválid
   assert.deepEqual(
     deserializeWalletState(JSON.stringify(wallet)),
     wallet,
+  )
+  const legacyWallet: Record<string, unknown> = { ...wallet }
+  delete legacyWallet.movements
+  const migratedWallet = deserializeWalletState(JSON.stringify(legacyWallet))
+
+  assert.equal(migratedWallet.movements.length, 1)
+  assert.equal(migratedWallet.movements[0]?.type, 'deposit')
+  assert.equal(
+    migratedWallet.movements[0]?.amountCents,
+    INITIAL_BALANCE_CENTS,
+  )
+  const depositTimestamp = wallet.movements[0]?.occurredAt
+  const restoredAfterLaterUpdate = deserializeWalletState(JSON.stringify({
+    ...wallet,
+    updatedAt: wallet.updatedAt + 60_000,
+  }))
+
+  assert.equal(
+    restoredAfterLaterUpdate.movements[0]?.occurredAt,
+    depositTimestamp,
   )
   assert.equal(
     deserializeWalletState('{"version":1,"balanceCents":200000}').version,
@@ -70,6 +102,16 @@ test('compra parcial desconta centavos e adiciona a posição correta', () => {
     up: 0,
     down: 150.75,
   })
+  assert.deepEqual(
+    result.state.movements.map(({ type, amountCents }) => ({
+      type,
+      amountCents,
+    })),
+    [
+      { type: 'deposit', amountCents: INITIAL_BALANCE_CENTS },
+      { type: 'purchase', amountCents: -12_345 },
+    ],
+  )
   assert.deepEqual(getWalletCostBasis(result.state, ROUND_START), {
     up: 0,
     down: 12_345,
@@ -124,6 +166,18 @@ test('venda parcial e total creditam o grossValue sem deixar posição negativa'
   assert.equal(partial.state.totalReceivedCents, 3_333)
   assert.equal(total.state.balanceCents, 197_833)
   assert.deepEqual(total.state.positionsByRound, {})
+  assert.deepEqual(
+    total.state.movements.map(({ type, amountCents }) => ({
+      type,
+      amountCents,
+    })),
+    [
+      { type: 'deposit', amountCents: INITIAL_BALANCE_CENTS },
+      { type: 'purchase', amountCents: -10_000 },
+      { type: 'sale', amountCents: 3_333 },
+      { type: 'sale', amountCents: 4_500 },
+    ],
+  )
   assert.deepEqual(total.state.costBasisCentsByRound, {})
   assert.equal(total.state.totalReceivedCents, 7_833)
 })
@@ -152,6 +206,17 @@ test('liquida somente as participações restantes do lado vencedor', () => {
   assert.equal(settled.payoutCents, 12_925)
   assert.equal(settled.state.balanceCents, 199_925)
   assert.deepEqual(settled.state.positionsByRound, {})
+  assert.deepEqual(
+    settled.state.movements.at(-1),
+    {
+      id: `win:${ROUND_START}`,
+      type: 'win',
+      amountCents: 12_925,
+      occurredAt: settled.state.movements.at(-1)?.occurredAt,
+      roundStart: ROUND_START,
+      side: 'up',
+    },
+  )
   assert.deepEqual(settled.state.costBasisCentsByRound, {})
   assert.equal(settled.state.totalPurchasesCents, 15_000)
   assert.equal(settled.state.totalReceivedCents, 14_925)
@@ -169,6 +234,10 @@ test('derrota remove a posição sem crédito', () => {
   assert.equal(settled.payoutCents, 0)
   assert.equal(settled.state.balanceCents, 190_000)
   assert.deepEqual(settled.state.positionsByRound, {})
+  assert.deepEqual(
+    settled.state.movements.map(({ type }) => type),
+    ['deposit', 'purchase'],
+  )
   assert.deepEqual(settled.state.costBasisCentsByRound, {})
   assert.equal(settled.state.totalReceivedCents, 0)
 })
@@ -262,6 +331,10 @@ test('protege liquidação e crédito de demonstração contra duplicidade', () 
   assert.equal(firstDemo.applied, true)
   assert.equal(duplicateDemo.applied, false)
   assert.equal(duplicateDemo.state.balanceCents, 214_925)
+  assert.equal(
+    duplicateDemo.state.movements.filter(({ type }) => type === 'win').length,
+    2,
+  )
   assert.equal(duplicateDemo.state.totalReceivedCents, 24_925)
 })
 
