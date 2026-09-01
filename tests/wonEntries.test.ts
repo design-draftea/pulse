@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { PrototypeWalletSettledEntry } from '../src/services/prototypeWallet.ts'
+import {
+  createInitialWalletState,
+  type PrototypeWalletSettledEntry,
+} from '../src/services/prototypeWallet.ts'
 import { getPastEntries, getWonEntries } from '../src/services/wonEntries.ts'
 
 const entry = (
@@ -50,4 +53,38 @@ test('pasadas reúne ganadas, perdidas e canceladas da mais recente para a mais 
     ['canceled', 'lost', 'won'],
   )
   assert.deepEqual(entries.map(({ id }) => id), ['won', 'canceled', 'lost'])
+})
+
+test('seed inicial oferece duas ganadas e quatro pasadas sem alterar a origem', () => {
+  const entries = createInitialWalletState().settledEntries
+
+  assert.deepEqual(
+    getWonEntries(entries).map(({ outcome, side, payoutCents }) => ({
+      outcome,
+      payoutCents,
+      side,
+    })),
+    [
+      { outcome: 'won', side: 'down', payoutCents: 20_000 },
+      { outcome: 'won', side: 'up', payoutCents: 16_000 },
+    ],
+  )
+  assert.deepEqual(
+    getPastEntries(entries).map(({ outcome, side }) => ({ outcome, side })),
+    [
+      { outcome: 'lost', side: 'up' },
+      { outcome: 'won', side: 'down' },
+      { outcome: 'lost', side: 'down' },
+      { outcome: 'won', side: 'up' },
+    ],
+  )
+  assert.deepEqual(
+    entries.map(({ outcome, side }) => ({ outcome, side })),
+    [
+      { outcome: 'won', side: 'up' },
+      { outcome: 'lost', side: 'down' },
+      { outcome: 'won', side: 'down' },
+      { outcome: 'lost', side: 'up' },
+    ],
+  )
 })

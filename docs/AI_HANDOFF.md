@@ -4,12 +4,16 @@
 
 - Atualizado em: 2026-09-01
 - Agente que entrega: Codex
-- Status: tela de Entradas com `ABIERTAS`, `GANADAS` e `PASADAS` implementadas localmente
-- Objetivo: reproduzir os nós `383:7678`, `383:7716`, `383:9489`, `383:14424` e `383:14503`, preservando navegação, carteira e betslip existentes
-- Critérios de aceite: posições abertas agregadas por lado; vencedoras persistentes após F5; venda pela entrada; fidelidade mobile; testes, lint, build e navegador aprovados
-- Branch/worktree observado ao finalizar: `feature/open-entries-screen` em `/private/tmp/pulse-open-entries`
+- Status: histórico inicial coerente da carteira implementado e pronto para revisão local
+- Objetivo: iniciar a persona com depósito de `$2,000.00`, quatro entradas passadas, saldo calculado de `$2,040.00` e nenhuma entrada aberta
+- Critérios de aceite: Header, Movimientos, Entradas e Perfil derivados do mesmo estado; duas ganadas e quatro pasadas; migração única para v3; compra posterior cria a única entrada aberta; testes, lint, build e navegador aprovados
+- Branch/worktree observado ao finalizar: `feature/seeded-wallet-history` em `/private/tmp/pulse-seeded-wallet-history`
 
 ## Alterações realizadas
+
+- `src/services/prototypeWallet.ts`: carteira v3 com depósito de `$2,000.00`, quatro entradas liquidadas em três datas recentes, sete movimentos, compras totais de `$320.00`, total recebido de `$360.00`, saldo/portafolio de `$2,040.00` e resultado neto de `+$40.00`.
+- `src/hooks/usePrototypeWallet.ts`: chaves v1/v2 removidas na primeira carga da v3; o seed normalizado é persistido imediatamente e `?resetWallet=1` limpa todas as versões antes de restaurá-lo.
+- `tests/prototypeWallet.test.ts` e `tests/wonEntries.test.ts`: cobertura do seed, datas relativas, métricas, migração v2→v3, ordenação 2/4 e criação da primeira posição aberta sem alterar o histórico.
 
 - `src/components/OpenEntries/`: chips `ABIERTAS`, `GANADAS` e `PASADAS`, cards abertos e liquidados responsivos; `GANADAS` usa o asset `badgeGanhador.svg`.
 - `src/components/OpenEntries/`: `PASADAS` habilitada com cards ganados, perdidos e cancelados; os estados neutros usam os badges `NO GANADOR` e `CANCELADO` conforme os nós `383:14424` e `383:14503`.
@@ -131,6 +135,11 @@
 - `design-qa.md`: evidências disponíveis e bloqueio visual documentados.
 
 ## Validações executadas
+
+- Histórico v3 validado no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: Header em `$2,040.00`, sete movimentos agrupados em quatro datas, modal de ganho em `$200.00`, `ABIERTAS` vazia, duas `GANADAS`, quatro `PASADAS` e Perfil em `$320 / $0 / $360 / +$40`, sem overflow horizontal.
+- Persistência validada após F5 com os mesmos sete movimentos e quatro grupos; `?resetWallet=1` removeu o parâmetro da URL. Uma compra real de `$100` em UP reduziu o saldo a `$1,940.00` e criou exatamente um card em `ABIERTAS`, preservando as abas históricas.
+- Browser console sem erros ou avisos. A origem Polymarket não resolveu no servidor local (`ENOTFOUND`), mas a contingência silenciosa manteve preços, livro, compra e navegação operacionais.
+- `test:wallet`: 15 testes passaram; `test:entries`: 8 testes passaram; oxlint passou; typecheck e build passaram com 122 módulos.
 
 - Sincronização com produção validada após os merges de `origin/main`: Home → Entradas, retorno pelo histórico e rota direta preservaram seção, hash e indicador ativo; uma aba limpa permaneceu sem erros ou avisos no console.
 - Retorno `PASADAS` → scroll → Home validado: a origem estava em `scrollY=222`; a Home entrou em `scrollY=0` diretamente com `SubHeader` em `64px` e `PriceComparison` em `90px`, sem classes compactas nem erros no console.
@@ -267,7 +276,7 @@
 
 ## Pendências e riscos
 
-- O controle automatizado do navegador não oferece gesto de arraste contínuo; o swipe foi validado pelo caminho equivalente de teclado e sua implementação mantém os eventos de ponteiro e o limiar de 60% da referência do Draftaco.
+- O swipe real de compra foi exercitado por arraste contínuo nesta tarefa; nenhuma pendência funcional foi encontrada no escopo do histórico inicial.
 - Falta comparar capturas do bloqueio completo nos viewports de `499px` e `500px`; até isso acontecer, `design-qa.md` permanece bloqueado.
 - O proxy de produção foi implementado, mas a publicação do Worker depende de uma conta Cloudflare com `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` configurados no GitHub. Sem isso, o Pages continua funcional pela contingência silenciosa, porém sem o alvo oficial da Polymarket.
 - Neste computador, `wrangler whoami` confirmou ausência de sessão Cloudflare e o GitHub CLI informou token expirado para `design-draftea`; o acesso Git por SSH ao mesmo repositório permanece válido.
@@ -277,4 +286,4 @@
 
 ## Próximo passo
 
-- Executar a suíte completa, validar o build em `/pulse/`, verificar autenticação do GitHub/Cloudflare e então publicar somente as etapas autorizadas. Antes de transformar o protótipo em produto, definir backend, autenticação, carteira real, taxas e envio de ordens.
+- Revisar o diff da branch `feature/seeded-wallet-history` e, somente com autorização separada, decidir commit, Pull Request, merge ou publicação.

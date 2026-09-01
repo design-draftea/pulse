@@ -15,7 +15,7 @@ import {
   getPendingWalletRoundStarts,
   getWalletCostBasis,
   getWalletPosition,
-  LEGACY_PROTOTYPE_WALLET_STORAGE_KEY,
+  LEGACY_PROTOTYPE_WALLET_STORAGE_KEYS,
   PROTOTYPE_WALLET_STORAGE_KEY,
   settleWalletRound,
   type PrototypeWalletState,
@@ -40,32 +40,6 @@ export interface PrototypeWalletSale {
 
 const dollarsToCents = (value: number) => Math.round(value * 100)
 
-const loadWalletState = () => {
-  const url = new URL(window.location.href)
-
-  if (url.searchParams.get('resetWallet') === '1') {
-    try {
-      window.localStorage.removeItem(PROTOTYPE_WALLET_STORAGE_KEY)
-      window.localStorage.removeItem(LEGACY_PROTOTYPE_WALLET_STORAGE_KEY)
-    } catch {
-      // The in-memory wallet still resets when storage is unavailable.
-    }
-
-    url.searchParams.delete('resetWallet')
-    window.history.replaceState(window.history.state, '', url)
-    return createInitialWalletState()
-  }
-
-  try {
-    window.localStorage.removeItem(LEGACY_PROTOTYPE_WALLET_STORAGE_KEY)
-    return deserializeWalletState(
-      window.localStorage.getItem(PROTOTYPE_WALLET_STORAGE_KEY),
-    )
-  } catch {
-    return createInitialWalletState()
-  }
-}
-
 const persistWalletState = (state: PrototypeWalletState) => {
   try {
     window.localStorage.setItem(
@@ -74,6 +48,46 @@ const persistWalletState = (state: PrototypeWalletState) => {
     )
   } catch {
     // Persistence is best-effort; the wallet remains functional in memory.
+  }
+}
+
+const removeStoredWalletStates = () => {
+  window.localStorage.removeItem(PROTOTYPE_WALLET_STORAGE_KEY)
+  LEGACY_PROTOTYPE_WALLET_STORAGE_KEYS.forEach((key) => {
+    window.localStorage.removeItem(key)
+  })
+}
+
+const loadWalletState = () => {
+  const url = new URL(window.location.href)
+
+  if (url.searchParams.get('resetWallet') === '1') {
+    const initialState = createInitialWalletState()
+
+    try {
+      removeStoredWalletStates()
+      persistWalletState(initialState)
+    } catch {
+      // The in-memory wallet still resets when storage is unavailable.
+    }
+
+    url.searchParams.delete('resetWallet')
+    window.history.replaceState(window.history.state, '', url)
+    return initialState
+  }
+
+  try {
+    LEGACY_PROTOTYPE_WALLET_STORAGE_KEYS.forEach((key) => {
+      window.localStorage.removeItem(key)
+    })
+    const state = deserializeWalletState(
+      window.localStorage.getItem(PROTOTYPE_WALLET_STORAGE_KEY),
+    )
+
+    persistWalletState(state)
+    return state
+  } catch {
+    return createInitialWalletState()
   }
 }
 
