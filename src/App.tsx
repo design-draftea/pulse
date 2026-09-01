@@ -59,9 +59,11 @@ const DEFAULT_CONTENT_BOTTOM_INSET = 114
 const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('previewRoundResult')
     === 'won'
-const LOCKED_MARKET_CHOICE_PREVIEW_MODE = import.meta.env.DEV
-  && new URLSearchParams(window.location.search).get('previewMarketChoice')
-    === 'locked'
+const MARKET_CHOICE_PREVIEW_MODE = import.meta.env.DEV
+  ? new URLSearchParams(window.location.search).get('previewMarketChoice')
+  : null
+const LOCKED_MARKET_CHOICE_PREVIEW_MODE = MARKET_CHOICE_PREVIEW_MODE === 'locked'
+const LOCKED_BETSLIP_PREVIEW_MODE = MARKET_CHOICE_PREVIEW_MODE === 'betslip-locked'
 const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
 const PAGE_TRANSITION_FALLBACK_MS = 700
@@ -106,7 +108,9 @@ function App() {
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [selectedSide, setSelectedSide] = useState<MarketSide | null>(null)
+  const [selectedSide, setSelectedSide] = useState<MarketSide | null>(
+    LOCKED_BETSLIP_PREVIEW_MODE ? 'up' : null,
+  )
   const [betslipInitialOperationMode, setBetslipInitialOperationMode] = useState<
     BetslipOperationMode
   >('buy')
@@ -140,6 +144,14 @@ function App() {
       || currentPosition.up > 0
       || currentPosition.down > 0,
   })
+  const betslipMarket = useMemo(() => (
+    LOCKED_BETSLIP_PREVIEW_MODE
+      ? {
+          ...outcomeMarket,
+          displayPrices: { up: null, down: null },
+        }
+      : outcomeMarket
+  ), [outcomeMarket])
   const currentRoundMarketValueCents = useMemo(() => {
     let totalValueCents = 0
 
@@ -749,7 +761,7 @@ function App() {
 
         {shouldShowHomeAction && (selectedSide ? (
           <BuyBetslip
-            market={outcomeMarket}
+            market={betslipMarket}
             side={selectedSide}
             initialOperationMode={betslipInitialOperationMode}
             onSideChange={setSelectedSide}
