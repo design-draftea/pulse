@@ -175,6 +175,9 @@ function App() {
   const [latestCompletedRound, setLatestCompletedRound] = useState<
     PreviousRound | null
   >(null)
+  const [lastSeenCompletedRoundStart, setLastSeenCompletedRoundStart] = useState<
+    number | null
+  >(null)
   const [previewRemainingSeconds, setPreviewRemainingSeconds] = useState<
     number | null
   >(() => (
@@ -609,6 +612,14 @@ function App() {
     transitionToSection(nextSection)
   }, [transitionToSection])
 
+  const handleAnimatedRoundSeen = useCallback((roundStart: number) => {
+    setLastSeenCompletedRoundStart((currentRoundStart) => (
+      currentRoundStart === null
+        ? roundStart
+        : Math.max(currentRoundStart, roundStart)
+    ))
+  }, [])
+
   const visiblePreviousRounds = useMemo(() => {
     if (!latestCompletedRound) return marketRound.previousRounds
 
@@ -624,6 +635,13 @@ function App() {
       ),
     ].slice(0, 10)
   }, [latestCompletedRound, marketRound.previousRounds])
+  const animatedPreviousRoundStart = latestCompletedRound
+    && (
+      lastSeenCompletedRoundStart === null
+      || latestCompletedRound.roundStart > lastSeenCompletedRoundStart
+    )
+    ? latestCompletedRound.roundStart
+    : null
 
   const appStyle = {
     '--pulse-content-bottom-inset': `${contentBottomInset}px`,
@@ -687,7 +705,8 @@ function App() {
           currentUpdatedAt={marketRound.currentPriceUpdatedAt}
         />
         <PreviousRounds
-          animatedRoundStart={latestCompletedRound?.roundStart ?? null}
+          animatedRoundStart={animatedPreviousRoundStart}
+          onAnimatedRoundSeen={handleAnimatedRoundSeen}
           rounds={visiblePreviousRounds}
         />
         <PulseFooter />

@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type UIEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type AnimationEvent as ReactAnimationEvent,
+  type UIEvent,
+} from 'react'
 import iconClock from '../../assets/iconClock.svg'
 import iconDoubleChevronsDown from '../../assets/iconDoubleChevronsDown.svg'
 import iconDoubleChevronsUp from '../../assets/iconDoubleChevronsUp.svg'
@@ -19,6 +25,7 @@ export interface PreviousRound {
 
 interface PreviousRoundsProps {
   animatedRoundStart?: number | null
+  onAnimatedRoundSeen?: (roundStart: number) => void
   rounds: PreviousRound[]
 }
 
@@ -43,6 +50,7 @@ const timeFormatter = new Intl.DateTimeFormat('es-MX', {
 
 export function PreviousRounds({
   animatedRoundStart = null,
+  onAnimatedRoundSeen,
   rounds,
 }: PreviousRoundsProps) {
   const [activeIndex, setActiveIndex] = useState(0)
@@ -52,6 +60,20 @@ export function PreviousRounds({
     ({ roundStart }) => roundStart === animatedRoundStart,
   )
   const hasNewRound = animatedRoundStart !== null && Boolean(animatedRound)
+
+  useEffect(() => {
+    if (
+      !hasNewRound
+      || animatedRoundStart === null
+      || !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) return
+
+    onAnimatedRoundSeen?.(animatedRoundStart)
+  }, [
+    animatedRoundStart,
+    hasNewRound,
+    onAnimatedRoundSeen,
+  ])
 
   useEffect(() => {
     trackRef.current?.scrollTo({ left: 0, behavior: 'auto' })
@@ -67,6 +89,18 @@ export function PreviousRounds({
     const nextIndex = Math.round(track.scrollLeft / cardStep)
 
     setActiveIndex(Math.max(0, Math.min(rounds.length - 1, nextIndex)))
+  }
+
+  const handleAnimatedRoundEnd = (
+    event: ReactAnimationEvent<HTMLElement>,
+    roundStart: number,
+  ) => {
+    if (
+      event.target !== event.currentTarget
+      || event.animationName !== 'previous-rounds-card-enter'
+    ) return
+
+    onAnimatedRoundSeen?.(roundStart)
   }
 
   const firstVisibleBulletIndex =
@@ -150,6 +184,9 @@ export function PreviousRounds({
                 data-round-start={round.roundStart}
                 data-target-price={round.targetPrice}
                 key={round.roundStart}
+                onAnimationEnd={isAnimatedRound
+                  ? (event) => handleAnimatedRoundEnd(event, round.roundStart)
+                  : undefined}
               >
                 <div className="previous-rounds__meta">
                   <span className="previous-rounds__time">
