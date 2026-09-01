@@ -13,11 +13,13 @@ import {
   createInitialWalletState,
   deserializeWalletState,
   getPendingWalletRoundStarts,
+  getWalletCostBasis,
   getWalletPosition,
   LEGACY_PROTOTYPE_WALLET_STORAGE_KEY,
   PROTOTYPE_WALLET_STORAGE_KEY,
   settleWalletRound,
   type PrototypeWalletState,
+  type WalletRoundResultDetails,
   type WalletMutationResult,
   type WalletSettlementResult,
 } from '../services/prototypeWallet'
@@ -123,8 +125,9 @@ export function usePrototypeWallet(currentRoundStart: number) {
   const settleRound = useCallback((
     roundStart: number,
     winner: OutcomeSide,
+    details?: WalletRoundResultDetails,
   ): WalletSettlementResult => (
-    commit((current) => settleWalletRound(current, roundStart, winner))
+    commit((current) => settleWalletRound(current, roundStart, winner, details))
   ), [commit])
 
   const creditOnce = useCallback((eventId: string, amount: number) => (
@@ -139,6 +142,10 @@ export function usePrototypeWallet(currentRoundStart: number) {
     () => getWalletPosition(state, currentRoundStart),
     [currentRoundStart, state],
   )
+  const currentCostBasis = useMemo(
+    () => getWalletCostBasis(state, currentRoundStart),
+    [currentRoundStart, state],
+  )
   const pendingRoundStarts = useMemo(
     () => getPendingWalletRoundStarts(state, currentRoundStart),
     [currentRoundStart, state],
@@ -148,8 +155,10 @@ export function usePrototypeWallet(currentRoundStart: number) {
     balanceCents: state.balanceCents,
     creditedEventIds: state.creditedEventIds,
     movements: state.movements,
+    currentCostBasis,
     currentPosition,
     pendingRoundStarts,
+    settledEntries: state.settledEntries ?? [],
     walletState: state,
     purchase,
     sell,

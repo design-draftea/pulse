@@ -1,0 +1,754 @@
+.open-entries {
+  --open-entries-bottom-clearance: calc(
+    56px + max(8px, env(safe-area-inset-bottom))
+  );
+
+  position: relative;
+  z-index: 1;
+  min-height: calc(100svh - 56px);
+  padding-bottom: var(--open-entries-bottom-clearance);
+}
+
+.open-entries__tabs {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+.open-entries__tabs--pinned {
+  background-image: url('../../assets/bgHeader.png');
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: max(100vw, 391px) auto;
+}
+
+.open-entries__tabs::before {
+  position: absolute;
+  z-index: 0;
+  top: 8px;
+  left: 16px;
+  width: 104px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 56px;
+  background:
+    linear-gradient(
+      90deg,
+      rgb(75 32 255 / 24%) 0%,
+      rgb(151 48 255 / 24%) 100%
+    ) padding-box,
+    linear-gradient(var(--color-background-app), var(--color-background-app)) padding-box,
+    linear-gradient(
+      90deg,
+      var(--color-action-primary-default-start) 0%,
+      var(--color-action-primary-default-end) 100%
+    ) border-box;
+  box-shadow: 0 6px 16px rgb(75 32 255 / 16%);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition:
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 240ms ease;
+}
+
+.open-entries__tabs--won::before {
+  width: 86px;
+  transform: translateX(112px);
+}
+
+.open-entries__tabs--past::before {
+  width: 82px;
+  transform: translateX(206px);
+}
+
+.open-entries__tab {
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-fill-opacity-tertiary);
+  border-radius: 56px;
+  background: var(--color-action-transparency-default);
+  color: var(--color-fill-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.open-entries__tab:nth-child(1) {
+  width: 104px;
+}
+
+.open-entries__tab:nth-child(2) {
+  width: 86px;
+}
+
+.open-entries__tab:nth-child(3) {
+  width: 82px;
+}
+
+.open-entries__tab:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.open-entries__tab--active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-fill-primary);
+}
+
+.open-entries__tab:active {
+  transform: scale(0.96);
+}
+
+.open-entries__tab--with-live {
+  gap: 4px;
+}
+
+.open-entries__live-indicator-slot {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.open-entries__list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 16px 12px;
+}
+
+.open-entries__list--transition-out {
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity 110ms ease-in,
+    transform 110ms ease-in;
+}
+
+.open-entries__list--transition-in {
+  animation: open-entries-content-fade-in 180ms ease-out;
+}
+
+@keyframes open-entries-content-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .open-entries__tabs::before,
+  .open-entries__tab,
+  .open-entries__list {
+    animation: none;
+    transition: none;
+  }
+}
+
+.open-entries__list--empty {
+  min-height: calc(
+    100svh - 56px - 48px - var(--open-entries-bottom-clearance)
+  );
+  align-items: center;
+  justify-content: center;
+}
+
+.open-entries__empty {
+  margin: 0;
+  color: var(--color-fill-tertiary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 21px;
+  text-align: center;
+}
+
+.open-entry-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 248px;
+  flex: 0 0 248px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-fill-opacity-tertiary);
+  border-radius: 16px;
+  background: rgb(0 0 0 / 24%);
+}
+
+.open-entry-card__light {
+  position: absolute;
+  z-index: 0;
+  top: -96px;
+  left: 50%;
+  display: block;
+  width: 449px;
+  height: 164px;
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.open-entry-card__summary,
+.open-entry-card__body,
+.open-entry-card__actions {
+  position: relative;
+  z-index: 1;
+}
+
+.open-entry-card__summary {
+  display: flex;
+  width: 100%;
+  height: 64px;
+  flex: 0 0 64px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-fill-opacity-quaternary);
+}
+
+.open-entry-card__potential {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.open-entry-card__potential strong {
+  color: var(--color-fill-primary);
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 27px;
+}
+
+.open-entry-card__potential span,
+.open-entry-card__summary-details {
+  color: var(--color-fill-tertiary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
+}
+
+.open-entry-card__summary-details {
+  display: flex;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.open-entry-card__body {
+  display: flex;
+  width: 100%;
+  height: 132px;
+  flex: 0 0 132px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.open-entry-card__meta {
+  display: flex;
+  min-width: 0;
+  height: 20px;
+  flex: 0 0 20px;
+  align-items: center;
+  gap: 8px;
+  overflow: visible;
+  color: var(--color-fill-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.open-entry-card__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.open-entry-card__separator {
+  display: block;
+  width: 4px;
+  height: 4px;
+  flex: 0 0 4px;
+}
+
+.open-entry-card__countdown {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+.open-entry-card__position {
+  display: flex;
+  min-width: 0;
+  height: 42px;
+  flex: 0 0 42px;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--color-fill-primary);
+  font-size: 14px;
+  line-height: 21px;
+  white-space: nowrap;
+}
+
+.open-entry-card__position strong {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.open-entry-card__position > span {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+.open-entry-card__side--up {
+  color: var(--color-fill-success);
+}
+
+.open-entry-card__side--down {
+  color: var(--color-fill-error);
+}
+
+.open-entry-card__prices {
+  display: flex;
+  width: 100%;
+  height: 42px;
+  flex: 0 0 42px;
+  align-items: center;
+  gap: 20px;
+}
+
+.open-entry-card__target-price,
+.open-entry-card__current-price {
+  display: flex;
+  min-width: 0;
+  height: 42px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.open-entry-card__target-price {
+  width: 120px;
+  flex: 0 0 120px;
+  border-right: 1px solid var(--color-fill-opacity-quaternary);
+  color: var(--color-fill-secondary);
+}
+
+.open-entry-card__current-price {
+  flex: 1 1 0;
+  color: var(--color-fill-primary);
+}
+
+.open-entry-card__target-price > span,
+.open-entry-card__current-title {
+  height: 18px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.open-entry-card__target-price > strong,
+.open-entry-card__current-price > strong {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.open-entry-card__current-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.open-entry-card__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.open-entry-card__delta img {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.open-entry-card__delta--up {
+  color: var(--color-fill-success);
+}
+
+.open-entry-card__delta--down {
+  color: var(--color-fill-error);
+}
+
+.open-entry-card__actions {
+  display: flex;
+  width: 100%;
+  height: 52px;
+  flex: 0 0 52px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 12px 12px;
+}
+
+.open-entry-card__button {
+  appearance: none;
+  height: 36px;
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-fill-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.open-entry-card__button--secondary {
+  background: var(--color-action-secondary-default);
+}
+
+.open-entry-card__button--primary {
+  background: linear-gradient(
+    75.115deg,
+    var(--color-action-primary-default-start) 0%,
+    var(--color-action-primary-default-end) 100%
+  );
+}
+
+.open-entry-card__button:focus-visible,
+.open-entries__tab:focus-visible {
+  outline: 2px solid var(--color-fill-primary);
+  outline-offset: 2px;
+}
+
+.won-entry-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 196px;
+  flex: 0 0 196px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-fill-opacity-tertiary);
+  border-radius: 16px;
+  background: rgb(0 0 0 / 24%);
+}
+
+.won-entry-card__light {
+  position: absolute;
+  z-index: 0;
+  top: -96px;
+  left: 50%;
+  display: block;
+  width: 449px;
+  height: 164px;
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.won-entry-card__summary,
+.won-entry-card__body {
+  position: relative;
+  z-index: 1;
+}
+
+.won-entry-card__summary {
+  display: flex;
+  height: 64px;
+  flex: 0 0 64px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-fill-opacity-quaternary);
+}
+
+.won-entry-card__payout-row,
+.won-entry-card__payout,
+.won-entry-card__summary-details,
+.won-entry-card__meta,
+.won-entry-card__prices {
+  display: flex;
+  align-items: center;
+}
+
+.won-entry-card__payout-row {
+  height: 27px;
+  gap: 6px;
+}
+
+.won-entry-card__payout {
+  gap: 1px;
+  color: var(--color-fill-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.won-entry-card__payout strong {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 27px;
+}
+
+.won-entry-card__badge {
+  position: relative;
+  display: block;
+  width: 72px;
+  height: 25px;
+  flex: 0 0 72px;
+}
+
+.won-entry-card__badge img {
+  display: block;
+  width: 72px;
+  height: 25px;
+}
+
+.won-entry-card__badge strong {
+  position: absolute;
+  inset: 3.5px 3px 1.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fill-dark, #000);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 12px;
+}
+
+.won-entry-card__status-badge {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: var(--color-background-opacity-secondary);
+  color: var(--color-fill-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.won-entry-card--lost .won-entry-card__payout,
+.won-entry-card--canceled .won-entry-card__payout {
+  color: var(--color-fill-disabled);
+}
+
+.won-entry-card__summary-details {
+  gap: 12px;
+  color: var(--color-fill-tertiary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
+  white-space: nowrap;
+}
+
+.won-entry-card__summary-details strong {
+  color: inherit;
+  font-weight: 400;
+}
+
+.won-entry-card--canceled .won-entry-card__summary-details > span:first-child strong {
+  color: var(--color-fill-primary);
+}
+
+.won-entry-card__body {
+  display: flex;
+  height: 132px;
+  flex: 0 0 132px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.won-entry-card__meta {
+  height: 20px;
+  flex: 0 0 20px;
+  gap: 8px;
+  color: var(--color-fill-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.won-entry-card__meta img {
+  width: 4px;
+  height: 4px;
+}
+
+.won-entry-card__position {
+  display: flex;
+  height: 42px;
+  flex: 0 0 42px;
+  flex-direction: column;
+  color: var(--color-fill-primary);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.won-entry-card__position strong {
+  font-weight: 700;
+}
+
+.won-entry-card__position > span {
+  font-weight: 500;
+}
+
+.won-entry-card__prices {
+  height: 42px;
+  flex: 0 0 42px;
+  gap: 20px;
+}
+
+.won-entry-card__target-price,
+.won-entry-card__final-price {
+  display: flex;
+  min-width: 0;
+  height: 42px;
+  flex-direction: column;
+}
+
+.won-entry-card__target-price {
+  width: 120px;
+  flex: 0 0 120px;
+  border-right: 1px solid var(--color-fill-opacity-quaternary);
+  color: var(--color-fill-secondary);
+}
+
+.won-entry-card__final-price {
+  flex: 1 1 0;
+  color: var(--color-fill-primary);
+}
+
+.won-entry-card__target-price span,
+.won-entry-card__final-price span {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.won-entry-card__target-price strong,
+.won-entry-card__final-price strong {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.won-entry-card[data-result-side='up'] .won-entry-card__final-price strong {
+  color: var(--color-fill-success);
+}
+
+.won-entry-card[data-result-side='down'] .won-entry-card__final-price strong {
+  color: var(--color-fill-error);
+}
+
+.won-entry-card__result {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.won-entry-card__result--up {
+  background: var(--color-fill-success);
+}
+
+.won-entry-card__result--down {
+  background: var(--color-fill-error);
+}
+
+.won-entry-card__result img {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+@media (max-width: 340px) {
+  .open-entry-card__summary-details {
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .won-entry-card__summary-details {
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .open-entry-card__meta {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .open-entry-card__prices {
+    gap: 12px;
+  }
+
+  .open-entry-card__target-price {
+    width: 112px;
+    flex-basis: 112px;
+  }
+
+  .won-entry-card__prices {
+    gap: 12px;
+  }
+
+  .won-entry-card__target-price {
+    width: 112px;
+    flex-basis: 112px;
+  }
+}

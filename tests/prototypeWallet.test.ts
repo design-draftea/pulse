@@ -27,6 +27,7 @@ test('inicia a carteira com US$ 2.000,00 e sem posições', () => {
   assert.equal(wallet.totalPurchasesCents, 0)
   assert.equal(wallet.totalReceivedCents, 0)
   assert.deepEqual(wallet.creditedEventIds, [])
+  assert.deepEqual(wallet.settledEntries, [])
   assert.deepEqual(
     wallet.movements.map(({ id, type, amountCents }) => ({
       id,
@@ -39,6 +40,27 @@ test('inicia a carteira com US$ 2.000,00 e sem posições', () => {
       amountCents: INITIAL_BALANCE_CENTS,
     }],
   )
+})
+
+test('restaura uma entrada cancelada junto do histórico de movimientos', () => {
+  const wallet = createInitialWalletState()
+  wallet.settledEntries = [{
+    id: `${ROUND_START}:down:canceled`,
+    roundStart: ROUND_START,
+    roundEnd: ROUND_START + 900_000,
+    side: 'down',
+    outcome: 'canceled',
+    amountCents: 20_000,
+    participations: 588.24,
+    payoutCents: 0,
+    targetPrice: 80_194.33,
+    finalPrice: 80_195.64,
+  }]
+
+  const restored = deserializeWalletState(JSON.stringify(wallet))
+
+  assert.deepEqual(restored.settledEntries, wallet.settledEntries)
+  assert.deepEqual(restored.movements, wallet.movements)
 })
 
 test('restaura uma carteira v2 válida e reinicia o armazenamento v1 ou inválido', () => {
@@ -201,7 +223,11 @@ test('liquida somente as participações restantes do lado vencedor', () => {
     amountReceivedCents: 2_000,
     participations: 20,
   }).state
-  const settled = settleWalletRound(sold, ROUND_START, 'up')
+  const settled = settleWalletRound(sold, ROUND_START, 'up', {
+    roundEnd: ROUND_START + 900_000,
+    targetPrice: 80_194.33,
+    finalPrice: 80_195.64,
+  })
 
   assert.equal(settled.payoutCents, 12_925)
   assert.equal(settled.state.balanceCents, 199_925)
@@ -220,6 +246,34 @@ test('liquida somente as participações restantes do lado vencedor', () => {
   assert.deepEqual(settled.state.costBasisCentsByRound, {})
   assert.equal(settled.state.totalPurchasesCents, 15_000)
   assert.equal(settled.state.totalReceivedCents, 14_925)
+  assert.deepEqual(settled.state.settledEntries.map((entry) => ({
+    side: entry.side,
+    outcome: entry.outcome,
+    amountCents: entry.amountCents,
+    participations: entry.participations,
+    payoutCents: entry.payoutCents,
+    targetPrice: entry.targetPrice,
+    finalPrice: entry.finalPrice,
+  })), [
+    {
+      side: 'down',
+      outcome: 'lost',
+      amountCents: 5_000,
+      participations: 60,
+      payoutCents: 0,
+      targetPrice: 80_194.33,
+      finalPrice: 80_195.64,
+    },
+    {
+      side: 'up',
+      outcome: 'won',
+      amountCents: 8_660,
+      participations: 129.25,
+      payoutCents: 12_925,
+      targetPrice: 80_194.33,
+      finalPrice: 80_195.64,
+    },
+  ])
 })
 
 test('derrota remove a posição sem crédito', () => {

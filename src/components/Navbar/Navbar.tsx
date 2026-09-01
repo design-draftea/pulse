@@ -1,8 +1,10 @@
 import iconEntradas from '../../assets/iconEntradas.svg'
+import iconEntradasActive from '../../assets/iconEntradasActive.svg'
 import iconHome from '../../assets/iconHome.svg'
 import iconHomeActive from '../../assets/iconHomeActive.svg'
 import iconMovimientos from '../../assets/iconMovimientos.svg'
 import iconMovimientosActive from '../../assets/iconMovimientosActive.svg'
+import { LiveIndicator } from '../LiveIndicator/LiveIndicator'
 import './Navbar.css'
 
 export type NavbarItemId = 'home' | 'movements' | 'entries'
@@ -29,7 +31,7 @@ const NAV_ITEMS: Array<{
     id: 'entries',
     label: 'Entradas',
     icon: iconEntradas,
-    activeIcon: iconEntradas,
+    activeIcon: iconEntradasActive,
   },
 ]
 
@@ -82,7 +84,7 @@ export function Navbar({
                   aria-hidden="true"
                 />
                 {showsLiveIndicator && (
-                  <span className="navbar__live-indicator" aria-hidden="true" />
+                  <LiveIndicator className="navbar__live-indicator" />
                 )}
               </span>
               <span className="navbar__label">{item.label}</span>

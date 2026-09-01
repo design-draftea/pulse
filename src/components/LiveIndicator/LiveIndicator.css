@@ -1,0 +1,38 @@
+.live-indicator {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--color-fill-error);
+}
+
+.live-indicator::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid var(--color-fill-error);
+  border-radius: inherit;
+  animation: live-indicator-pulse 1.6s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-indicator::before {
+    animation: none;
+  }
+}
+
+@keyframes live-indicator-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.45);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}

@@ -333,9 +333,12 @@ export type BetslipSuccessDetails =
   | PurchaseSuccessDetails
   | SaleSuccessDetails
 
+export type BetslipOperationMode = 'buy' | 'sell'
+
 interface BuyBetslipProps {
   market: OutcomeMarketState
   side: MarketSide
+  initialOperationMode?: BetslipOperationMode
   onSideChange: (side: MarketSide) => void
   availableBalanceCents: number
   participations: Record<MarketSide, number>
@@ -349,6 +352,7 @@ interface BuyBetslipProps {
 export function BuyBetslip({
   market,
   side,
+  initialOperationMode = 'buy',
   onSideChange,
   availableBalanceCents,
   participations,
@@ -380,7 +384,9 @@ export function BuyBetslip({
   const dragYRef = useRef(0)
   const sheetExpandedHeightRef = useRef(SHEET_COLLAPSED_HEIGHT)
   const [amount, setAmount] = useState('100')
-  const [operationMode, setOperationMode] = useState<'buy' | 'sell'>('buy')
+  const [operationMode, setOperationMode] = useState<BetslipOperationMode>(
+    initialOperationMode,
+  )
   const [amountMode, setAmountMode] = useState<'custom' | 'one-tap'>('custom')
   const [quickAmounts, setQuickAmounts] = useState([10, 25, 50])
   const [sellParticipation, setSellParticipation] = useState(

@@ -150,20 +150,6 @@
   z-index: 1;
   top: -2px;
   right: -4px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--color-background-primary-gradient-start);
-  border-radius: 50%;
-  background: var(--color-fill-error);
-}
-
-.navbar__live-indicator::before {
-  content: '';
-  position: absolute;
-  inset: -5px;
-  border: 1px solid var(--color-fill-error);
-  border-radius: inherit;
-  animation: navbar-live-pulse 1.6s ease-out infinite;
 }
 
 .navbar__label {
@@ -198,20 +184,4 @@
     transition: none;
   }
 
-  .navbar__live-indicator::before {
-    animation: none;
-  }
-}
-
-@keyframes navbar-live-pulse {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.45);
-  }
-
-  70%,
-  100% {
-    opacity: 0;
-    transform: scale(1.45);
-  }
 }

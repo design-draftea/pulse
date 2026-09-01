@@ -9,6 +9,7 @@ import {
 } from 'react'
 import {
   BuyBetslip,
+  type BetslipOperationMode,
   type BetslipSuccessDetails,
   type PurchaseSuccessDetails,
   type SaleSuccessDetails,
@@ -20,6 +21,7 @@ import {
 } from './components/MarketChoice/MarketChoice'
 import { MobileOnly } from './components/MobileOnly/MobileOnly'
 import { Movements } from './components/Movements/Movements'
+import { OpenEntries } from './components/OpenEntries/OpenEntries'
 import {
   Navbar,
   type NavbarItemId,
@@ -61,6 +63,7 @@ const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
 const PAGE_TRANSITION_FALLBACK_MS = 700
 const MOVEMENTS_HASH = '#movimientos'
+const ENTRIES_HASH = '#entradas'
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -68,7 +71,7 @@ const balanceFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 })
 
-type AppSection = 'home' | 'movements'
+type AppSection = 'home' | 'movements' | 'entries'
 type PageTransitionDirection = 'forward' | 'backward'
 type PageTransitionPhase = 'exiting' | 'entering'
 
@@ -80,9 +83,17 @@ interface PageTransitionState {
   target: AppSection
 }
 
-const getAppSection = (): AppSection => (
-  window.location.hash === MOVEMENTS_HASH ? 'movements' : 'home'
-)
+const SECTION_ORDER: Record<AppSection, number> = {
+  home: 0,
+  movements: 1,
+  entries: 2,
+}
+
+const getAppSection = (): AppSection => {
+  if (window.location.hash === MOVEMENTS_HASH) return 'movements'
+  if (window.location.hash === ENTRIES_HASH) return 'entries'
+  return 'home'
+}
 
 function App() {
   const [activeSection, setActiveSection] = useState<AppSection>(getAppSection)
@@ -93,6 +104,9 @@ function App() {
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(null)
+  const [betslipInitialOperationMode, setBetslipInitialOperationMode] = useState<
+    BetslipOperationMode
+  >('buy')
   const [isPurchaseLoading, setIsPurchaseLoading] = useState(false)
   const [purchaseSuccess, setPurchaseSuccess] = useState<
     BetslipSuccessDetails | null
@@ -103,9 +117,11 @@ function App() {
   const marketRound = useResilientBtcMarketRound()
   const {
     balanceCents,
+    currentCostBasis,
     currentPosition,
     movements,
     pendingRoundStarts,
+    settledEntries,
     walletState,
     purchase,
     sell,
@@ -172,8 +188,13 @@ function App() {
   const commitSectionChange = useCallback((nextSection: AppSection) => {
     activeSectionRef.current = nextSection
     window.scrollTo({ top: 0, left: 0 })
+    if (nextSection === 'home') {
+      setIsMarketHeaderCompact(false)
+      setIsMarketHeaderPinned(false)
+    }
     setActiveSection(nextSection)
     setSelectedSide(null)
+    setBetslipInitialOperationMode('buy')
     setPurchaseSuccess(null)
     setContentBottomInset(DEFAULT_CONTENT_BOTTOM_INSET)
   }, [])
@@ -197,7 +218,8 @@ function App() {
     const currentSection = activeSectionRef.current
     if (nextSection === currentSection) return
 
-    const direction: PageTransitionDirection = nextSection === 'movements'
+    const direction: PageTransitionDirection = SECTION_ORDER[nextSection]
+      > SECTION_ORDER[currentSection]
       ? 'forward'
       : 'backward'
     const prefersReducedMotion = window.matchMedia(
@@ -242,6 +264,10 @@ function App() {
     if (!currentTransition || currentTransition.phase !== 'exiting') return
 
     window.scrollTo({ top: 0, left: 0 })
+    if (currentTransition.target === 'home') {
+      setIsMarketHeaderCompact(false)
+      setIsMarketHeaderPinned(false)
+    }
     const enteringTransition: PageTransitionState = {
       ...currentTransition,
       phase: 'entering',
@@ -375,7 +401,11 @@ function App() {
           result: winner,
         })
 
-        const settlement = settleRound(previousRound.roundStart, winner)
+        const settlement = settleRound(previousRound.roundStart, winner, {
+          roundEnd: previousRound.roundStart + BTC_ROUND_DURATION_MS,
+          targetPrice,
+          finalPrice,
+        })
         const totalReceived = settlement.payoutCents / 100
 
         if (totalReceived > 0) {
@@ -442,6 +472,11 @@ function App() {
         const settlement = settleRound(
           completedRound.roundStart,
           completedRound.result,
+          {
+            roundEnd: completedRound.roundEnd,
+            targetPrice: completedRound.targetPrice,
+            finalPrice: completedRound.finalPrice,
+          },
         )
 
         setLatestCompletedRound(completedRound)
@@ -532,19 +567,29 @@ function App() {
     setContentBottomInset(Math.max(DEFAULT_CONTENT_BOTTOM_INSET, height))
   }, [])
 
-  const handleNavigate = useCallback((item: NavbarItemId) => {
-    if (item === 'entries') return
+  const handleMarketSideSelect = useCallback((side: MarketSide) => {
+    setBetslipInitialOperationMode('buy')
+    setSelectedSide(side)
+  }, [])
 
+  const handleEntrySell = useCallback((side: MarketSide) => {
+    setBetslipInitialOperationMode('sell')
+    setSelectedSide(side)
+  }, [])
+
+  const handleNavigate = useCallback((item: NavbarItemId) => {
     const nextSection: AppSection = item === 'movements'
       ? 'movements'
-      : 'home'
+      : item === 'entries' ? 'entries' : 'home'
     const currentNavigationTarget = pageTransitionRef.current?.target
       ?? activeSectionRef.current
     if (nextSection === currentNavigationTarget) return
 
     const url = new URL(window.location.href)
 
-    url.hash = nextSection === 'movements' ? MOVEMENTS_HASH : ''
+    url.hash = nextSection === 'movements'
+      ? MOVEMENTS_HASH
+      : nextSection === 'entries' ? ENTRIES_HASH : ''
     window.history.pushState(window.history.state, '', url)
     transitionToSection(nextSection)
   }, [transitionToSection])
@@ -637,7 +682,23 @@ function App() {
   const getSectionContent = (section: AppSection) => (
     section === 'movements'
       ? <Movements movements={movements} />
-      : homeSection
+      : section === 'entries'
+        ? (
+            <OpenEntries
+              position={currentPosition}
+              costBasis={currentCostBasis}
+              startTime={marketRound.startTime}
+              endTime={marketRound.endTime}
+              minutes={displayedMinutes}
+              seconds={displayedSeconds}
+              targetPrice={marketRound.targetPrice}
+              currentPrice={animatedMarketPrice.value}
+              settledEntries={settledEntries}
+              onViewMarket={() => handleNavigate('home')}
+              onSell={handleEntrySell}
+            />
+          )
+        : homeSection
   )
   const shouldShowHomeAction = activeSection === 'home'
     || pageTransition?.target === 'home'
@@ -687,6 +748,7 @@ function App() {
           <BuyBetslip
             market={outcomeMarket}
             side={selectedSide}
+            initialOperationMode={betslipInitialOperationMode}
             onSideChange={setSelectedSide}
             availableBalanceCents={balanceCents}
             participations={currentPosition}
@@ -701,7 +763,7 @@ function App() {
             isClosing={isRoundClosing}
             prices={outcomeMarket.displayPrices}
             roundSlug={outcomeMarket.roundSlug}
-            onSelect={setSelectedSide}
+            onSelect={handleMarketSideSelect}
           />
         ))}
         <Navbar

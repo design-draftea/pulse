@@ -71,6 +71,15 @@
   animation: pulse-route-fade-in 180ms ease-out both;
 }
 
+.pulse-app--page-transition-backward
+  .pulse-app__route--incoming[data-active-section='home']
+  .pulse-app__market-header,
+.pulse-app--page-transition-backward
+  .pulse-app__route--incoming[data-active-section='home']
+  .pulse-app__market-header * {
+  transition: none;
+}
+
 .pulse-app__market-header-slot {
   position: sticky;
   z-index: 10;
