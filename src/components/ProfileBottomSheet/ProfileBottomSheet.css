@@ -457,11 +457,19 @@
 }
 
 .profile-sheet__metric-value {
+  display: inline-block;
   color: var(--color-fill-primary);
   font-size: 16px;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 24px;
   white-space: nowrap;
+}
+
+.profile-sheet__metric-value[data-initial-animation='true'],
+.profile-sheet__balance-row strong[data-initial-animation='true'] {
+  animation: profile-sheet-number-enter 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
 }
 
 .profile-sheet__metric-value--positive {
@@ -631,12 +639,31 @@
   }
 }
 
+@keyframes profile-sheet-number-enter {
+  0% {
+    opacity: 0.55;
+    transform: translateY(4px) scale(0.98);
+  }
+
+  45% {
+    opacity: 1;
+    transform: translateY(0) scale(1.025);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .profile-sheet,
   .profile-sheet__overlay,
   .profile-sheet__balance,
   .profile-sheet__balance-breakdown,
-  .profile-sheet__balance-chevron img {
+  .profile-sheet__balance-chevron img,
+  .profile-sheet__metric-value,
+  .profile-sheet__balance-row strong {
     animation-duration: 1ms;
     transition-duration: 1ms;
   }
