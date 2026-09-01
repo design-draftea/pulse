@@ -13,10 +13,13 @@ import {
   createInitialWalletState,
   deserializeWalletState,
   getPendingWalletRoundStarts,
+  getWalletCostBasis,
   getWalletPosition,
+  LEGACY_PROTOTYPE_WALLET_STORAGE_KEY,
   PROTOTYPE_WALLET_STORAGE_KEY,
   settleWalletRound,
   type PrototypeWalletState,
+  type WalletRoundResultDetails,
   type WalletMutationResult,
   type WalletSettlementResult,
 } from '../services/prototypeWallet'
@@ -43,6 +46,7 @@ const loadWalletState = () => {
   if (url.searchParams.get('resetWallet') === '1') {
     try {
       window.localStorage.removeItem(PROTOTYPE_WALLET_STORAGE_KEY)
+      window.localStorage.removeItem(LEGACY_PROTOTYPE_WALLET_STORAGE_KEY)
     } catch {
       // The in-memory wallet still resets when storage is unavailable.
     }
@@ -53,6 +57,7 @@ const loadWalletState = () => {
   }
 
   try {
+    window.localStorage.removeItem(LEGACY_PROTOTYPE_WALLET_STORAGE_KEY)
     return deserializeWalletState(
       window.localStorage.getItem(PROTOTYPE_WALLET_STORAGE_KEY),
     )
@@ -120,8 +125,9 @@ export function usePrototypeWallet(currentRoundStart: number) {
   const settleRound = useCallback((
     roundStart: number,
     winner: OutcomeSide,
+    details?: WalletRoundResultDetails,
   ): WalletSettlementResult => (
-    commit((current) => settleWalletRound(current, roundStart, winner))
+    commit((current) => settleWalletRound(current, roundStart, winner, details))
   ), [commit])
 
   const creditOnce = useCallback((eventId: string, amount: number) => (
@@ -136,6 +142,10 @@ export function usePrototypeWallet(currentRoundStart: number) {
     () => getWalletPosition(state, currentRoundStart),
     [currentRoundStart, state],
   )
+  const currentCostBasis = useMemo(
+    () => getWalletCostBasis(state, currentRoundStart),
+    [currentRoundStart, state],
+  )
   const pendingRoundStarts = useMemo(
     () => getPendingWalletRoundStarts(state, currentRoundStart),
     [currentRoundStart, state],
@@ -144,8 +154,11 @@ export function usePrototypeWallet(currentRoundStart: number) {
   return {
     balanceCents: state.balanceCents,
     creditedEventIds: state.creditedEventIds,
+    currentCostBasis,
     currentPosition,
     pendingRoundStarts,
+    settledEntries: state.settledEntries ?? [],
+    walletState: state,
     purchase,
     sell,
     settleRound,

@@ -4,12 +4,21 @@
 
 - Atualizado em: 2026-09-01
 - Agente que entrega: Codex
-- Status: publicação do protótipo em preparação para GitHub Pages, com proxy público mínimo da Polymarket implementado e validação pendente
-- Objetivo: publicar o Pulse em `/pulse/` preservando gráfico, rodadas, carteira e contingência, sem depender do proxy local do Vite
-- Critérios de aceite: build com base `/pulse/`; Worker restrito a BTC/15 min com CORS; workflows reproduzíveis; testes, lint, build e navegador aprovados; publicação e URL remota relatadas separadamente
-- Branch/worktree observado ao finalizar: `fix/betslip-quote-stability`
+- Status: tela de Entradas com `ABIERTAS`, `GANADAS` e `PASADAS` implementadas localmente
+- Objetivo: reproduzir os nós `383:7678`, `383:7716`, `383:9489`, `383:14424` e `383:14503`, preservando navegação, carteira e betslip existentes
+- Critérios de aceite: posições abertas agregadas por lado; vencedoras persistentes após F5; venda pela entrada; fidelidade mobile; testes, lint, build e navegador aprovados
+- Branch/worktree observado ao finalizar: `feature/open-entries-screen` em `/private/tmp/pulse-open-entries`
 
 ## Alterações realizadas
+
+- `src/components/OpenEntries/`: chips `ABIERTAS`, `GANADAS` e `PASADAS`, cards abertos e liquidados responsivos; `GANADAS` usa o asset `badgeGanhador.svg`.
+- `src/components/OpenEntries/`: `PASADAS` habilitada com cards ganados, perdidos e cancelados; os estados neutros usam os badges `NO GANADOR` e `CANCELADO` conforme os nós `383:14424` e `383:14503`.
+- `src/components/OpenEntries/`: indicador ativo compartilhado desliza entre os três chips com a curva de `320ms` do betslip; a listagem faz fade-out de `110ms` e fade-in de `180ms`, com fallback sem movimento para `prefers-reduced-motion`.
+- `src/services/wonEntries.ts`: além das ganadas, expõe todas as entradas passadas em ordem decrescente sem alterar a coleção persistida.
+- `src/services/prototypeWallet.ts` e `src/hooks/usePrototypeWallet.ts`: a carteira v2 passa a persistir as entradas liquidadas com lado, custo-base, participações, pagamento, preço objetivo e preço final, mantendo compatibilidade com estados v2 anteriores.
+- `src/services/wonEntries.ts`: filtro determinístico das vencedoras, ordenadas da rodada mais recente para a mais antiga.
+- `src/App.tsx`: liquidação ao vivo e de rodadas restauradas fornece todos os dados necessários ao histórico de Ganadas.
+- `tests/prototypeWallet.test.ts` e `tests/wonEntries.test.ts`: cobertura de liquidação, custo-base após venda parcial, persistência, filtro e ordenação.
 
 - `vite.config.ts`: caminho-base configurável por `VITE_BASE_PATH`, mantendo `/` no desenvolvimento e usando `/pulse/` no artefato do GitHub Pages.
 - `src/services/marketData.ts`: preço objetivo usa `VITE_POLYMARKET_PROXY_ORIGIN` em produção; quando a variável não existe, entra imediatamente na contingência silenciosa já aprovada.
@@ -121,6 +130,12 @@
 - `design-qa.md`: evidências disponíveis e bloqueio visual documentados.
 
 ## Validações executadas
+
+- `GANADAS` validada no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: cards de `296px`, `351px` e `404px`, respectivamente, sempre com `196px` de altura, `12px` de margem lateral e sem overflow horizontal.
+- `PASADAS` validada no navegador com os três estados em `320px`, `375px` e `428px`: cards de `296px`, `351px` e `404px`, todos com `196px`, badges/cores correspondentes, chips estáveis e console limpo.
+- Transição dos chips validada no navegador: indicador percorreu de `translateX(0)` a `206px` e ajustou a largura de `104px` para `82px`; o conteúdo passou por opacidade intermediária antes de estabilizar, sem overflow. Em `320px`, os chips encerram em `x=300px` dentro do viewport.
+- O card vencedor foi exercitado com dados reais persistidos da carteira: payout, badge, monto, preço médio, data, janela, lado, participações, preços objetivo/final e indicador direcional renderizados.
+- `pnpm test:wallet`: 13 testes passaram; `pnpm test:entries`: 6 testes passaram; `pnpm lint`, `pnpm build` e `git diff --check` passaram.
 
 - Publicação estática validada com `VITE_BASE_PATH=/pulse/`: 86 módulos transformados, assets emitidos sob `/pulse/assets/` e aplicação carregada em `http://127.0.0.1:4175/pulse/` com título, fontes, imagens, preço ao vivo, gráfico e dez rodadas; nenhum asset local ficou quebrado.
 - Build alternativo com `VITE_POLYMARKET_PROXY_ORIGIN` configurado também passou e incorporou a origem pública no bundle.
