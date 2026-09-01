@@ -752,3 +752,34 @@
     flex-basis: 112px;
   }
 }
+
+/* Saída do card após uma venda total. Só começa quando o aviso de sucesso já
+   está na tela, para o card não desaparecer antes da confirmação. */
+.open-entry-card--leaving {
+  animation: open-entry-card-leave 320ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+@keyframes open-entry-card-leave {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .open-entry-card--leaving {
+    animation-duration: 0.01ms;
+  }
+}
+
+/* A entrada vendida não tem preço final nem resultado, então a divisória
+   vertical do preço objetivo ficaria pendurada sem coluna ao lado. */
+.won-entry-card--sold .won-entry-card__target-price {
+  border-right: 0;
+}

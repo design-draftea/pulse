@@ -113,7 +113,7 @@ export interface PrototypeWalletSettledEntry {
   roundStart: number
   roundEnd: number
   side: OutcomeSide
-  outcome: 'won' | 'lost' | 'canceled'
+  outcome: 'won' | 'lost' | 'canceled' | 'sold'
   amountCents: number
   participations: number
   payoutCents: number
@@ -172,6 +172,7 @@ interface WalletSale {
   side: OutcomeSide
   amountReceivedCents: number
   participations: number
+  targetPrice?: number | null
 }
 
 const emptyPosition = (): PrototypeWalletPosition => ({ up: 0, down: 0 })
@@ -516,6 +517,7 @@ export const deserializeWalletState = (
             entry.outcome !== 'won'
             && entry.outcome !== 'lost'
             && entry.outcome !== 'canceled'
+            && entry.outcome !== 'sold'
           )
           || !isNonNegativeInteger(entry.amountCents)
           || !isNonNegativeFinite(entry.participations)
@@ -685,6 +687,7 @@ export const applyWalletSale = (
     side,
     amountReceivedCents,
     participations,
+    targetPrice = null,
   } = sale
   const key = String(roundStart)
   const position = getWalletPosition(state, roundStart)
@@ -725,11 +728,38 @@ export const applyWalletSale = (
     costBasisCentsByRound[key] = remainingCostBasis
   }
 
+  // Toda venda entra no histórico, inclusive a parcial: o dinheiro já foi
+  // realizado. Vendas sucessivas da mesma rodada e lado acumulam numa única
+  // entrada, senão a última sobrescreveria as anteriores e o card mostraria só
+  // o último pedaço. O preço de venta exibido vira a média ponderada.
+  const soldEntryId = `${roundStart}:${side}:sold`
+  const previousSold = state.settledEntries.find(({ id }) => id === soldEntryId)
+  const resolvedTargetPrice = isNonNegativeFinite(targetPrice) && targetPrice > 0
+    ? targetPrice
+    : previousSold?.targetPrice ?? null
+  const soldEntry: PrototypeWalletSettledEntry = {
+    id: soldEntryId,
+    roundStart,
+    roundEnd: roundStart + ROUND_DURATION_MS,
+    side,
+    outcome: 'sold',
+    amountCents: (previousSold?.amountCents ?? 0) + soldCostBasisCents,
+    participations: (previousSold?.participations ?? 0) + participations,
+    payoutCents: (previousSold?.payoutCents ?? 0) + amountReceivedCents,
+    targetPrice: resolvedTargetPrice,
+    // A pessoa saiu antes do encerramento, então não existe preço final.
+    finalPrice: null,
+  }
+
   const nextState = updateWallet(state, {
     balanceCents: state.balanceCents + amountReceivedCents,
     positionsByRound,
     costBasisCentsByRound,
     totalReceivedCents: state.totalReceivedCents + amountReceivedCents,
+    settledEntries: [
+      ...state.settledEntries.filter(({ id }) => id !== soldEntry.id),
+      soldEntry,
+    ].slice(-MAX_SETTLED_ENTRIES),
     movements: appendMovement(state, {
       id: `sale:${roundStart}:${side}:${state.revision + 1}`,
       type: 'sale',

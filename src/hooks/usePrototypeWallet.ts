@@ -36,6 +36,7 @@ export interface PrototypeWalletSale {
   side: OutcomeSide
   amountReceived: number
   participations: number
+  targetPrice?: number | null
 }
 
 const dollarsToCents = (value: number) => Math.round(value * 100)
