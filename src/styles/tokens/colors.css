@@ -1,0 +1,28 @@
+:root {
+  --color-fill-primary: #fbfbfb;
+  --color-fill-dark: #000;
+  --color-fill-secondary: rgb(251 251 251 / 0.7);
+  --color-fill-tertiary: rgb(251 251 251 / 0.5);
+  --color-fill-opacity-primary: rgb(251 251 251 / 0.32);
+  --color-fill-opacity-quaternary: rgb(251 251 251 / 0.12);
+  --color-fill-opacity-tertiary: rgb(251 251 251 / 0.16);
+  --color-fill-success: #34d399;
+  --color-fill-error: #f87171;
+  --color-action-transparency-default: rgb(251 251 251 / 0.08);
+  --color-action-secondary-default: rgb(240 242 244 / 0.12);
+  --color-action-primary-default-start: #4b20ff;
+  --color-action-primary-default-end: #9730ff;
+  --color-background-success: rgb(52 211 153 / 0.16);
+  --color-background-success-solid: #04110c;
+  --color-background-app: #000;
+  --color-background-primary-gradient-start: #191919;
+  --color-background-primary-gradient-end: #0f0f0f;
+  --color-component-earned: #fbbf24;
+  --gradient-keyboard-divider: linear-gradient(
+    90deg,
+    rgb(251 251 251 / 0.34) 0%,
+    #fbfbfb 50%,
+    rgb(251 251 251 / 0.34) 100%
+  );
+  --opacity-keyboard-divider: 0.16;
+}

@@ -1,0 +1,186 @@
+.price-comparison-slot {
+  position: relative;
+  z-index: 9;
+  width: 100%;
+  height: 90px;
+  transition: height 240ms ease-in-out;
+}
+
+.price-comparison-slot--compact {
+  height: 55px;
+}
+
+.price-comparison {
+  display: flex;
+  width: 100%;
+  height: 90px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  transition:
+    height 240ms ease-in-out,
+    padding 240ms ease-in-out;
+}
+
+.price-comparison--sticky {
+  height: 55px;
+  padding: 0 16px 8px;
+}
+
+.price-comparison__card {
+  position: relative;
+  display: flex;
+  height: 74px;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  padding: 12px 12px 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  transition:
+    height 240ms ease-in-out,
+    gap 240ms ease-in-out,
+    padding 240ms ease-in-out;
+}
+
+.price-comparison__card::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--color-fill-opacity-quaternary);
+  border-radius: inherit;
+  content: '';
+  pointer-events: none;
+}
+
+.price-comparison__label,
+.price-comparison__value,
+.price-comparison__heading {
+  position: relative;
+  z-index: 1;
+}
+
+.price-comparison__label {
+  color: var(--color-fill-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  transition:
+    font-size 240ms ease-in-out,
+    line-height 240ms ease-in-out;
+}
+
+.price-comparison__value {
+  color: var(--color-fill-secondary);
+  font-size: clamp(20px, 6.4vw, 24px);
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 700;
+  line-height: 24px;
+  white-space: nowrap;
+  transition:
+    font-size 240ms ease-in-out,
+    line-height 240ms ease-in-out;
+}
+
+.price-comparison__heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.price-comparison__card--current .price-comparison__label,
+.price-comparison__card--current .price-comparison__value {
+  color: var(--color-fill-primary);
+}
+
+.price-comparison__trend {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-fill-success);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  transition:
+    font-size 240ms ease-in-out,
+    line-height 240ms ease-in-out;
+}
+
+.price-comparison__trend--down {
+  color: var(--color-fill-error);
+}
+
+.price-comparison__trend--flat {
+  color: var(--color-fill-secondary);
+}
+
+.price-comparison__trend img {
+  display: block;
+  width: 12px;
+  height: 12px;
+  transition:
+    width 240ms ease-in-out,
+    height 240ms ease-in-out;
+}
+
+.price-comparison__light {
+  position: absolute;
+  top: -36px;
+  left: calc(50% - 1.25px);
+  width: 171px;
+  height: 44px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.price-comparison__light img {
+  position: absolute;
+  top: -56px;
+  left: -56px;
+  display: block;
+  width: 283px;
+  height: 156px;
+  max-width: none;
+}
+
+.price-comparison--sticky .price-comparison__card {
+  height: 47px;
+  gap: 0;
+  padding: 8px 12px;
+}
+
+.price-comparison--sticky .price-comparison__label,
+.price-comparison--sticky .price-comparison__trend {
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.price-comparison--sticky .price-comparison__value {
+  font-size: 16px;
+  line-height: 16px;
+}
+
+.price-comparison--sticky .price-comparison__trend img {
+  width: 8px;
+  height: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-comparison-slot,
+  .price-comparison,
+  .price-comparison__card,
+  .price-comparison__label,
+  .price-comparison__value,
+  .price-comparison__trend,
+  .price-comparison__trend img {
+    transition: none;
+  }
+}

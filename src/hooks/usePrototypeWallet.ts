@@ -1,0 +1,154 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import type { OutcomeSide } from '../services/outcomeMarket'
+import {
+  applyWalletPurchase,
+  applyWalletSale,
+  creditWalletEvent,
+  createInitialWalletState,
+  deserializeWalletState,
+  getPendingWalletRoundStarts,
+  getWalletPosition,
+  PROTOTYPE_WALLET_STORAGE_KEY,
+  settleWalletRound,
+  type PrototypeWalletState,
+  type WalletMutationResult,
+  type WalletSettlementResult,
+} from '../services/prototypeWallet'
+
+export interface PrototypeWalletPurchase {
+  roundStart: number
+  side: OutcomeSide
+  amount: number
+  participations: number
+}
+
+export interface PrototypeWalletSale {
+  roundStart: number
+  side: OutcomeSide
+  amountReceived: number
+  participations: number
+}
+
+const dollarsToCents = (value: number) => Math.round(value * 100)
+
+const loadWalletState = () => {
+  const url = new URL(window.location.href)
+
+  if (url.searchParams.get('resetWallet') === '1') {
+    try {
+      window.localStorage.removeItem(PROTOTYPE_WALLET_STORAGE_KEY)
+    } catch {
+      // The in-memory wallet still resets when storage is unavailable.
+    }
+
+    url.searchParams.delete('resetWallet')
+    window.history.replaceState(window.history.state, '', url)
+    return createInitialWalletState()
+  }
+
+  try {
+    return deserializeWalletState(
+      window.localStorage.getItem(PROTOTYPE_WALLET_STORAGE_KEY),
+    )
+  } catch {
+    return createInitialWalletState()
+  }
+}
+
+const persistWalletState = (state: PrototypeWalletState) => {
+  try {
+    window.localStorage.setItem(
+      PROTOTYPE_WALLET_STORAGE_KEY,
+      JSON.stringify(state),
+    )
+  } catch {
+    // Persistence is best-effort; the wallet remains functional in memory.
+  }
+}
+
+export function usePrototypeWallet(currentRoundStart: number) {
+  const [state, setState] = useState(loadWalletState)
+  const stateRef = useRef(state)
+
+  const commit = useCallback(<Result extends WalletMutationResult>(
+    mutation: (current: PrototypeWalletState) => Result,
+  ) => {
+    const result = mutation(stateRef.current)
+
+    if (result.state !== stateRef.current) {
+      stateRef.current = result.state
+      setState(result.state)
+      persistWalletState(result.state)
+    }
+
+    return result
+  }, [])
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== PROTOTYPE_WALLET_STORAGE_KEY) return
+
+      const nextState = deserializeWalletState(event.newValue)
+      stateRef.current = nextState
+      setState(nextState)
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
+
+  const purchase = useCallback((input: PrototypeWalletPurchase) => (
+    commit((current) => applyWalletPurchase(current, {
+      ...input,
+      amountCents: dollarsToCents(input.amount),
+    }))
+  ), [commit])
+
+  const sell = useCallback((input: PrototypeWalletSale) => (
+    commit((current) => applyWalletSale(current, {
+      ...input,
+      amountReceivedCents: dollarsToCents(input.amountReceived),
+    }))
+  ), [commit])
+
+  const settleRound = useCallback((
+    roundStart: number,
+    winner: OutcomeSide,
+  ): WalletSettlementResult => (
+    commit((current) => settleWalletRound(current, roundStart, winner))
+  ), [commit])
+
+  const creditOnce = useCallback((eventId: string, amount: number) => (
+    commit((current) => creditWalletEvent(
+      current,
+      eventId,
+      dollarsToCents(amount),
+    ))
+  ), [commit])
+
+  const currentPosition = useMemo(
+    () => getWalletPosition(state, currentRoundStart),
+    [currentRoundStart, state],
+  )
+  const pendingRoundStarts = useMemo(
+    () => getPendingWalletRoundStarts(state, currentRoundStart),
+    [currentRoundStart, state],
+  )
+
+  return {
+    balanceCents: state.balanceCents,
+    creditedEventIds: state.creditedEventIds,
+    currentPosition,
+    pendingRoundStarts,
+    purchase,
+    sell,
+    settleRound,
+    creditOnce,
+  }
+}
