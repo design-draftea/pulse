@@ -138,6 +138,8 @@
 
 - `GANADAS` validada no navegador em `320 × 568px`, `375 × 832px` e `428 × 832px`: cards de `296px`, `351px` e `404px`, respectivamente, sempre com `196px` de altura, `12px` de margem lateral e sem overflow horizontal.
 - `PASADAS` validada no navegador com os três estados em `320px`, `375px` e `428px`: cards de `296px`, `351px` e `404px`, todos com `196px`, badges/cores correspondentes, chips estáveis e console limpo.
+- Chips de Entradas alterados para `position: sticky` no topo, com superfície opaca e blur para impedir que os cards apareçam por trás durante o scroll. Em `375 × 568px`, permaneceram em `top: 0` após `232px` de rolagem, sem overflow horizontal.
+- Reserva inferior de Entradas separada do inset de `130px` da Home e ajustada à Navbar fixa mais a área segura. No fim de `PASADAS`, o último card terminou `10px` acima da Navbar, sem o espaço excedente anterior.
 - Transição dos chips validada no navegador: indicador percorreu de `translateX(0)` a `206px` e ajustou a largura de `104px` para `82px`; o conteúdo passou por opacidade intermediária antes de estabilizar, sem overflow. Em `320px`, os chips encerram em `x=300px` dentro do viewport.
 - O card vencedor foi exercitado com dados reais persistidos da carteira: payout, badge, monto, preço médio, data, janela, lado, participações, preços objetivo/final e indicador direcional renderizados.
 - `pnpm test:wallet`: 13 testes passaram; `pnpm test:entries`: 6 testes passaram; `pnpm lint`, `pnpm build` e `git diff --check` passaram.
