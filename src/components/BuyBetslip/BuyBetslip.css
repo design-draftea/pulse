@@ -1128,17 +1128,35 @@ button.buy-betslip__metric {
 
 .quick-amount-sheet__header {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   width: 100%;
   height: 56px;
   flex: 0 0 56px;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.quick-amount-sheet__header::before {
+  position: absolute;
+  z-index: -1;
+  top: -50px;
+  left: 50%;
+  width: min(100%, 375px);
+  height: 100px;
+  background: linear-gradient(26.64deg, #4b20ff 0%, #9730ff 100%);
+  filter: blur(50px);
+  opacity: 0.42;
+  content: '';
+  pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .quick-amount-sheet__header h2 {
-  margin: 0;
+  margin: 8px 0 0;
+  color: var(--color-fill-primary);
   font-size: 16px;
   font-weight: 700;
   line-height: 24px;
@@ -1157,8 +1175,9 @@ button.buy-betslip__metric {
   height: 56px;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: 8px 8px 0 0;
   border: 0;
+  border-radius: 56px;
   background: transparent;
   cursor: pointer;
 }
