@@ -83,15 +83,22 @@
   background: var(--color-fill-error);
 }
 
-.market-choice__button img {
+.market-choice__direction-icon {
   display: block;
   width: 24px;
   height: 24px;
   flex: 0 0 24px;
 }
 
-.market-choice__button--down img {
+.market-choice__button--down .market-choice__direction-icon {
   transform: rotate(180deg);
+}
+
+.market-choice__lock-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
 }
 
 .market-choice__button:focus-visible {
@@ -101,7 +108,6 @@
 
 .market-choice__button:disabled {
   cursor: not-allowed;
-  opacity: 0.4;
 }
 
 .market-choice__base--selecting .market-choice__button:disabled {
@@ -126,6 +132,12 @@
 
 .market-choice__base--selecting .market-choice__button--down.market-choice__button--selected {
   box-shadow: 0 8px 24px rgb(248 113 113 / 0.28);
+}
+
+.market-choice__base--selecting .market-choice__button--locked {
+  filter: none;
+  opacity: 1;
+  transform: none;
 }
 
 @keyframes market-choice-closing-enter {

@@ -59,6 +59,9 @@ const DEFAULT_CONTENT_BOTTOM_INSET = 114
 const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('previewRoundResult')
     === 'won'
+const LOCKED_MARKET_CHOICE_PREVIEW_MODE = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get('previewMarketChoice')
+    === 'locked'
 const ROUND_RESULT_PREVIEW_SECONDS = 5
 const PENDING_SETTLEMENT_RETRY_MS = 15_000
 const PAGE_TRANSITION_FALLBACK_MS = 700
@@ -761,7 +764,9 @@ function App() {
         ) : (
           <MarketChoice
             isClosing={isRoundClosing}
-            prices={outcomeMarket.displayPrices}
+            prices={LOCKED_MARKET_CHOICE_PREVIEW_MODE
+              ? { up: null, down: null }
+              : outcomeMarket.displayPrices}
             roundSlug={outcomeMarket.roundSlug}
             onSelect={handleMarketSideSelect}
           />
