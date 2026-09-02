@@ -19,7 +19,10 @@
 
 .header__logo {
   display: block;
-  width: 58px;
+
+  /* A largura acompanha a proporção nativa do arquivo: o logo da Draftea é
+     110x24, contra 58x21 do anterior, e fixar a largura antiga o achataria. */
+  width: auto;
   height: 21px;
 }
 
