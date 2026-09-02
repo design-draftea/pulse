@@ -244,7 +244,13 @@ function EntryCard({
 }
 
 function SettledEntryCard({ entry }: { entry: PrototypeWalletSettledEntry }) {
-  const potentialPayout = payoutFormatter.format(entry.participations).replace('$', '')
+  // Nas demais entradas o destaque é participações x $1: o que a rodada pagou,
+  // ou o que teria pago. Numa venda esse pagamento deixou de existir quando a
+  // posição virou dinheiro, então o destaque é o valor efetivamente recebido.
+  const headlineValue = entry.outcome === 'sold'
+    ? entry.payoutCents / 100
+    : entry.participations
+  const potentialPayout = payoutFormatter.format(headlineValue).replace('$', '')
   const averagePriceCents = entry.participations > 0
     ? entry.amountCents / entry.participations
     : 0
