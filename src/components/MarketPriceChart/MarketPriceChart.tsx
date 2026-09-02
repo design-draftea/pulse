@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BTC_DISPLAY_TIME_ZONE } from '../../services/marketData'
 import {
   PriceChart,
@@ -9,6 +9,7 @@ import {
 } from '../PriceChart'
 import {
   calculatePriceChartDomain,
+  getPriceChartWindowPoints,
   interpolatePriceChartDomain,
   stabilizePriceChartDomain,
   type StablePriceChartDomainState,
@@ -28,6 +29,7 @@ interface MarketPriceChartProps {
 }
 
 const DOMAIN_ANIMATION_DURATION_MS = 280
+const DEFAULT_WINDOW_SPAN_MS = 9_833
 
 const domainsAreEqual = (
   first: PriceChartDomain,
@@ -92,10 +94,36 @@ export function MarketPriceChart({
   currentStatus,
   currentUpdatedAt,
 }: MarketPriceChartProps) {
+  const [panState, setPanState] = useState<{
+    roundStart: number
+    anchor: number | null
+  }>(() => ({ roundStart, anchor: null }))
+  const [windowSpanMs, setWindowSpanMs] = useState(DEFAULT_WINDOW_SPAN_MS)
+  const viewAnchorTimestamp = panState.roundStart === roundStart
+    ? panState.anchor
+    : null
+  const setViewAnchorTimestamp = useCallback(
+    (anchor: number | null) => setPanState({ roundStart, anchor }),
+    [roundStart],
+  )
+
   const candidateDomain = useMemo(
     () => calculatePriceChartDomain(points, targetPrice),
     [points, targetPrice],
   )
+  const pannedDomain = useMemo(() => {
+    if (viewAnchorTimestamp === null) return null
+
+    const windowPoints = getPriceChartWindowPoints(
+      points,
+      viewAnchorTimestamp - windowSpanMs,
+      viewAnchorTimestamp,
+    )
+
+    return windowPoints.length === 0
+      ? null
+      : calculatePriceChartDomain(windowPoints, null, { applyTrendShift: false })
+  }, [points, viewAnchorTimestamp, windowSpanMs])
   const [stableDomainState, setStableDomainState] = useState<{
     roundStart: number
     inputKey: string
@@ -137,9 +165,10 @@ export function MarketPriceChart({
     setStableDomainState(resolvedDomainState)
   }
 
-  const domain = resolvedDomainState.roundStart === roundStart
+  const liveDomain = resolvedDomainState.roundStart === roundStart
     ? resolvedDomainState.state.domain
     : candidateDomain
+  const domain = pannedDomain ?? liveDomain
   const renderDomain = useAnimatedPriceChartDomain(domain)
 
   return (
@@ -154,6 +183,9 @@ export function MarketPriceChart({
       locale="es-MX"
       timeZone={BTC_DISPLAY_TIME_ZONE}
       seriesKey={roundStart}
+      viewAnchorTimestamp={viewAnchorTimestamp}
+      onViewAnchorChange={setViewAnchorTimestamp}
+      onWindowSpanChange={setWindowSpanMs}
       resetReason={roundStart === initialRoundStart
         ? 'initial-load'
         : 'round-change'}

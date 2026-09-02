@@ -107,6 +107,7 @@ export const countPricePointGaps = (
 export const calculatePriceChartDomain = (
   points: PricePoint[],
   targetPrice: number | null,
+  { applyTrendShift = true }: { applyTrendShift?: boolean } = {},
 ): PriceChartDomain => {
   const values = getDomainValues(points, targetPrice)
 
@@ -146,6 +147,8 @@ export const calculatePriceChartDomain = (
   const trendThreshold = step * TREND_MINIMUM_STEP_FRACTION
   const domainShift = step * TREND_SHIFT_INTERVALS
   let trendShiftIntervals: -2 | 0 | 2 = 0
+
+  if (!applyTrendShift) return { bottom, top, step, trendShiftIntervals }
 
   if (
     trendDelta >= trendThreshold
@@ -287,6 +290,71 @@ export const interpolatePriceChartDomain = (
   }
 }
 
+export const interpolatePriceAt = (
+  points: PricePoint[],
+  timestamp: number,
+): number | null => {
+  if (points.length === 0) return null
+
+  const first = points[0]
+  const last = points[points.length - 1]
+  if (timestamp <= first.timestamp) return first.value
+  if (timestamp >= last.timestamp) return last.value
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1]
+    const next = points[index]
+    if (next.timestamp < timestamp) continue
+
+    const span = next.timestamp - previous.timestamp
+    const progress = span <= 0 ? 1 : (timestamp - previous.timestamp) / span
+
+    return previous.value + (next.value - previous.value) * progress
+  }
+
+  return last.value
+}
+
+export const getPriceChartWindowPoints = (
+  points: PricePoint[],
+  fromTimestamp: number,
+  toTimestamp: number,
+): PricePoint[] => {
+  if (points.length === 0) return []
+
+  const inside = points.filter(({ timestamp }) => (
+    timestamp >= fromTimestamp && timestamp <= toTimestamp
+  ))
+  const startValue = interpolatePriceAt(points, fromTimestamp)
+  const endValue = interpolatePriceAt(points, toTimestamp)
+  const window: PricePoint[] = []
+
+  if (startValue !== null && inside[0]?.timestamp !== fromTimestamp) {
+    window.push({ timestamp: fromTimestamp, value: startValue })
+  }
+  window.push(...inside)
+  if (
+    endValue !== null
+    && inside[inside.length - 1]?.timestamp !== toTimestamp
+  ) {
+    window.push({ timestamp: toTimestamp, value: endValue })
+  }
+
+  return window
+}
+
+export const clampPriceChartAnchor = (
+  anchorTimestamp: number,
+  points: PricePoint[],
+  windowSpanMs: number,
+  latestTimestamp: number,
+) => {
+  const oldest = points[0]?.timestamp ?? latestTimestamp
+  const earliestAnchor = Math.min(latestTimestamp, oldest + windowSpanMs)
+
+  return Math.min(latestTimestamp, Math.max(earliestAnchor, anchorTimestamp))
+}
+
 export const getContinuousVisiblePricePoints = (
   points: PricePoint[],
   displayTime: number,
@@ -294,36 +362,87 @@ export const getContinuousVisiblePricePoints = (
   leftBoundary: number,
   pixelsPerSecond: number,
 ): VisiblePriceChartPoints => {
-  const projected = points
-    .map((point) => ({
-      ...point,
-      x: seriesRight - ((displayTime - point.timestamp) / 1000) * pixelsPerSecond,
-    }))
-    .filter(({ x }) => x <= seriesRight + 1)
-  const firstInsideIndex = projected.findIndex(({ x }) => x >= leftBoundary)
+  const project = (point: PricePoint): ProjectedPricePoint => ({
+    ...point,
+    x: seriesRight - ((displayTime - point.timestamp) / 1000) * pixelsPerSecond,
+  })
+  const latestTimestamp = displayTime + 1000 / pixelsPerSecond
+  const earliestTimestamp =
+    displayTime - ((seriesRight - leftBoundary) / pixelsPerSecond) * 1000
 
-  if (firstInsideIndex <= 0) {
-    return {
-      points: firstInsideIndex === 0 ? projected : [],
-      continuityApplied: false,
+  let lastIndex = -1
+  for (let index = 0; index < points.length; index += 1) {
+    if (points[index].timestamp > latestTimestamp) break
+    lastIndex = index
+  }
+
+  if (lastIndex < 0) return { points: [], continuityApplied: false }
+
+  let firstInsideIndex = -1
+  for (let index = 0; index <= lastIndex; index += 1) {
+    if (points[index].timestamp >= earliestTimestamp) {
+      firstInsideIndex = index
+      break
     }
   }
 
-  const guard = projected[firstInsideIndex - 1]
-  const firstInside = projected[firstInsideIndex]
-  const distance = firstInside.x - guard.x
-  const progress = distance <= 0
-    ? 1
-    : (leftBoundary - guard.x) / distance
-  const boundaryPoint: ProjectedPricePoint = {
-    timestamp: guard.timestamp
-      + (firstInside.timestamp - guard.timestamp) * progress,
-    value: guard.value + (firstInside.value - guard.value) * progress,
-    x: leftBoundary,
+  const guard = firstInsideIndex === 0 ? null : points[lastIndex]
+  const inside = firstInsideIndex < 0
+    ? []
+    : points.slice(firstInsideIndex, lastIndex + 1).map(project)
+  const visible: ProjectedPricePoint[] = [...inside]
+
+  if (firstInsideIndex !== 0 && guard !== null) {
+    const previous = project(
+      firstInsideIndex < 0 ? guard : points[firstInsideIndex - 1],
+    )
+    const next = inside[0] ?? null
+
+    if (next !== null) {
+      const distance = next.x - previous.x
+      const progress = distance <= 0 ? 1 : (leftBoundary - previous.x) / distance
+
+      visible.unshift({
+        timestamp: previous.timestamp
+          + (next.timestamp - previous.timestamp) * progress,
+        value: previous.value + (next.value - previous.value) * progress,
+        x: leftBoundary,
+      })
+    }
+  }
+
+  // Guarda da borda direita: enquanto o gráfico está arrastado, o trecho entre
+  // o último ponto visível e o próximo ponto real precisa continuar desenhado.
+  const nextOutsideIndex = lastIndex + 1
+  if (nextOutsideIndex < points.length) {
+    const previous = project(points[lastIndex])
+    const next = project(points[nextOutsideIndex])
+    const distance = next.x - previous.x
+    const progress = distance <= 0 ? 1 : (seriesRight - previous.x) / distance
+    const rightEdge: ProjectedPricePoint = {
+      timestamp: previous.timestamp
+        + (next.timestamp - previous.timestamp) * progress,
+      value: previous.value + (next.value - previous.value) * progress,
+      x: seriesRight,
+    }
+
+    if (visible.length === 0) {
+      const leftValue = interpolatePriceAt(points, earliestTimestamp)
+
+      if (leftValue !== null) {
+        visible.push({
+          timestamp: earliestTimestamp,
+          value: leftValue,
+          x: leftBoundary,
+        })
+      }
+    }
+
+    visible.push(rightEdge)
   }
 
   return {
-    points: [boundaryPoint, ...projected.slice(firstInsideIndex)],
-    continuityApplied: true,
+    points: visible,
+    continuityApplied: firstInsideIndex !== 0 && visible.length > 0,
   }
 }

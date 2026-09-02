@@ -2,10 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   appendRoundPricePoint,
+  calculatePriceChartDomain,
+  clampPriceChartAnchor,
   countPricePointGaps,
   DOMAIN_CONTRACTION_DELAY_MS,
   DOMAIN_SHIFT_CONFIRMATION_MS,
   getContinuousVisiblePricePoints,
+  getPriceChartWindowPoints,
+  interpolatePriceAt,
   interpolatePriceChartDomain,
   stabilizePriceChartDomain,
   type PriceChartDomain,
@@ -195,4 +199,131 @@ test('conta apenas lacunas maiores que o limite de atualização', () => {
     { timestamp: 1_000, value: 101 },
     { timestamp: 4_000, value: 102 },
   ]), 1)
+})
+
+test('interpola o preço entre dois pontos e fixa os extremos da série', () => {
+  const roundStart = Date.UTC(2026, 8, 1, 10, 30, 0)
+  const points = [
+    { timestamp: roundStart, value: 100 },
+    { timestamp: roundStart + 60_000, value: 130 },
+  ]
+
+  assert.equal(interpolatePriceAt(points, roundStart + 30_000), 115)
+  assert.equal(interpolatePriceAt(points, roundStart - 5_000), 100)
+  assert.equal(interpolatePriceAt(points, roundStart + 90_000), 130)
+  assert.equal(interpolatePriceAt([], roundStart), null)
+})
+
+test('a janela arrastada inclui as bordas interpoladas de um trecho sem pontos', () => {
+  const roundStart = Date.UTC(2026, 8, 1, 10, 30, 0)
+  const points = [
+    { timestamp: roundStart, value: 100 },
+    { timestamp: roundStart + 60_000, value: 160 },
+    { timestamp: roundStart + 120_000, value: 100 },
+  ]
+  const window = getPriceChartWindowPoints(
+    points,
+    roundStart + 20_000,
+    roundStart + 30_000,
+  )
+
+  assert.deepEqual(window, [
+    { timestamp: roundStart + 20_000, value: 120 },
+    { timestamp: roundStart + 30_000, value: 130 },
+  ])
+
+  const crossing = getPriceChartWindowPoints(
+    points,
+    roundStart + 30_000,
+    roundStart + 90_000,
+  )
+
+  assert.deepEqual(crossing.map(({ value }) => value), [130, 160, 130])
+})
+
+test('o arrasto para no ponto mais antigo e não avança além do último', () => {
+  const roundStart = Date.UTC(2026, 8, 1, 10, 30, 0)
+  const points = [
+    { timestamp: roundStart, value: 100 },
+    { timestamp: roundStart + 120_000, value: 110 },
+  ]
+  const latest = roundStart + 120_000
+  const windowSpan = 10_000
+
+  assert.equal(
+    clampPriceChartAnchor(roundStart - 60_000, points, windowSpan, latest),
+    roundStart + windowSpan,
+  )
+  assert.equal(
+    clampPriceChartAnchor(latest + 60_000, points, windowSpan, latest),
+    latest,
+  )
+  assert.equal(
+    clampPriceChartAnchor(roundStart + 40_000, points, windowSpan, latest),
+    roundStart + 40_000,
+  )
+  assert.equal(
+    clampPriceChartAnchor(roundStart, [], windowSpan, latest),
+    latest,
+  )
+})
+
+test('o domínio da janela arrastada não desloca pela tendência', () => {
+  const roundStart = Date.UTC(2026, 8, 1, 10, 30, 0)
+  const climbing = Array.from({ length: 8 }, (_, index) => ({
+    timestamp: roundStart + index * 1_000,
+    value: 100 + index * 2,
+  }))
+  const live = calculatePriceChartDomain(climbing, null)
+  const panned = calculatePriceChartDomain(climbing, null, {
+    applyTrendShift: false,
+  })
+
+  assert.equal(live.trendShiftIntervals, 2)
+  assert.equal(panned.trendShiftIntervals, 0)
+  assert.equal(live.step, panned.step)
+  assert.equal(live.bottom - panned.bottom, panned.step * 2)
+})
+
+test('mantém a linha desenhada quando a janela cai entre dois pontos distantes', () => {
+  const roundStart = Date.UTC(2026, 8, 1, 10, 30, 0)
+  const points = [
+    { timestamp: roundStart, value: 100 },
+    { timestamp: roundStart + 60_000, value: 160 },
+  ]
+  const seriesRight = 236
+  const pixelsPerSecond = 24
+  const visible = getContinuousVisiblePricePoints(
+    points,
+    roundStart + 10_000,
+    seriesRight,
+    0,
+    pixelsPerSecond,
+  )
+
+  assert.equal(visible.points.length, 2)
+  assert.equal(visible.points[0].x, 0)
+  assert.equal(visible.points[1].x, seriesRight)
+  assert.ok(Math.abs(visible.points[0].value - 100.17) < 0.02)
+  assert.ok(Math.abs(visible.points[1].value - 110) < 0.02)
+  assert.equal(visible.continuityApplied, true)
+})
+
+test('a série ao vivo termina no ponto atual e não cria guarda à direita', () => {
+  const roundStart = Date.UTC(2026, 8, 1, 10, 30, 0)
+  const points = Array.from({ length: 6 }, (_, index) => ({
+    timestamp: roundStart + index * 1_000,
+    value: 100 + index,
+  }))
+  const visible = getContinuousVisiblePricePoints(
+    points,
+    roundStart + 5_000,
+    236,
+    0,
+    24,
+  )
+
+  assert.equal(visible.points.length, points.length)
+  assert.equal(visible.points[5].x, 236)
+  assert.equal(visible.continuityApplied, false)
 })
