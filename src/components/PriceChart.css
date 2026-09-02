@@ -126,6 +126,14 @@
   animation-delay: 120ms;
 }
 
+.price-chart__direction-state--up .price-chart__direction-chevron {
+  stroke: var(--color-fill-success);
+}
+
+.price-chart__direction-state--down .price-chart__direction-chevron {
+  stroke: var(--color-fill-error);
+}
+
 .price-chart__current-label text {
   fill: #fbfbfb;
   font-size: 12px;
