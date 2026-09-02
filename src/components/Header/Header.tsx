@@ -1,4 +1,4 @@
-import logoPulse from '../../assets/logoPulse.svg'
+import logoDraftea from '../../assets/logoDraftea.svg'
 import iconBalanceHeader from '../../assets/iconBalanceHeader.svg'
 import iconPerfilHeader from '../../assets/iconPerfilHeader.svg'
 import './Header.css'
@@ -23,7 +23,7 @@ export function Header({
       data-balance-cents={balanceCents}
     >
       <div className="header__brand">
-        <img className="header__logo" src={logoPulse} alt="Pulse" />
+        <img className="header__logo" src={logoDraftea} alt="Draftea" />
       </div>
 
       <div className="header__actions">
