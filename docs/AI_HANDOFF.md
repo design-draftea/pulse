@@ -5,13 +5,43 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
+- Status: implementado e validado localmente. Sem Pull Request, sem merge e sem deploy
+- Objetivo: eliminar o intervalo em que o toaster de sucesso aparecia sem o fundo na primeira compra da sessão
+- Escopo acordado: aquecer em tempo ocioso as imagens que só entram no DOM depois da primeira tela e reexportar essas três imagens para WebP. Não foi criada tela de carregamento nem pré-carregamento bloqueante, porque somar `bgHeader`, `bgHeaderBS`, o toaster e os logos passa de `1,8 MB` e atrasaria a primeira pintura
+- Critérios de aceite: as imagens diferidas são pedidas logo depois da primeira renderização, sem atrasar a primeira pintura; o fundo e a ilustração já estão decodificados quando o toaster monta; nenhuma imagem muda de aparência
+- Branch/worktree: `fix/preload-toaster-assets`, criada a partir da `main` sincronizada
+
+## Alterações realizadas
+
+- `src/services/assetWarmup.ts` (novo): `selectColdSources` escolhe as origens ainda não aquecidas, sem repetição; `warmImageSources` busca as frias em paralelo e devolve as que ficaram prontas; `createBrowserImageWarmer` usa `new Image()` com `decode()`, para a imagem chegar já decodificada e não apenas baixada. Uma falha não marca a origem como aquecida, então uma tentativa futura continua possível, e o componente segue funcionando sem o aquecimento.
+- `src/hooks/useDeferredAssetWarmup.ts` (novo): agenda o aquecimento em `requestIdleCallback` com `timeout` de `2000ms`, com `setTimeout` de `1200ms` onde `requestIdleCallback` não existe, e cancela no desmonte. O conjunto de aquecidas vive no módulo, então o efeito duplo do StrictMode não repete a busca.
+- `src/App.tsx`: `useDeferredAssetWarmup()` na primeira linha de `App`.
+- Imagens diferidas cobertas: `bgToasterSucesso`, `ilustraSucesso` e `bgHeaderBS`. As demais já são pedidas na abertura, pelo `App.css` ou pelo `SubHeader`, e não precisam de aquecimento.
+- Reexportação para WebP, preservando as dimensões originais: `bgToasterSucesso` `431KB → 14KB` (`-97%`, qualidade `90`), `ilustraSucesso` `114KB → 57KB` (`-50%`, `nearLossless`) e `bgHeaderBS` `685KB → 173KB` (`-75%`, qualidade `80`). Os três PNG foram removidos porque nenhuma referência restou.
+- Fidelidade medida antes de trocar as referências, comparando os canais compostos sobre o alfa: a maior diferença por pixel ficou em `4/255` no fundo do toaster, `2/255` na ilustração e `2/255` no fundo do betslip; o canal alfa saiu idêntico ao original nos três arquivos. A ilustração recebeu `nearLossless` justamente por ser a única com detalhe fino.
+- `src/components/PurchaseSuccessToast/PurchaseSuccessToast.tsx`, `src/components/BuyBetslip/BuyBetslip.css` e `src/components/ProfileBottomSheet/ProfileBottomSheet.css`: referências apontando para os `.webp`.
+- `tests/assetWarmup.test.ts` (novo) e script `test:assets`: três casos para a seleção sem repetição, a busca única por origem entre chamadas e o comportamento em falha.
+- Verificado no build: `bgHeaderBS` é emitido uma única vez e o CSS e o JS apontam para o mesmo arquivo com hash, então o aquecimento preenche exatamente a entrada de cache que o betslip vai usar.
+- Validação: `pnpm lint` sem avisos, `pnpm build` concluído e as sete suítes passando (`chart` 19, `market` 25, `wallet` 19, `fallback` 6, `entries` 8, `proxy` 6, `assets` 3).
+- Validação no navegador, sobre o build de produção em `localhost:4173`, viewport de `375px`: pelo `Resource Timing`, `bgHeader` e os logos saem entre `24ms` e `29ms` e as três imagens diferidas saem em `42ms`, com `initiatorType: img`, ou seja, depois da primeira tela e ainda muito antes de qualquer compra ser possível. Numa compra real, no primeiro instante em que o toaster existe no DOM, `complete` já era `true` para o fundo e para a ilustração, com `naturalWidth` de `1404`. O toaster e o bottom sheet de perfil foram inspecionados visualmente com os WebP, sem diferença perceptível.
+- `requestIdleCallback` disparou mesmo com a aba oculta, então o `timeout` de `2000ms` cobre o caso de aba em segundo plano.
+- Não validado: comportamento em rede lenta real e em cache totalmente frio de um dispositivo novo. A validação foi feita em `localhost`, onde o download é instantâneo; o argumento para o caso frio é o intervalo entre os `42ms` do aquecimento e os segundos que a pessoa leva para abrir o betslip e concluir o gesto, agora sobre `72KB` de toaster em vez de `545KB`.
+- Não incluído no escopo: `bgHeader.png` continua com `525KB`. Ele já é pedido na abertura pelo `App.css`, então não causa o defeito relatado, mas é o maior arquivo restante e a mesma reexportação valeria para ele.
+
+## Histórico: modal de informação dos cards de preço (PRs #37 e #38)
+
+### Estado no encerramento
+
+- Atualizado em: 2026-09-02
+- Agente que entrega: Claude
+- Agente esperado a seguir: nenhum
 - Status: concluído — implementado, validado, mesclado pelo PR #37 e publicado em `https://design-draftea.github.io/pulse/`. O push, o merge e o deploy foram autorizados pela pessoa usuária
 - Objetivo: abrir a mesma explicação em modal de baixo para cima ao tocar nos cards `Precio objetivo` e `Precio actual` do cabeçalho, replicando o comportamento que os cards de métrica do perfil já tinham
 - Escopo acordado: apenas os dois cards do `PriceComparison` e o texto de cada um, fornecido pela pessoa usuária. Nenhuma mudança no visual dos cards
 - Critérios de aceite: tocar em cada card abre o mesmo modal do perfil, com o título e o texto correspondentes; o modal fecha pelo X, pelo fundo e por `Escape`; os cards de métrica do perfil continuam funcionando como antes
 - Branch/worktree: `feature/price-comparison-info-modal`, mesclada pelo PR #37 e removida. O trabalho foi feito em worktree isolado porque a pasta principal tem trabalho não commitado de outra tarefa (aquecimento de assets e conversão para `webp`); por isso a `main` local não foi sincronizada
 
-## Alterações realizadas
+### Alterações realizadas
 
 - `src/components/InfoModal/`: o modal antes chamado `ProfileInfoModal` foi movido para cá como `InfoModal`, componente compartilhado. As classes CSS passaram de `profile-info-modal__*` para `info-modal__*`. O componente já recebia todo o conteúdo por props, então a generalização foi de nome e de lugar; a marcação, a animação e o CSS continuam os mesmos.
 - `src/components/InfoModal/InfoModal.tsx`: três ajustes sobre o original. O tipo `InfoModalContent` foi exportado para servir aos dois donos de conteúdo; `nodeId` virou opcional, porque os cards de preço não têm nó do Figma correspondente a um modal; e o `id` do título, antes a constante `profile-info-modal-title`, passou a vir de `useId`, já que agora existe mais de um dono possível do modal.
@@ -22,13 +52,13 @@
 - `src/components/PriceComparison/PriceComparison.tsx`: estado do modal, devolução do foco ao card que o abriu e trava de rolagem do `body` enquanto ele está aberto, os mesmos três comportamentos que o `ProfileBottomSheet` já implementava.
 - `src/components/PriceComparison/PriceComparison.css`: o card recebeu os resets de botão — `appearance`, fundo transparente, `color`, `font-family` e `text-align` herdados —, `cursor: pointer`, `user-select: none` e `-webkit-tap-highlight-color: transparent`, além de um anel de foco visível. Sem o fundo transparente o botão herdaria `buttonface` e apagaria o card, que não declara fundo próprio.
 
-## Decisões
+### Decisões
 
 - O modal dos preços é montado por `createPortal` em `document.body`. O `PriceComparison` vive dentro do cabeçalho fixo, que é uma pilha de `z-index: 10` com `backdrop-filter`; um filho `position: fixed` ali dentro ficaria preso abaixo do betslip (`40`) e da Navbar (`30`), e o `backdrop-filter` do ancestral quebraria o posicionamento fixo.
 - Fora do portal, o `z-index: 3` que o modal usa no perfil deixa de bastar: no perfil ele herda o contexto de empilhamento do `profile-sheet__container`, que é `2000`. Daí a prop `containerClassName`, usada para aplicar `.price-comparison__info-modal { z-index: 2000 }` e igualar as duas situações sem mexer no valor de origem.
 - Os cards não ganharam o ícone de informação que os cards de métrica do perfil exibem ao lado do rótulo. O visual veio do Figma e não fazia parte do pedido. A contrapartida é que a interação não tem indicação visual; se isso for desejado, é uma decisão de design a tomar à parte.
 
-## Validações executadas nesta tarefa
+### Validações executadas
 
 - `pnpm lint` e `pnpm build` sem erros.
 - Navegador em `375 × 812`, com rodada ao vivo, servidor deste worktree em `localhost:5180`: tocar em cada card abre o modal com o título e o texto certos; fecha pelo X, pelo fundo e por `Escape`; ao fechar, o foco volta ao card que o abriu e a trava de rolagem do `body` é liberada.
@@ -37,7 +67,7 @@
 - Deploy verificado: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para o merge do PR #37. No bundle publicado estão presentes `info-modal__container` e `price-comparison__info-modal`, no JS e no CSS, e os dois textos dos cards; `profile-info-modal` não aparece em nenhum dos dois arquivos, o que confirma que a renomeação chegou inteira.
 - Site publicado conferido no navegador em `375 × 812`: os dois cards são `<button>` e `Precio objetivo` abre o modal com o texto certo.
 
-## Pendências conhecidas desta tarefa
+### Pendências conhecidas
 
 - A interação não tem indicação visual nos cards, conforme a decisão registrada acima.
 - Falta validação em toque real. A conferência foi feita no painel do navegador desta sessão, onde o clique automatizado dispara duas vezes seguidas e abre e fecha o modal no mesmo gesto; a abertura foi verificada por clique programático e por captura de tela.
