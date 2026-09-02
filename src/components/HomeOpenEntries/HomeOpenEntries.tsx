@@ -32,6 +32,66 @@ const participationFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 })
 const ENTRY_SIDE_ORDER: Record<OutcomeSide, number> = { down: 0, up: 1 }
+const CARD_GAP_PX = 8
+// Teto para o scroll suave. Sem ele, uma seção já centralizada não dispara
+// `scrollend` e a revelação ficaria esperando um evento que não vem.
+const SCROLL_SETTLE_TIMEOUT_MS = 700
+// Se o aviso de sucesso não chegar, a entrada não pode ficar retida para sempre.
+const REVEAL_CUE_TIMEOUT_MS = 4000
+// `animationend` não chega em aba oculta nem com movimento reduzido.
+const REVEAL_SETTLE_TIMEOUT_MS = 1000
+
+const prefersReducedMotion = () => (
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+)
+
+// Centraliza a seção na janela e avisa quando o movimento terminou. Devolve o
+// cancelamento, porque a revelação não pode continuar se o card sair antes.
+const centerInViewport = (
+  element: HTMLElement,
+  isAnimated: boolean,
+  onSettled: () => void,
+) => {
+  const rect = element.getBoundingClientRect()
+  const maxScrollTop = Math.max(
+    0,
+    document.documentElement.scrollHeight - window.innerHeight,
+  )
+  const nextScrollTop = Math.min(
+    maxScrollTop,
+    Math.max(
+      0,
+      window.scrollY + rect.top + rect.height / 2 - window.innerHeight / 2,
+    ),
+  )
+
+  if (!isAnimated || Math.abs(nextScrollTop - window.scrollY) < 2) {
+    window.scrollTo({ top: nextScrollTop, behavior: 'auto' })
+    onSettled()
+
+    return () => {}
+  }
+
+  let isSettled = false
+  const settle = () => {
+    if (isSettled) return
+
+    isSettled = true
+    window.clearTimeout(capTimer)
+    window.removeEventListener('scrollend', settle)
+    onSettled()
+  }
+  const capTimer = window.setTimeout(settle, SCROLL_SETTLE_TIMEOUT_MS)
+
+  window.addEventListener('scrollend', settle, { once: true })
+  window.scrollTo({ top: nextScrollTop, behavior: 'smooth' })
+
+  return () => {
+    isSettled = true
+    window.clearTimeout(capTimer)
+    window.removeEventListener('scrollend', settle)
+  }
+}
 
 export interface HomeOpenEntryExit {
   side: OutcomeSide
@@ -40,10 +100,21 @@ export interface HomeOpenEntryExit {
   isLeaving: boolean
 }
 
+// `held` retém a entrada até o aviso de sucesso aparecer. `reserved` já ocupa a
+// altura final do card, ainda invisível, para o scroll centralizar a seção como
+// ela vai ficar. `entering` roda a revelação.
+type RevealPhase = 'held' | 'reserved' | 'entering'
+
+interface RevealState {
+  key: string
+  phase: RevealPhase
+}
+
 interface HomeOpenEntriesProps {
   roundStart: number
   position: PrototypeWalletPosition
   costBasis: PrototypeWalletCostBasis
+  isSuccessToastVisible: boolean
   exitingEntry?: HomeOpenEntryExit | null
   onExitEnd?: () => void
   onSell: (side: OutcomeSide) => void
@@ -51,6 +122,7 @@ interface HomeOpenEntriesProps {
 
 interface HomeOpenEntryCardProps {
   entry: OpenEntrySummary
+  isWaiting: boolean
   isEntering: boolean
   isLeaving: boolean
   onEnterEnd: () => void
@@ -60,6 +132,7 @@ interface HomeOpenEntryCardProps {
 
 function HomeOpenEntryCard({
   entry,
+  isWaiting,
   isEntering,
   isLeaving,
   onEnterEnd,
@@ -81,7 +154,7 @@ function HomeOpenEntryCard({
 
   return (
     <article
-      className={`home-open-entry-card${isEntering ? ' home-open-entry-card--entering' : ''}${isLeaving ? ' home-open-entry-card--leaving' : ''}`}
+      className={`home-open-entry-card${isWaiting ? ' home-open-entry-card--waiting' : ''}${isEntering ? ' home-open-entry-card--entering' : ''}${isLeaving ? ' home-open-entry-card--leaving' : ''}`}
       data-entry-side={entry.side}
       data-node-id="498:13381"
       onAnimationEnd={handleAnimationEnd}
@@ -141,16 +214,22 @@ export function HomeOpenEntries({
   roundStart,
   position,
   costBasis,
+  isSuccessToastVisible,
   exitingEntry,
   onExitEnd,
   onSell,
 }: HomeOpenEntriesProps) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const [enteringKey, setEnteringKey] = useState<string | null>(null)
+  const [reveal, setReveal] = useState<RevealState | null>(null)
+  // Chave que já recebeu a deixa do aviso de sucesso.
+  const [cuedKey, setCuedKey] = useState<string | null>(null)
+  // Última lista já observada. `null` marca a primeira renderização, em que
+  // nada é revelado: chegar à Home com posição aberta permanece neutro.
+  const [trackedSignature, setTrackedSignature] = useState<string | null>(null)
+  const sectionRef = useRef<HTMLElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  // A entrada só é revelada quando ela nasce durante a sessão. Chegar à Home
-  // com uma posição já aberta, inclusive depois de um F5, permanece neutro.
-  const knownKeysRef = useRef<Set<string> | null>(null)
+  // Última lista para a qual o carrossel já foi posicionado.
+  const alignedSignatureRef = useRef<string | null>(null)
   const liveEntries = getOpenEntrySummaries(position, costBasis)
   // O instantâneo anterior à venda mantém o card na lista enquanto a carteira
   // já está atualizada, e sai da lista só ao fim da animação de saída.
@@ -162,34 +241,117 @@ export function HomeOpenEntries({
     ? [...liveEntries, heldEntry]
       .toSorted((left, right) => ENTRY_SIDE_ORDER[left.side] - ENTRY_SIDE_ORDER[right.side])
     : liveEntries
-  const entryKeys = entries.map(({ side }) => `${roundStart}-${side}`)
-  const entryKeysSignature = entryKeys.join('|')
+  const entryItems = entries.map((entry) => ({
+    entry,
+    key: `${roundStart}-${entry.side}`,
+  }))
+  const entryKeysSignature = entryItems.map(({ key }) => key).join('|')
+  // Enquanto retida, a entrada nova nem entra no DOM: a seção só cresce quando
+  // o aviso de sucesso já está na tela.
+  // A entrada nova é retida já nesta renderização. Detectar isso num efeito
+  // deixava o card entrar no DOM por uma passada antes de ser escondido, e o
+  // carrossel se alinhava por essa passada.
+  if (trackedSignature !== entryKeysSignature) {
+    const previousKeys = new Set(
+      trackedSignature ? trackedSignature.split('|') : [],
+    )
+    const freshKey = trackedSignature === null
+      ? null
+      : entryItems.map(({ key }) => key).find((key) => !previousKeys.has(key))
+        ?? null
 
+    setTrackedSignature(entryKeysSignature)
+
+    if (freshKey !== null) setReveal({ key: freshKey, phase: 'held' })
+  }
+
+  const revealKey = reveal?.key ?? null
+  const storedPhase = reveal?.phase ?? null
+
+  // A deixa é o aviso de sucesso, e ela só anda para a frente: o aviso some
+  // depois de 4s e uma revelação em curso não pode voltar a ficar retida.
+  if (storedPhase === 'held' && isSuccessToastVisible && cuedKey !== revealKey) {
+    setCuedKey(revealKey)
+  }
+
+  const revealPhase: RevealPhase | null = storedPhase === 'held'
+    && cuedKey === revealKey
+    ? 'reserved'
+    : storedPhase
+  const visibleItems = entryItems.filter(({ key }) => (
+    revealPhase !== 'held' || key !== revealKey
+  ))
+  const visibleKeysSignature = visibleItems.map(({ key }) => key).join('|')
+  const visibleCount = visibleItems.length
+  const isSectionLeaving = exitingEntry?.isLeaving === true
+    && visibleCount === 1
+    && visibleItems[0].entry.side === exitingEntry.side
+  // A entrada revelada sozinha na lista é a que acabou de criar a seção, então
+  // o título também não existia até agora e entra com ela.
+  const isTitleEntering = revealPhase === 'reserved' || revealPhase === 'entering'
+    ? visibleCount === 1 && visibleItems[0].key === revealKey
+    : false
+
+  // Rede de segurança para o caso de o aviso de sucesso não aparecer: a entrada
+  // não pode ficar retida fora do DOM indefinidamente.
   useEffect(() => {
-    const currentKeys = entryKeysSignature === ''
-      ? []
-      : entryKeysSignature.split('|')
+    if (revealPhase !== 'held' || revealKey === null) return
 
-    if (knownKeysRef.current === null) {
-      knownKeysRef.current = new Set(currentKeys)
+    const timer = window.setTimeout(() => {
+      setCuedKey(revealKey)
+    }, REVEAL_CUE_TIMEOUT_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [revealKey, revealPhase])
+
+  // Com a altura final já reservada, centraliza a seção e só então revela.
+  useEffect(() => {
+    if (revealPhase !== 'reserved' || revealKey === null) return
+
+    const section = sectionRef.current
+
+    if (section === null) {
+      setReveal({ key: revealKey, phase: 'entering' })
       return
     }
 
-    const knownKeys = knownKeysRef.current
-    const freshKey = currentKeys.find((key) => !knownKeys.has(key)) ?? null
+    return centerInViewport(section, !prefersReducedMotion(), () => {
+      setReveal({ key: revealKey, phase: 'entering' })
+    })
+  }, [revealKey, revealPhase])
 
-    knownKeysRef.current = new Set(currentKeys)
-
-    if (freshKey === null) return
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-
-    setEnteringKey(freshKey)
-  }, [entryKeysSignature])
-
+  // Rede de segurança: sem `animationend` o card ficaria preso no estado de
+  // entrada, que já é visualmente o estado final.
   useEffect(() => {
-    trackRef.current?.scrollTo({ left: 0, behavior: 'auto' })
-  }, [entryKeysSignature])
+    if (revealPhase !== 'entering') return
+
+    const timer = window.setTimeout(() => setReveal(null), REVEAL_SETTLE_TIMEOUT_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [revealPhase])
+
+  // O carrossel só se reposiciona quando a lista muda: na entrada ele para no
+  // card revelado, para a revelação não acontecer fora da tela, e na saída
+  // volta ao primeiro. Depois disso a posição é de quem está navegando.
+  useEffect(() => {
+    if (alignedSignatureRef.current === visibleKeysSignature) return
+
+    const track = trackRef.current
+    const card = track?.querySelector<HTMLElement>('.home-open-entry-card')
+
+    if (!track || !card) return
+
+    alignedSignatureRef.current = visibleKeysSignature
+
+    const revealedIndex = visibleKeysSignature
+      .split('|')
+      .indexOf(revealKey ?? '')
+
+    track.scrollTo({
+      left: Math.max(0, revealedIndex) * (card.offsetWidth + CARD_GAP_PX),
+      behavior: 'auto',
+    })
+  }, [revealKey, visibleKeysSignature])
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const track = event.currentTarget
@@ -197,22 +359,25 @@ export function HomeOpenEntries({
 
     if (!firstCard) return
 
-    const cardStep = firstCard.offsetWidth + 8
+    const cardStep = firstCard.offsetWidth + CARD_GAP_PX
     const nextIndex = Math.round(track.scrollLeft / cardStep)
 
-    setActiveIndex(Math.max(0, Math.min(entries.length - 1, nextIndex)))
+    setActiveIndex(Math.max(0, Math.min(visibleCount - 1, nextIndex)))
   }
 
-  if (entries.length === 0) return null
+  if (visibleCount === 0) return null
 
   return (
     <section
       className="home-open-entries"
       aria-labelledby="home-open-entries-title"
-      data-entry-count={entries.length}
+      data-entry-count={visibleCount}
       data-node-id="497:12722"
+      ref={sectionRef}
     >
-      <div className="home-open-entries__heading">
+      <div
+        className={`home-open-entries__heading${isTitleEntering ? ' home-open-entries__heading--entering' : ''}${isSectionLeaving ? ' home-open-entries__heading--leaving' : ''}`}
+      >
         <h2 id="home-open-entries-title" className="home-open-entries__title">
           Entradas abiertas
         </h2>
@@ -224,29 +389,26 @@ export function HomeOpenEntries({
           onScroll={handleScroll}
           ref={trackRef}
         >
-          {entries.map((entry, index) => {
-            const entryKey = entryKeys[index]
-
-            return (
-              <HomeOpenEntryCard
-                entry={entry}
-                isEntering={entryKey === enteringKey}
-                isLeaving={exitingEntry?.isLeaving === true
-                  && exitingEntry.side === entry.side}
-                key={entry.side}
-                onEnterEnd={() => setEnteringKey(
-                  (currentKey) => (currentKey === entryKey ? null : currentKey),
-                )}
-                onLeaveEnd={onExitEnd}
-                onSell={onSell}
-              />
-            )
-          })}
+          {visibleItems.map(({ entry, key }) => (
+            <HomeOpenEntryCard
+              entry={entry}
+              isEntering={key === revealKey && revealPhase === 'entering'}
+              isLeaving={exitingEntry?.isLeaving === true
+                && exitingEntry.side === entry.side}
+              isWaiting={key === revealKey && revealPhase === 'reserved'}
+              key={entry.side}
+              onEnterEnd={() => setReveal(
+                (current) => (current?.key === key ? null : current),
+              )}
+              onLeaveEnd={onExitEnd}
+              onSell={onSell}
+            />
+          ))}
         </div>
 
-        {entries.length > 1 && (
+        {visibleCount > 1 && (
           <div className="home-open-entries__bullets" aria-hidden="true">
-            {entries.map((entry, index) => (
+            {visibleItems.map(({ entry }, index) => (
               <span
                 className={`home-open-entries__bullet${index === activeIndex ? ' home-open-entries__bullet--active' : ''}`}
                 key={`${entry.side}-bullet`}

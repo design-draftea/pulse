@@ -24,6 +24,36 @@
   line-height: 24px;
 }
 
+/* O título só existe enquanto houver entrada aberta, então ele entra e sai
+   junto com a seção em vez de aparecer e sumir de uma vez. */
+.home-open-entries__heading--entering {
+  animation: home-open-entries-heading-enter 320ms ease-out both;
+}
+
+.home-open-entries__heading--leaving {
+  animation: home-open-entries-heading-leave 320ms ease-in both;
+}
+
+@keyframes home-open-entries-heading-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes home-open-entries-heading-leave {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 .home-open-entries__carousel {
   display: flex;
   width: 100%;
@@ -229,6 +259,14 @@
   background: var(--color-fill-primary);
 }
 
+/* O card já ocupa a altura final, ainda invisível, para o scroll centralizar a
+   seção como ela vai ficar. É o quadro inicial da revelação, parado. */
+.home-open-entry-card--waiting {
+  clip-path: inset(0 100% 0 0 round 16px);
+  opacity: 0.16;
+  transform: translateX(-40px) scale(0.98);
+}
+
 /* Mesma revelação usada quando uma ronda anterior entra no histórico. */
 .home-open-entry-card--entering {
   --home-open-entry-accent: 251 251 251;
@@ -324,11 +362,21 @@
 @media (prefers-reduced-motion: reduce) {
   .home-open-entry-card--entering,
   .home-open-entry-card--entering::before,
-  .home-open-entry-card--entering::after {
+  .home-open-entry-card--entering::after,
+  .home-open-entries__heading--entering {
     animation: none;
   }
 
-  .home-open-entry-card--leaving {
+  /* O card retido precisa voltar ao estado final, porque sem a animação de
+     entrada ele ficaria recortado na tela. */
+  .home-open-entry-card--waiting {
+    clip-path: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .home-open-entry-card--leaving,
+  .home-open-entries__heading--leaving {
     animation-duration: 0.01ms;
   }
 }
