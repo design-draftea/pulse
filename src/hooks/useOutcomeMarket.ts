@@ -461,11 +461,11 @@ export function useOutcomeMarket({
           `${GAMMA_API_ORIGIN}/events/slug/${encodeURIComponent(roundSlug)}`,
           { signal: discoveryController.signal },
         )
-        if (!response.ok) throw new Error(`Gamma respondeu ${response.status}`)
+        if (!response.ok) throw new Error(`Gamma respondió ${response.status}`)
 
         const event = await response.json() as GammaEvent
         const discoveredTokens = getGammaTokens(event)
-        if (!discoveredTokens) throw new Error('Tokens UP/DOWN indisponíveis')
+        if (!discoveredTokens) throw new Error('Tokens UP/DOWN no disponibles')
         if (disposed) return
 
         tokens = discoveredTokens

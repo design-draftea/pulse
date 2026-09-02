@@ -1137,7 +1137,7 @@ export function BuyBetslip({
           <button
             className="buy-betslip__handle"
             type="button"
-            aria-label="Contraer compra"
+            aria-label={`Contraer ${isSellMode ? 'venta' : 'compra'}`}
             onPointerDown={handleSheetPointerDown}
             onPointerMove={handleSheetPointerMove}
             onPointerUp={finishSheetGesture}
