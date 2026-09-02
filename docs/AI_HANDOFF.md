@@ -5,11 +5,11 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: concluído — implementado, validado, mesclado pelo PR #33 em `f760ddb` e publicado em `https://design-draftea.github.io/pulse/`. Push, PR, merge e deploy foram autorizados explicitamente pela pessoa usuária numa única instrução
-- Objetivo: corrigir a notação de centavos do preço médio e traduzir para espanhol os textos que haviam ficado em português
-- Escopo acordado: somente os quatro pontos já identificados numa revisão de compreensão da interface. A revisão levantou vinte lacunas; as demais não foram tocadas
-- Critérios de aceite: nenhum número exibido com `¢` pode trazer também o cifrão; nenhum texto visível ou rótulo acessível pode permanecer em português
-- Branch/worktree: `fix/copy-espanol-centavos`, mesclada pelo PR #33 e removida; `main` local sincronizada com `origin/main`
+- Status: concluído — implementado, validado, mesclado pelos PRs #33 e #35 e publicado em `https://design-draftea.github.io/pulse/`. Cada merge e cada deploy foi autorizado separadamente pela pessoa usuária
+- Objetivo: corrigir a notação de centavos do preço médio e levar para espanhol tudo o que havia ficado em português
+- Escopo acordado: os quatro pontos identificados numa revisão de compreensão da interface e, depois, as duas pendências que essa primeira correção deixou registradas. A revisão levantou vinte lacunas; as demais não foram tocadas
+- Critérios de aceite: nenhum número exibido com `¢` pode trazer também o cifrão; nenhum texto visível, rótulo acessível ou mensagem de erro pode permanecer em português
+- Branch/worktree: `fix/copy-espanol-centavos` e `fix/copy-espanol-restante`, mescladas pelos PRs #33 e #35 e removidas; `main` local sincronizada com `origin/main`
 
 ## Alterações realizadas
 
@@ -18,17 +18,22 @@
 - `src/components/BuyBetslip/QuickAmountEditorSheet.tsx`: o botão do rodapé passou de `Salvar` para `Guardar`.
 - `src/components/Movements/movementPresentation.ts`: `MONTH_LABELS` passou de `Set.` para `Sep.`, que é a abreviação de setembro em espanhol.
 
+Numa segunda passagem, pelo PR #35:
+
+- `src/components/BuyBetslip/BuyBetslip.tsx`: o rótulo acessível do handle passou a acompanhar o modo, `Contraer ${isSellMode ? 'venta' : 'compra'}`, como o botão de resumo ao lado já fazia. Antes ele era estático e lia `compra` também durante uma venda.
+- `src/hooks/useOutcomeMarket.ts` e `src/services/marketData.ts`: as mensagens de `Error` internas passaram para espanhol. `Histórico` virou `Historial` nas duas ocorrências, inclusive na que já estava em espanhol, porque `histórico` como substantivo é lusismo. Nenhuma dessas mensagens chega à interface; todas são engolidas pela contingência.
+
 ## Validações executadas nesta tarefa
 
 - `pnpm lint` e `pnpm build` sem erros.
 - Navegador em `390 × 844`, com dados reais e rodada ao vivo: `77¢` no betslip expandido, `73¢` no resumo recolhido, `Guardar` no rodapé de `Editar montos`, `Contraer compra` no rótulo acessível do handle e `01 Sep. 2026` nos grupos de data de `Movimientos`.
-- Varredura por diacríticos e termos em português nas strings de `src/`: nenhum texto visível remanescente.
-- Deploy verificado: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para o merge do PR #33.
+- Após o PR #35, no navegador com rodada ao vivo: o handle lê `Contraer compra` no modo compra e `Contraer venta` depois de alternar para `Vender`.
+- Varredura por diacríticos e termos em português nas strings de `src/`: nenhum texto remanescente fora de comentários de código.
+- Deploy verificado nas duas entregas: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para os merges dos PRs #33 e #35. Para o PR #33 o bundle publicado foi conferido diretamente, com `Guardar`, `Contraer compra` e `Sep.` presentes, os termos em português ausentes e nenhuma das sete ocorrências de `¢` trazendo cifrão.
 
 ## Pendências conhecidas desta tarefa
 
-- `Contraer compra` continua estático e lê "compra" também quando o betslip está em modo venda. O botão de resumo ao lado já resolve o caso com `Expandir detalles de la ${venta|compra}`. Não foi alterado porque passaria de tradução para mudança de comportamento.
-- Mensagens de `Error` internas seguem misturando português e espanhol em `useOutcomeMarket.ts` e `marketData.ts`. Nenhuma chega à interface; são engolidas pela contingência.
+- As duas pendências abertas pelo PR #33 — o rótulo estático do handle e as mensagens de erro em português — foram fechadas pelo PR #35.
 - A revisão de compreensão que originou esta tarefa levantou outras dezenove lacunas ainda abertas, entre elas `Ganancia potencial` exibindo o retorno bruto em vez do lucro, a ausência de qualquer aviso na derrota e os itens `Preguntas frecuentes` sem destino.
 
 ## Histórico: arrasto do gráfico (PR #31)
