@@ -32,6 +32,12 @@
 - Decisão registrada sobre o `bgHeader`: com perdas ele cairia para `9KB` na qualidade `90` e `27KB` na qualidade `100`, mas o arquivo é um degradê suave e pontilhado de propósito. Medindo o maior degrau entre pixels vizinhos ao longo de cinco colunas, o original vai a `1` na fonte e a `2` no tamanho exibido em `1x`; qualquer versão com perdas, inclusive na qualidade `100`, sobe para `4` na fonte e `6` em `1x`. Reduzir para o tamanho de exibição não suaviza esse degrau, ele piora. Como o degradê do topo é a superfície mais visível da aplicação e o pontilhado do arquivo original existe justamente para evitar faixas, a versão com perdas foi descartada apesar de ser `40` vezes menor. O ganho seguro de `149KB` foi preferido ao ganho arriscado de `504KB`.
 - Restam dois PNG: `logoBTC` e `logoBTCBack`, com `49KB` e `55KB`. Não foram tocados.
 
+## Limpeza de assets órfãos
+
+- Uma varredura de referências em `src/`, `index.html` e `public/` apontou cinco arquivos em `src/assets/` que nenhum outro arquivo do projeto citava. Todos foram removidos: `hero.png`, `react.svg` e `vite.svg`, que são sobra do scaffold do Vite — os dois SVG são os logos do template —, além de `logoPulse.svg` e `iconHistorico.svg`, assets de design sem uso, removidos por decisão da pessoa usuária.
+- Confirmação de que não entravam no bundle: depois das remoções, os hashes do CSS e do JS do build ficaram idênticos aos anteriores, `index-__nUDO8w.css` e `index-eD50RIQR.js`.
+- Se algum desses assets voltar a ser necessário, ele está no histórico do Git.
+
 ## Histórico: modal de informação dos cards de preço (PRs #37 e #38)
 
 ### Estado no encerramento
