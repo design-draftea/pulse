@@ -4,8 +4,10 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+import type { CSSProperties } from 'react'
 import {
   layoutPriceChartEntries,
   type PriceChartEntry,
@@ -19,9 +21,12 @@ import {
 import {
   countPricePointGaps,
   getContinuousVisiblePricePoints,
+  interpolatePriceAt,
   type PriceChartDomain,
   type PricePoint,
 } from './priceChartModel'
+import { usePriceChartPan } from '../hooks/usePriceChartPan'
+import { LiveIndicator } from './LiveIndicator/LiveIndicator'
 import './PriceChart.css'
 
 export type { PriceChartEntry } from './priceChartLayout'
@@ -42,6 +47,9 @@ type PriceChartProps = {
   timeZone?: string
   className?: string
   seriesKey: number
+  viewAnchorTimestamp: number | null
+  onViewAnchorChange: (next: number | null) => void
+  onWindowSpanChange?: (spanMs: number) => void
   resetReason: 'initial-load' | 'round-change'
   source: string | null
   status: string
@@ -179,6 +187,9 @@ export function PriceChart({
   timeZone,
   className = '',
   seriesKey,
+  viewAnchorTimestamp,
+  onViewAnchorChange,
+  onWindowSpanChange,
   resetReason,
   source,
   status,
@@ -255,11 +266,46 @@ export function PriceChart({
 
     return () => window.clearTimeout(timer)
   }, [directionAnimationSequence])
+  const priceLabelSample = priceFormatter.format(renderDomain.top)
+  const priceLabelRef = useRef<SVGTextElement | null>(null)
+  const [priceLabelWidth, setPriceLabelWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const node = priceLabelRef.current
+    if (node === null) return
+
+    const measuredWidth = node.getBBox().width
+    if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) return
+
+    setPriceLabelWidth((currentWidth) =>
+      Math.abs(currentWidth - measuredWidth) < 0.5 ? currentWidth : measuredWidth,
+    )
+  }, [priceLabelSample.length, chartWidth])
+
   const renderTime = useRenderTime()
   const displayTime = Math.max(renderTime, latestPoint?.timestamp ?? renderTime)
+  const windowSpanMs = (seriesRight / PIXELS_PER_SECOND) * 1000
+  const isPanned = viewAnchorTimestamp !== null
+  const anchorTime = viewAnchorTimestamp ?? displayTime
+  const anchorPrice = isPanned
+    ? interpolatePriceAt(safePoints, anchorTime) ?? latestPrice
+    : latestPrice
+  const { isPanning, panHandlers, returnToLive } = usePriceChartPan({
+    points: safePoints,
+    latestTimestamp: displayTime,
+    windowSpanMs,
+    pixelsPerSecond: PIXELS_PER_SECOND,
+    viewAnchorTimestamp,
+    onViewAnchorChange,
+  })
+
+  useEffect(() => {
+    onWindowSpanChange?.(windowSpanMs)
+  }, [onWindowSpanChange, windowSpanMs])
+
   const visibleEntries = useMemo(
-    () => layoutPriceChartEntries(entries, displayTime),
-    [displayTime, entries],
+    () => (isPanned ? [] : layoutPriceChartEntries(entries, displayTime)),
+    [displayTime, entries, isPanned],
   )
 
   if (safePoints.length === 0) {
@@ -291,7 +337,7 @@ export function PriceChart({
       ]
   const visibleSeries = getContinuousVisiblePricePoints(
     pointsWithCurrent,
-    displayTime,
+    anchorTime,
     seriesRight,
     0,
     PIXELS_PER_SECOND,
@@ -301,11 +347,17 @@ export function PriceChart({
     y: priceToY(point.value),
   }))
   const currentPoint: ChartPoint = {
-    timestamp: displayTime,
-    value: latestPrice,
+    timestamp: anchorTime,
+    value: anchorPrice,
     x: seriesRight,
-    y: priceToY(latestPrice),
+    y: priceToY(anchorPrice),
   }
+  // O recorte existe apenas para abrir espaço para os chevrons. Sem direção
+  // confirmada ele deixaria um buraco permanente no tracejado, então fecha.
+  const isDirectionActive = priceDirection !== null && !isPanned
+  const directionClearClassName = `price-chart__direction-clear${
+    isDirectionActive ? '' : ' price-chart__direction-clear--closed'
+  }`
   const directionCenterX = directionIconX + 12
   const visibleLinePoints = chartPoints.length > 0
     ? chartPoints
@@ -318,7 +370,7 @@ export function PriceChart({
     (_, index) => top - step * index,
   )
   const latestTimeTick =
-    Math.floor(displayTime / TIME_TICK_INTERVAL) * TIME_TICK_INTERVAL
+    Math.floor(anchorTime / TIME_TICK_INTERVAL) * TIME_TICK_INTERVAL
   const timeTickCount = Math.max(
     4,
     Math.ceil((seriesRight - PLOT_LEFT) / TIME_TICK_SPACING) + 1,
@@ -330,16 +382,30 @@ export function PriceChart({
       timestamp,
       x:
         seriesRight -
-        ((displayTime - timestamp) / 1000) * PIXELS_PER_SECOND,
+        ((anchorTime - timestamp) / 1000) * PIXELS_PER_SECOND,
     }
   })
 
   return (
     <figure
       ref={containerRef}
-      className={`price-chart ${className}`}
-      aria-label={`Gráfico del precio actual: ${priceFormatter.format(latestPrice)}`}
+      className={`price-chart ${isPanned ? 'price-chart--panned' : ''} ${isPanning ? 'price-chart--panning' : ''} ${className}`}
+      aria-label={isPanned
+        ? `Gráfico del historial de la ronda: ${priceFormatter.format(anchorPrice)}`
+        : `Gráfico del precio actual: ${priceFormatter.format(latestPrice)}`}
       data-testid="price-chart"
+      data-panned={isPanned}
+      data-view-anchor={viewAnchorTimestamp ?? ''}
+      data-window-span={Math.round(windowSpanMs)}
+      style={priceLabelWidth > 0
+        ? {
+            '--price-chart-value-right': `${Math.max(
+              0,
+              chartWidth - priceLabelX - priceLabelWidth,
+            )}px`,
+          } as CSSProperties
+        : undefined}
+      {...panHandlers}
       data-point-count={safePoints.length}
       data-displayed-price={latestPrice}
       data-domain-bottom={domain.bottom}
@@ -423,6 +489,7 @@ export function PriceChart({
               fill={`url(#plot-fade-${id})`}
             />
             <rect
+              className={directionClearClassName}
               x={directionCenterX - DIRECTION_CLEAR_SIZE / 2}
               y={currentPoint.y - DIRECTION_CLEAR_SIZE / 2}
               width={DIRECTION_CLEAR_SIZE}
@@ -440,6 +507,7 @@ export function PriceChart({
           >
             <rect width={chartWidth} height={PRICE_CHART_HEIGHT} fill="#fff" />
             <rect
+              className={directionClearClassName}
               x={directionCenterX - DIRECTION_CLEAR_SIZE / 2}
               y={currentPoint.y - DIRECTION_CLEAR_SIZE / 2}
               width={DIRECTION_CLEAR_SIZE}
@@ -463,6 +531,7 @@ export function PriceChart({
               fill="#fff"
             />
             <rect
+              className={directionClearClassName}
               x={directionCenterX - DIRECTION_CLEAR_SIZE / 2}
               y={-DIRECTION_CLEAR_SIZE / 2}
               width={DIRECTION_CLEAR_SIZE}
@@ -505,7 +574,11 @@ export function PriceChart({
                 style={{ transform: `translateY(${y}px)` }}
               >
                 <line x1={PLOT_LEFT} x2={plotRight} y1="0" y2="0" />
-                <text x={priceLabelX} y="4">
+                <text
+                  ref={index === 0 ? priceLabelRef : undefined}
+                  x={priceLabelX}
+                  y="4"
+                >
                   {priceFormatter.format(tick)}
                 </text>
               </g>
@@ -560,13 +633,13 @@ export function PriceChart({
           />
           <g
             className="price-chart__direction"
-            data-direction-visible={isDirectionVisible}
+            data-direction-visible={isDirectionVisible && !isPanned}
             data-price-direction={priceDirection ?? 'locked'}
             data-direction-sequence={directionAnimationSequence}
             transform={`translate(${directionIconX} -12)`}
           >
             <g
-              className={`price-chart__direction-state price-chart__direction-state--up ${isDirectionVisible && priceDirection === 'up' ? 'price-chart__direction-state--active' : ''}`}
+              className={`price-chart__direction-state price-chart__direction-state--up ${isDirectionVisible && !isPanned && priceDirection === 'up' ? 'price-chart__direction-state--active' : ''}`}
             >
               <DirectionChevrons
                 key={`up-${directionAnimationSequence}`}
@@ -578,7 +651,7 @@ export function PriceChart({
               />
             </g>
             <g
-              className={`price-chart__direction-state price-chart__direction-state--down ${isDirectionVisible && priceDirection === 'down' ? 'price-chart__direction-state--active' : ''}`}
+              className={`price-chart__direction-state price-chart__direction-state--down ${isDirectionVisible && !isPanned && priceDirection === 'down' ? 'price-chart__direction-state--active' : ''}`}
             >
               <DirectionChevrons
                 key={`down-${directionAnimationSequence}`}
@@ -599,7 +672,7 @@ export function PriceChart({
               fill={`url(#current-price-${id})`}
             />
             <text x="10" y="13">
-              {priceFormatter.format(latestPrice)}
+              {priceFormatter.format(anchorPrice)}
             </text>
           </g>
         </g>
@@ -654,9 +727,21 @@ export function PriceChart({
         </g>
       </svg>
 
-      <output className="price-chart__live-value" aria-live="polite">
-        {priceFormatter.format(latestPrice)}
-      </output>
+      {isPanned ? (
+        <button
+          aria-label="Volver al precio en vivo"
+          className="price-chart__live-button"
+          onClick={returnToLive}
+          type="button"
+        >
+          <LiveIndicator className="price-chart__live-dot" />
+          LIVE
+        </button>
+      ) : (
+        <output className="price-chart__live-value" aria-live="polite">
+          {priceFormatter.format(latestPrice)}
+        </output>
+      )}
     </figure>
   )
 }

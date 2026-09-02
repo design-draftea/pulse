@@ -11,6 +11,10 @@
   font-feature-settings:
     'lnum' 1,
     'tnum' 1;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .price-chart__canvas {
@@ -209,6 +213,74 @@
 
   .price-chart__direction-chevron {
     opacity: 1;
+    animation: none;
+  }
+}
+
+.price-chart--panning {
+  cursor: grabbing;
+}
+
+.price-chart--panned .price-chart__point-halo {
+  animation: none;
+}
+
+.price-chart__direction-clear {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 180ms ease-out;
+}
+
+.price-chart__direction-clear--closed {
+  transform: scale(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-chart__direction-clear {
+    transition: none;
+  }
+}
+
+.price-chart__live-button {
+  position: absolute;
+  right: var(--price-chart-value-right, 24px);
+  bottom: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 12px;
+  border: 0;
+  border-radius: 100px;
+  background: var(--color-fill-opacity-tertiary);
+  color: var(--color-fill-tertiary);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 18px;
+  cursor: pointer;
+  animation: price-chart-live-button-enter 180ms ease-out both;
+}
+
+.price-chart__live-dot {
+  --live-indicator-size: 4px;
+  --live-indicator-color: var(--color-component-live);
+}
+
+@keyframes price-chart-live-button-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-chart__live-button {
     animation: none;
   }
 }

@@ -10,6 +10,7 @@ import { appendRoundPricePoint } from '../components/priceChartModel'
 import {
   BTC_DISPLAY_TIME_ZONE,
   BTC_ROUND_DURATION_MS,
+  fetchBtcRoundMinutePoints,
   fetchBtcRoundTarget,
   fetchPreviousBtcRounds,
   getBtcRoundSlug,
@@ -35,7 +36,8 @@ export type MarketDataStatus =
   | 'stale'
   | 'unavailable'
 
-const MAX_HISTORY_POINTS = 120
+const MAX_HISTORY_POINTS = BTC_ROUND_DURATION_MS / 1000 + 1
+const ROUND_BACKFILL_RETRY_DELAYS_MS = [2_000, 5_000, 15_000]
 const CLOCK_INTERVAL_MS = 250
 const TARGET_FALLBACK_DELAY_MS = 3_000
 const TARGET_FALLBACK_RETRY_MS = 250
@@ -103,6 +105,16 @@ const toHistoricalRound = (
   }
 }
 
+const hasForcedBackfillFailure = () => {
+  if (!import.meta.env.DEV) return false
+
+  return new URLSearchParams(window.location.search)
+    .get('testDataFailure')
+    ?.split(',')
+    .map((value) => value.trim().toLowerCase())
+    .includes('backfill') ?? false
+}
+
 const hasForcedFailure = (failure: string) => {
   if (!import.meta.env.DEV) return false
 
@@ -134,6 +146,11 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
     source: null,
   }))
   const [pointSeries, setPointSeries] = useState<{
+    roundStart: number
+    points: PricePoint[]
+  }>(() => ({ roundStart, points: [] }))
+  const [initialRoundStart] = useState(roundStart)
+  const [backfillSeries, setBackfillSeries] = useState<{
     roundStart: number
     points: PricePoint[]
   }>(() => ({ roundStart, points: [] }))
@@ -248,6 +265,43 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
 
     return () => window.cancelAnimationFrame(updateFrame)
   }, [priceFeed.updatedAt, priceFeed.value, roundStart])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let retryTimer = 0
+    let retryIndex = 0
+    let disposed = false
+
+    const loadRoundBackfill = async () => {
+      try {
+        if (hasForcedBackfillFailure()) throw new Error('forced backfill failure')
+
+        const points = await fetchBtcRoundMinutePoints(
+          roundStart,
+          Date.now(),
+          controller.signal,
+        )
+        if (disposed || points.length === 0) return
+
+        setBackfillSeries({ roundStart, points })
+      } catch {
+        if (disposed || controller.signal.aborted) return
+        if (retryIndex >= ROUND_BACKFILL_RETRY_DELAYS_MS.length) return
+
+        const retryDelay = ROUND_BACKFILL_RETRY_DELAYS_MS[retryIndex]
+        retryIndex += 1
+        retryTimer = window.setTimeout(() => void loadRoundBackfill(), retryDelay)
+      }
+    }
+
+    void loadRoundBackfill()
+
+    return () => {
+      disposed = true
+      controller.abort()
+      window.clearTimeout(retryTimer)
+    }
+  }, [roundStart])
 
   useEffect(() => {
     const previousSnapshot = roundSnapshotRef.current
@@ -506,11 +560,31 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
     : priceFeed.value === null
       ? 'connecting'
       : 'stale'
-  const currentRoundPoints = pointSeries.roundStart === roundStart
-    ? pointSeries.points
-    : []
-  const visiblePoints = currentRoundPoints.length > 0
-    ? currentRoundPoints
+  const seriesPoints = useMemo(() => {
+    const currentRoundPoints = pointSeries.roundStart === roundStart
+      ? pointSeries.points
+      : []
+    const roundBackfillPoints = backfillSeries.roundStart === roundStart
+      ? backfillSeries.points
+      : []
+
+    if (roundBackfillPoints.length === 0) return currentRoundPoints
+
+    const livePoints = roundStart === initialRoundStart
+      ? currentRoundPoints.filter(({ timestamp }) => timestamp !== roundStart)
+      : currentRoundPoints
+    const firstLiveTimestamp = livePoints[0]?.timestamp
+      ?? Number.POSITIVE_INFINITY
+
+    return [
+      ...roundBackfillPoints.filter(
+        ({ timestamp }) => timestamp < firstLiveTimestamp,
+      ),
+      ...livePoints,
+    ]
+  }, [backfillSeries, initialRoundStart, pointSeries, roundStart])
+  const visiblePoints = seriesPoints.length > 0
+    ? seriesPoints
     : !isPositivePrice(priceFeed.value)
       ? []
       : [{

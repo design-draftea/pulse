@@ -199,3 +199,68 @@ export const fetchPreviousBtcRounds = async (
     return round ? [round] : []
   })
 }
+
+export type BtcRoundPricePoint = {
+  timestamp: number
+  value: number
+}
+
+const ROUND_BACKFILL_GRANULARITY_SECONDS = 60
+const ROUND_BACKFILL_GRANULARITY_MS = ROUND_BACKFILL_GRANULARITY_SECONDS * 1000
+
+export const fetchBtcRoundMinutePoints = async (
+  roundStart: number,
+  until: number,
+  signal?: AbortSignal,
+): Promise<BtcRoundPricePoint[]> => {
+  const roundEnd = roundStart + BTC_ROUND_DURATION_MS
+  const boundedUntil = Math.min(until, roundEnd)
+
+  if (boundedUntil - roundStart < ROUND_BACKFILL_GRANULARITY_MS) return []
+
+  const params = new URLSearchParams({
+    granularity: String(ROUND_BACKFILL_GRANULARITY_SECONDS),
+    start: toPolymarketIso(roundStart),
+    end: toPolymarketIso(boundedUntil),
+  })
+  const response = await fetch(`${COINBASE_CANDLES_ENDPOINT}?${params}`, {
+    signal,
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Histórico de la ronda no disponible (${response.status})`)
+  }
+
+  const candles = await response.json() as CoinbaseCandle[]
+  const points = candles.flatMap((candle) => {
+    const [timestampSeconds, , , rawOpen, rawClose] = candle
+    const openedAt = Number(timestampSeconds) * 1000
+    const open = Number(rawOpen)
+    const close = Number(rawClose)
+
+    if (
+      openedAt < roundStart
+      || openedAt >= boundedUntil
+      || !Number.isFinite(open)
+      || open <= 0
+      || !Number.isFinite(close)
+      || close <= 0
+    ) return []
+
+    const closedAt = openedAt + ROUND_BACKFILL_GRANULARITY_MS
+
+    return closedAt <= boundedUntil
+      ? [
+          { timestamp: openedAt, value: open },
+          { timestamp: closedAt, value: close },
+        ]
+      : [{ timestamp: openedAt, value: open }]
+  })
+
+  return points
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .filter((point, index, all) => (
+      index === 0 || all[index - 1].timestamp !== point.timestamp
+    ))
+}
