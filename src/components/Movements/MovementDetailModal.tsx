@@ -23,12 +23,6 @@ const participationFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2,
 })
-const balanceFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
 const roundTimeFormatter = new Intl.DateTimeFormat('es-MX', {
   hour: '2-digit',
   minute: '2-digit',
@@ -203,13 +197,6 @@ export function MovementDetailModal({
           <span>Total</span>
           <strong>{formatMovementAmount(movement.amountCents)}</strong>
         </div>
-
-        {movement.balanceAfterCents !== undefined && (
-          <div className="movement-detail-modal__balance">
-            <span>Saldo después</span>
-            <strong>{balanceFormatter.format(movement.balanceAfterCents / 100)}</strong>
-          </div>
-        )}
 
         <footer className="movement-detail-modal__footer">
           <button type="button" onClick={requestClose}>Entendido</button>
