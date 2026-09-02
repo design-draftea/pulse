@@ -2,18 +2,18 @@
   position: relative;
   z-index: 1;
   display: block;
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
+  width: var(--live-indicator-size, 6px);
+  height: var(--live-indicator-size, 6px);
+  flex: 0 0 var(--live-indicator-size, 6px);
   border-radius: 50%;
-  background: var(--color-fill-error);
+  background: var(--live-indicator-color, var(--color-fill-error));
 }
 
 .live-indicator::before {
   content: '';
   position: absolute;
-  inset: -3px;
-  border: 1px solid var(--color-fill-error);
+  inset: calc(var(--live-indicator-size, 6px) / -2);
+  border: 1px solid var(--live-indicator-color, var(--color-fill-error));
   border-radius: inherit;
   animation: live-indicator-pulse 1.6s ease-out infinite;
 }

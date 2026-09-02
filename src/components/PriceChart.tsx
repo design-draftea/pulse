@@ -691,12 +691,13 @@ export function PriceChart({
 
       {isPanned ? (
         <button
+          aria-label="Volver al precio en vivo"
           className="price-chart__live-button"
           onClick={returnToLive}
           type="button"
         >
           <LiveIndicator className="price-chart__live-dot" />
-          En vivo
+          LIVE
         </button>
       ) : (
         <output className="price-chart__live-value" aria-live="polite">
