@@ -11,6 +11,10 @@
   font-feature-settings:
     'lnum' 1,
     'tnum' 1;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .price-chart__canvas {
@@ -211,10 +215,6 @@
     opacity: 1;
     animation: none;
   }
-}
-
-.price-chart {
-  touch-action: pan-y;
 }
 
 .price-chart--panning {
