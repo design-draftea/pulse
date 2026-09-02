@@ -1,3 +1,5 @@
+import type { InfoModalContent } from '../InfoModal'
+
 export type ProfileInfoId =
   | 'availableBalance'
   | 'portfolioTotal'
@@ -6,12 +8,9 @@ export type ProfileInfoId =
   | 'totalReceived'
   | 'netResult'
 
-export interface ProfileInfoDefinition {
+export interface ProfileInfoDefinition extends InfoModalContent {
   id: ProfileInfoId
   nodeId: string
-  title: string
-  paragraphs: string[]
-  summary?: string
 }
 
 export const profileInfoById: Record<ProfileInfoId, ProfileInfoDefinition> = {

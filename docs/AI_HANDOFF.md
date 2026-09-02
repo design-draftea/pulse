@@ -5,13 +5,56 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
+- Status: implementado e validado localmente. Não commitado em `main`, sem Pull Request, sem merge e sem deploy
+- Objetivo: abrir a mesma explicação em modal de baixo para cima ao tocar nos cards `Precio objetivo` e `Precio actual` do cabeçalho, replicando o comportamento que os cards de métrica do perfil já tinham
+- Escopo acordado: apenas os dois cards do `PriceComparison` e o texto de cada um, fornecido pela pessoa usuária. Nenhuma mudança no visual dos cards
+- Critérios de aceite: tocar em cada card abre o mesmo modal do perfil, com o título e o texto correspondentes; o modal fecha pelo X, pelo fundo e por `Escape`; os cards de métrica do perfil continuam funcionando como antes
+- Branch/worktree: `feature/price-comparison-info-modal`, em worktree isolado, porque a pasta principal tem trabalho não commitado de outra tarefa (aquecimento de assets e conversão para `webp`)
+
+## Alterações realizadas
+
+- `src/components/InfoModal/`: o modal antes chamado `ProfileInfoModal` foi movido para cá como `InfoModal`, componente compartilhado. As classes CSS passaram de `profile-info-modal__*` para `info-modal__*`. O componente já recebia todo o conteúdo por props, então a generalização foi de nome e de lugar; a marcação, a animação e o CSS continuam os mesmos.
+- `src/components/InfoModal/InfoModal.tsx`: três ajustes sobre o original. O tipo `InfoModalContent` foi exportado para servir aos dois donos de conteúdo; `nodeId` virou opcional, porque os cards de preço não têm nó do Figma correspondente a um modal; e o `id` do título, antes a constante `profile-info-modal-title`, passou a vir de `useId`, já que agora existe mais de um dono possível do modal.
+- `src/components/InfoModal/InfoModal.tsx`: nova prop opcional `containerClassName`. Ela existe por causa do empilhamento — ver a decisão sobre `z-index` abaixo.
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx` e `profileInfoContent.ts`: passaram a importar de `../InfoModal`. `ProfileInfoDefinition` agora estende `InfoModalContent`, então o conteúdo do perfil e o dos preços compartilham o mesmo contrato. Nenhuma mudança de comportamento.
+- `src/components/PriceComparison/priceInfoContent.ts`: novo, com os textos de `Precio objetivo` e `Precio actual` exatamente como foram fornecidos, um parágrafo cada.
+- `src/components/PriceComparison/PriceComparison.tsx`: os dois cards passaram de `<article>` para `<button type="button">` com `aria-haspopup="dialog"`. O nome acessível vem do próprio conteúdo do card, que já traz rótulo, valor e variação, em vez de um `aria-label` fixo do tipo `Más información sobre …`, que apagaria o valor da leitura. O `<div class="price-comparison__heading">` do card de preço atual virou `<span>`, porque `<div>` não é conteúdo válido dentro de `<button>`.
+- `src/components/PriceComparison/PriceComparison.tsx`: estado do modal, devolução do foco ao card que o abriu e trava de rolagem do `body` enquanto ele está aberto, os mesmos três comportamentos que o `ProfileBottomSheet` já implementava.
+- `src/components/PriceComparison/PriceComparison.css`: o card recebeu os resets de botão — `appearance`, fundo transparente, `color`, `font-family` e `text-align` herdados —, `cursor: pointer`, `user-select: none` e `-webkit-tap-highlight-color: transparent`, além de um anel de foco visível. Sem o fundo transparente o botão herdaria `buttonface` e apagaria o card, que não declara fundo próprio.
+
+## Decisões
+
+- O modal dos preços é montado por `createPortal` em `document.body`. O `PriceComparison` vive dentro do cabeçalho fixo, que é uma pilha de `z-index: 10` com `backdrop-filter`; um filho `position: fixed` ali dentro ficaria preso abaixo do betslip (`40`) e da Navbar (`30`), e o `backdrop-filter` do ancestral quebraria o posicionamento fixo.
+- Fora do portal, o `z-index: 3` que o modal usa no perfil deixa de bastar: no perfil ele herda o contexto de empilhamento do `profile-sheet__container`, que é `2000`. Daí a prop `containerClassName`, usada para aplicar `.price-comparison__info-modal { z-index: 2000 }` e igualar as duas situações sem mexer no valor de origem.
+- Os cards não ganharam o ícone de informação que os cards de métrica do perfil exibem ao lado do rótulo. O visual veio do Figma e não fazia parte do pedido. A contrapartida é que a interação não tem indicação visual; se isso for desejado, é uma decisão de design a tomar à parte.
+
+## Validações executadas nesta tarefa
+
+- `pnpm lint` e `pnpm build` sem erros.
+- Navegador em `375 × 812`, com rodada ao vivo, servidor deste worktree em `localhost:5180`: tocar em cada card abre o modal com o título e o texto certos; fecha pelo X, pelo fundo e por `Escape`; ao fechar, o foco volta ao card que o abriu e a trava de rolagem do `body` é liberada.
+- Estado compacto do cabeçalho, com a página rolada: o modal continua abrindo por cima do betslip e da Navbar, e o layout dos cards em `55px` não mudou.
+- Regressão do perfil conferida no navegador: `Compras totales` abre o mesmo modal de sempre depois da mudança de nome e de lugar do componente.
+
+## Pendências conhecidas desta tarefa
+
+- Nada foi commitado. A branch `feature/price-comparison-info-modal` está no worktree `.claude/worktrees/pulse-price-info-modal` e ainda não foi enviada.
+- A interação não tem indicação visual nos cards, conforme a decisão registrada acima.
+- Falta validação em toque real. A conferência foi feita no painel do navegador desta sessão, onde o clique automatizado dispara duas vezes seguidas e abre e fecha o modal no mesmo gesto; a abertura foi verificada por clique programático e por captura de tela.
+
+## Histórico: espanhol e notação de centavos (PRs #33 e #35)
+
+### Estado no encerramento
+
+- Atualizado em: 2026-09-02
+- Agente que entrega: Claude
+- Agente esperado a seguir: nenhum
 - Status: concluído — implementado, validado, mesclado pelos PRs #33 e #35 e publicado em `https://design-draftea.github.io/pulse/`. Cada merge e cada deploy foi autorizado separadamente pela pessoa usuária
 - Objetivo: corrigir a notação de centavos do preço médio e levar para espanhol tudo o que havia ficado em português
 - Escopo acordado: os quatro pontos identificados numa revisão de compreensão da interface e, depois, as duas pendências que essa primeira correção deixou registradas. A revisão levantou vinte lacunas; as demais não foram tocadas
 - Critérios de aceite: nenhum número exibido com `¢` pode trazer também o cifrão; nenhum texto visível, rótulo acessível ou mensagem de erro pode permanecer em português
 - Branch/worktree: `fix/copy-espanol-centavos` e `fix/copy-espanol-restante`, mescladas pelos PRs #33 e #35 e removidas; `main` local sincronizada com `origin/main`
 
-## Alterações realizadas
+### Alterações realizadas
 
 - `src/components/BuyBetslip/BuyBetslip.tsx`: `formatAveragePrice` deixou de prefixar o cifrão. O preço médio era exibido como `$71¢`, com dois símbolos de moeda no mesmo número, no betslip expandido e no resumo recolhido. Os outros seis pontos da interface que mostram centavos já usavam apenas `¢`, então a correção alinhou o betslip ao restante.
 - `src/components/BuyBetslip/BuyBetslip.tsx`: o rótulo acessível do handle passou de `Recolher compra` para `Contraer compra`.
@@ -23,7 +66,7 @@ Numa segunda passagem, pelo PR #35:
 - `src/components/BuyBetslip/BuyBetslip.tsx`: o rótulo acessível do handle passou a acompanhar o modo, `Contraer ${isSellMode ? 'venta' : 'compra'}`, como o botão de resumo ao lado já fazia. Antes ele era estático e lia `compra` também durante uma venda.
 - `src/hooks/useOutcomeMarket.ts` e `src/services/marketData.ts`: as mensagens de `Error` internas passaram para espanhol. `Histórico` virou `Historial` nas duas ocorrências, inclusive na que já estava em espanhol, porque `histórico` como substantivo é lusismo. Nenhuma dessas mensagens chega à interface; todas são engolidas pela contingência.
 
-## Validações executadas nesta tarefa
+### Validações executadas
 
 - `pnpm lint` e `pnpm build` sem erros.
 - Navegador em `390 × 844`, com dados reais e rodada ao vivo: `77¢` no betslip expandido, `73¢` no resumo recolhido, `Guardar` no rodapé de `Editar montos`, `Contraer compra` no rótulo acessível do handle e `01 Sep. 2026` nos grupos de data de `Movimientos`.
@@ -31,11 +74,10 @@ Numa segunda passagem, pelo PR #35:
 - Varredura por diacríticos e termos em português nas strings de `src/`: nenhum texto remanescente fora de comentários de código.
 - Deploy verificado nas duas entregas: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para os merges dos PRs #33 e #35. Para o PR #33 o bundle publicado foi conferido diretamente, com `Guardar`, `Contraer compra` e `Sep.` presentes, os termos em português ausentes e nenhuma das sete ocorrências de `¢` trazendo cifrão.
 
-## Pendências conhecidas desta tarefa
+### Pendências conhecidas
 
 - As duas pendências abertas pelo PR #33 — o rótulo estático do handle e as mensagens de erro em português — foram fechadas pelo PR #35.
 - A revisão de compreensão que originou esta tarefa levantou outras dezenove lacunas ainda abertas, entre elas `Ganancia potencial` exibindo o retorno bruto em vez do lucro, a ausência de qualquer aviso na derrota e os itens `Preguntas frecuentes` sem destino.
-
 ## Histórico: arrasto do gráfico (PR #31)
 
 - `src/hooks/usePriceChartPan.ts`: gesto de arrasto por eventos de ponteiro, com trava de eixo em `8px`, captura de ponteiro protegida por `try/catch`, inércia com decaimento de `0,94` por quadro de referência e retorno animado ao vivo em `320ms`. O estado do gesto vive em refs; o contexto lido pelos manipuladores é atualizado por efeito, e não durante o render.

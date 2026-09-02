@@ -20,7 +20,7 @@ import logoutIcon from '../../assets/iconSair.svg'
 import withdrawIcon from '../../assets/iconSaque.svg'
 import supportIcon from '../../assets/iconSuporte.svg'
 import termsIcon from '../../assets/iconTermos.svg'
-import { ProfileInfoModal } from './ProfileInfoModal'
+import { InfoModal } from '../InfoModal'
 import {
   profileInfoById,
   type ProfileInfoId,
@@ -650,7 +650,7 @@ export function ProfileBottomSheet({
       </aside>
 
       {activeInfoId ? (
-        <ProfileInfoModal
+        <InfoModal
           info={profileInfoById[activeInfoId]}
           onClose={closeInfoModal}
         />

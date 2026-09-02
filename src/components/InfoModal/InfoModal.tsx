@@ -1,13 +1,13 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
 } from 'react'
 import closeIcon from '../../assets/iconClose.svg'
-import type { ProfileInfoDefinition } from './profileInfoContent'
-import './ProfileInfoModal.css'
+import './InfoModal.css'
 
 const MODAL_MOTION_MS = 300
 const OVERLAY_BLUR_STYLE = {
@@ -15,16 +15,25 @@ const OVERLAY_BLUR_STYLE = {
   WebkitBackdropFilter: 'blur(8px)',
 } satisfies CSSProperties
 
-interface ProfileInfoModalProps {
-  info: ProfileInfoDefinition
+export interface InfoModalContent {
+  nodeId?: string
+  title: string
+  paragraphs: string[]
+  summary?: string
+}
+
+interface InfoModalProps {
+  containerClassName?: string
+  info: InfoModalContent
   onClose: () => void
 }
 
-export function ProfileInfoModal({ info, onClose }: ProfileInfoModalProps) {
+export function InfoModal({ containerClassName, info, onClose }: InfoModalProps) {
   const [isClosing, setIsClosing] = useState(false)
   const isClosingRef = useRef(false)
   const closeTimerRef = useRef<number | null>(null)
   const dialogRef = useRef<HTMLElement | null>(null)
+  const titleId = useId()
 
   const requestClose = useCallback(() => {
     if (isClosingRef.current) return
@@ -60,10 +69,10 @@ export function ProfileInfoModal({ info, onClose }: ProfileInfoModalProps) {
 
   return (
     <div
-      className={`profile-info-modal__container${isClosing ? ' profile-info-modal__container--closing' : ''}`}
+      className={`info-modal__container${isClosing ? ' info-modal__container--closing' : ''}${containerClassName ? ` ${containerClassName}` : ''}`}
     >
       <button
-        className="profile-info-modal__overlay"
+        className="info-modal__overlay"
         style={OVERLAY_BLUR_STYLE}
         type="button"
         aria-label={`Cerrar información sobre ${info.title}`}
@@ -72,17 +81,17 @@ export function ProfileInfoModal({ info, onClose }: ProfileInfoModalProps) {
 
       <section
         ref={dialogRef}
-        className="profile-info-modal"
+        className="info-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="profile-info-modal-title"
+        aria-labelledby={titleId}
         data-node-id={info.nodeId}
         tabIndex={-1}
       >
-        <header className="profile-info-modal__header">
-          <h2 id="profile-info-modal-title">{info.title}</h2>
+        <header className="info-modal__header">
+          <h2 id={titleId}>{info.title}</h2>
           <button
-            className="profile-info-modal__close"
+            className="info-modal__close"
             type="button"
             aria-label={`Cerrar información sobre ${info.title}`}
             onClick={requestClose}
@@ -92,15 +101,15 @@ export function ProfileInfoModal({ info, onClose }: ProfileInfoModalProps) {
         </header>
 
         <div
-          className={`profile-info-modal__content${info.summary ? ' profile-info-modal__content--with-summary' : ''}`}
+          className={`info-modal__content${info.summary ? ' info-modal__content--with-summary' : ''}`}
         >
-          <div className="profile-info-modal__paragraphs">
+          <div className="info-modal__paragraphs">
             {info.paragraphs.map((paragraph) => (
               <p key={paragraph}>{paragraph}</p>
             ))}
           </div>
           {info.summary ? (
-            <p className="profile-info-modal__summary">{info.summary}</p>
+            <p className="info-modal__summary">{info.summary}</p>
           ) : null}
         </div>
       </section>
