@@ -196,26 +196,6 @@
   color: var(--color-fill-error);
 }
 
-/* O saldo resultante fecha o bloco: é o que torna o histórico reconciliável
-   linha a linha, mas não compete com o Total. */
-.movement-detail-modal__balance {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px 4px;
-  color: var(--color-fill-tertiary);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 21px;
-}
-
-.movement-detail-modal__balance > strong {
-  color: var(--color-fill-secondary);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
 .movement-detail-modal__total {
   display: flex;
   width: 100%;
