@@ -5,6 +5,27 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
+- Status: concluído — implementado, validado localmente, mesclado na `main` pelo PR #43 e publicado no GitHub Pages, com a publicação verificada no ambiente real. O commit, o push, o PR, o merge e o deploy foram autorizados pela pessoa usuária
+- Objetivo: as setas de direção do gráfico passam a seguir a direção do preço, verdes na alta e vermelhas na queda
+- Escopo acordado: apenas a cor dos chevrons de direção do `PriceChart`. Animação, tamanho, posicionamento e a lógica que decide a direção permanecem como estavam
+- Critérios de aceite: subida em verde, queda em vermelho, sem cor nova fora dos tokens existentes
+- Branch: `feature/setas-grafico-cor-direcao`, criada a partir da `main` em `3f8d386`, no checkout principal. Commit `ce6128a`, mesclada em `3afaa51` e removida do remoto
+
+## Alterações realizadas
+
+- `src/components/PriceChart.css`: duas regras novas, `.price-chart__direction-state--up .price-chart__direction-chevron` com `var(--color-fill-success)` e `.price-chart__direction-state--down .price-chart__direction-chevron` com `var(--color-fill-error)`. O diff inteiro tem 8 linhas.
+- Decisão sobre a cor: foram reaproveitados os tokens de `src/styles/tokens/colors.css` que UP e DOWN já usam, `#34d399` e `#f87171`, em vez de criar um par novo. Assim a seta e o lado do mercado que ela sugere falam a mesma língua visual.
+- Decisão sobre onde aplicar: a cor foi posta no seletor descendente de cada estado, e não no `.price-chart__direction-chevron` base. A declaração base com `rgba(251, 251, 251, 0.5)` continua como retorno seguro caso algum dia um chevron seja desenhado fora dos dois estados.
+- Nada foi mudado em `src/components/PriceChart.tsx`: os dois estados `--up` e `--down` já existiam no DOM e a direção já era decidida em `src/services/marketPriceDirection.ts`, por janela de `1,5s`, delta mínimo de `0,01` e duas confirmações. A mudança é puramente de apresentação.
+- Origem dos dados, conferida durante a tarefa a pedido da pessoa usuária: a linha do gráfico vem de Chainlink, Coinbase ou Kraken, escolhida por rodada em `useBtcPriceFeeds.ts`; a Polymarket aparece ali apenas como relay do RTDS da Chainlink. Os percentuais UP/DOWN é que são da Polymarket, pela Gamma e pelo CLOB. As setas não vêm de fonte nenhuma, são derivadas localmente do preço já exibido.
+
+## Histórico: resumo de entradas abertas na Home (PR #41)
+
+### Estado no encerramento
+
+- Atualizado em: 2026-09-02
+- Agente que entrega: Claude
+- Agente esperado a seguir: nenhum
 - Status: concluído. Implementado, validado localmente, mesclado na `main` pelo PR #41 e publicado no GitHub Pages
 - Objetivo: implementar o nó `497:12722` do Figma como resumo das entradas abertas na Home, logo abaixo do gráfico
 - Escopo acordado: a seção aparece na Home entre `MarketPriceChart` e `PreviousRounds` e empurra o restante para baixo; no máximo duas entradas por rodada, uma em UP e outra em DOWN, pela mesma regra já usada na aba `Entradas`; a entrada nova é revelada com a mesma microinteração de uma ronda que chega em `PreviousRounds`
@@ -16,7 +37,7 @@
 - Branch: `feature/entradas-abiertas-home`, criada a partir da `main` em `500d1a5`, no checkout principal. Mesclada em `b5c0eb6` e removida do remoto
 - Acesso ao Figma: o servidor MCP remoto respondeu `sem acesso de edição` para este arquivo. O design foi lido pelo servidor local do Figma Desktop em `127.0.0.1:3845`, que usa a sessão da pessoa usuária. Vale registrar para a próxima tarefa que depender do Figma
 
-## Alterações realizadas
+### Alterações realizadas
 
 - `src/components/HomeOpenEntries/HomeOpenEntries.tsx` (novo): implementa o nó `497:12722`. O título `Entradas abiertas`, o carrossel com snap, o card do nó `498:13381` e os bullets. As entradas vêm de `getOpenEntrySummaries`, o mesmo serviço da aba `Entradas`, então o limite de uma posição por lado por rodada não precisou de regra nova. O componente devolve `null` sem entradas, e por isso a seção só ocupa espaço quando existe posição aberta.
 - `src/components/HomeOpenEntries/HomeOpenEntries.css` (novo): medidas do nó, com `calc(100vw - 40px)` de largura e a mesma composição de borda de `PreviousRounds`. A revelação reaproveita as três animações de uma ronda que chega: `home-open-entry-card-enter` de `860ms`, o brilho diagonal e o pulso de borda, com o acento por lado. A saída após venda total repete a semântica de `open-entry-card-leave`.
@@ -32,7 +53,7 @@
 - Dois defeitos encontrados ao validar esse encadeamento e já corrigidos. O primeiro: `visibleItems` filtrava pela fase armazenada e não pela derivada, então o card nunca chegava a montar no estado reservado e o scroll era pulado. O segundo: a entrada nova era detectada num efeito, então o card entrava no DOM por uma passada antes de ser escondido; além do risco de piscada, o carrossel se alinhava por essa passada e voltava ao primeiro card. A detecção passou a acontecer durante a renderização.
 - Duas correções de especificidade encontradas na validação e já resolvidas: `.home-open-entry-card__row > strong` sobrepunha a cor de `UP`/`DOWN`, que aparecia branca em vez de verde ou vermelha, e a regra do rótulo do rodapé alcançava também o bloco do valor, que perdia a altura de linha de `1.2`.
 
-## Limpeza de assets órfãos
+### Limpeza de assets órfãos
 
 - Uma varredura de referências em `src/`, `index.html` e `public/` apontou cinco arquivos em `src/assets/` que nenhum outro arquivo do projeto citava. Todos foram removidos: `hero.png`, `react.svg` e `vite.svg`, que são sobra do scaffold do Vite — os dois SVG são os logos do template —, além de `logoPulse.svg` e `iconHistorico.svg`, assets de design sem uso, removidos por decisão da pessoa usuária.
 - Confirmação de que não entravam no bundle: depois das remoções, os hashes do CSS e do JS do build ficaram idênticos aos anteriores, `index-__nUDO8w.css` e `index-eD50RIQR.js`.
@@ -300,6 +321,14 @@ Numa segunda passagem, pelo PR #35:
 
 ## Validações executadas
 
+### Cor das setas de direção do gráfico (`feature/setas-grafico-cor-direcao`)
+
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- Navegador em `localhost:5173`, viewport de `375x812`. Estilo computado confirmou `rgb(52, 211, 153)` no chevron do estado `--up` e `rgb(248, 113, 113)` no do estado `--down`.
+- Os dois estados foram conferidos visualmente na Home. Como os chevrons piscam por `620ms` a cada atualização de preço, a animação foi congelada por um estilo temporário só para a captura, e o estilo foi removido com recarga da página logo depois.
+- Publicação verificada em `https://design-draftea.github.io/pulse/` após o merge: mesmos valores computados, `rgb(52, 211, 153)` e `rgb(248, 113, 113)`. O workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso em 41s.
+- Os erros de console observados são os mesmos de rede já registrados nas pendências, `502` da Polymarket e WebSocket sem conexão, anteriores a esta mudança. Durante a validação o feed ativo era o da Coinbase, ao vivo, e o mercado UP/DOWN estava na contingência local.
+
 ### Resumo de entradas abertas na Home (`feature/entradas-abiertas-home`)
 
 - `pnpm lint` sem avisos e `pnpm build` concluído com typecheck. As sete suítes somaram 86 testes aprovados e nenhuma falha (`chart` 19, `market` 25, `wallet` 19, `entries` 8, `fallback` 6, `proxy` 6, `assets` 3).
@@ -504,7 +533,8 @@ Numa segunda passagem, pelo PR #35:
 
 ## Próximo passo
 
-- Nenhum trabalho em andamento. O PR #41 está mesclado e publicado.
-- Vale ver o encadeamento inteiro rodando em tempo real num aparelho: toaster, scroll de centralização, revelação do card, fade do título e a saída em que a entrada que fica assume a posição. Nesta sessão ele só pôde ser percorrido forçando quadros, porque o painel do navegador mantém `requestAnimationFrame` congelado.
+- Nenhum trabalho em andamento. O PR #43 está mesclado e publicado.
+- Vale olhar as setas coloridas num aparelho real, em movimento de preço, para confirmar que o verde e o vermelho leem bem sobre o fundo do gráfico nos `620ms` em que aparecem.
+- Vale ver o encadeamento das entradas abertas rodando em tempo real num aparelho: toaster, scroll de centralização, revelação do card, fade do título e a saída em que a entrada que fica assume a posição. Na sessão do PR #41 ele só pôde ser percorrido forçando quadros, porque o painel do navegador mantém `requestAnimationFrame` congelado.
 - O passo `Test` do workflow não executa `pnpm test:assets`, que existe desde a tarefa anterior. As outras seis suítes estão lá. Vale incluir na próxima vez que o workflow for tocado.
 - Itens antigos, para quando houver prioridade: comparar as capturas de `499px` e `500px` que mantêm `design-qa.md` bloqueado; e subir `actions/checkout`, `actions/setup-node` e `cloudflare/wrangler-action`, que têm major mais novo mas não estavam no aviso de depreciação.
