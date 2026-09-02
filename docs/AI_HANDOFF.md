@@ -7,7 +7,7 @@
 - Agente esperado a seguir: nenhum
 - Status: implementado e validado localmente. Sem Pull Request, sem merge e sem deploy
 - Objetivo: eliminar o intervalo em que o toaster de sucesso aparecia sem o fundo na primeira compra da sessão
-- Escopo acordado: aquecer em tempo ocioso as imagens que só entram no DOM depois da primeira tela e reexportar essas três imagens para WebP. Não foi criada tela de carregamento nem pré-carregamento bloqueante, porque somar `bgHeader`, `bgHeaderBS`, o toaster e os logos passa de `1,8 MB` e atrasaria a primeira pintura
+- Escopo acordado: aquecer em tempo ocioso as imagens que só entram no DOM depois da primeira tela e reexportar para WebP essas três imagens e, num pedido seguinte, também o `bgHeader`. Não foi criada tela de carregamento nem pré-carregamento bloqueante, porque somar `bgHeader`, `bgHeaderBS`, o toaster e os logos passa de `1,8 MB` e atrasaria a primeira pintura
 - Critérios de aceite: as imagens diferidas são pedidas logo depois da primeira renderização, sem atrasar a primeira pintura; o fundo e a ilustração já estão decodificados quando o toaster monta; nenhuma imagem muda de aparência
 - Branch/worktree: `fix/preload-toaster-assets`, criada a partir da `main` sincronizada
 
@@ -23,10 +23,13 @@
 - `tests/assetWarmup.test.ts` (novo) e script `test:assets`: três casos para a seleção sem repetição, a busca única por origem entre chamadas e o comportamento em falha.
 - Verificado no build: `bgHeaderBS` é emitido uma única vez e o CSS e o JS apontam para o mesmo arquivo com hash, então o aquecimento preenche exatamente a entrada de cache que o betslip vai usar.
 - Validação: `pnpm lint` sem avisos, `pnpm build` concluído e as sete suítes passando (`chart` 19, `market` 25, `wallet` 19, `fallback` 6, `entries` 8, `proxy` 6, `assets` 3).
+- Validação no navegador depois da troca do `bgHeader`: o degradê do topo continua idêntico, o arquivo é pedido pelo CSS em `72ms` e as três imagens diferidas seguem saindo depois dele, em `95ms`.
 - Validação no navegador, sobre o build de produção em `localhost:4173`, viewport de `375px`: pelo `Resource Timing`, `bgHeader` e os logos saem entre `24ms` e `29ms` e as três imagens diferidas saem em `42ms`, com `initiatorType: img`, ou seja, depois da primeira tela e ainda muito antes de qualquer compra ser possível. Numa compra real, no primeiro instante em que o toaster existe no DOM, `complete` já era `true` para o fundo e para a ilustração, com `naturalWidth` de `1404`. O toaster e o bottom sheet de perfil foram inspecionados visualmente com os WebP, sem diferença perceptível.
 - `requestIdleCallback` disparou mesmo com a aba oculta, então o `timeout` de `2000ms` cobre o caso de aba em segundo plano.
 - Não validado: comportamento em rede lenta real e em cache totalmente frio de um dispositivo novo. A validação foi feita em `localhost`, onde o download é instantâneo; o argumento para o caso frio é o intervalo entre os `42ms` do aquecimento e os segundos que a pessoa leva para abrir o betslip e concluir o gesto, agora sobre `72KB` de toaster em vez de `545KB`.
-- Não incluído no escopo: `bgHeader.png` continua com `525KB`. Ele já é pedido na abertura pelo `App.css`, então não causa o defeito relatado, mas é o maior arquivo restante e a mesma reexportação valeria para ele.
+- `src/App.css` e `src/components/OpenEntries/OpenEntries.css`: `bgHeader` também passou a WebP, por pedido posterior da pessoa usuária. Aqui a reexportação teve de ser **sem perdas**: `513KB → 364KB` (`-29%`), com todos os pixels idênticos ao original. O PNG foi removido.
+- Decisão registrada sobre o `bgHeader`: com perdas ele cairia para `9KB` na qualidade `90` e `27KB` na qualidade `100`, mas o arquivo é um degradê suave e pontilhado de propósito. Medindo o maior degrau entre pixels vizinhos ao longo de cinco colunas, o original vai a `1` na fonte e a `2` no tamanho exibido em `1x`; qualquer versão com perdas, inclusive na qualidade `100`, sobe para `4` na fonte e `6` em `1x`. Reduzir para o tamanho de exibição não suaviza esse degrau, ele piora. Como o degradê do topo é a superfície mais visível da aplicação e o pontilhado do arquivo original existe justamente para evitar faixas, a versão com perdas foi descartada apesar de ser `40` vezes menor. O ganho seguro de `149KB` foi preferido ao ganho arriscado de `504KB`.
+- Restam dois PNG: `logoBTC` e `logoBTCBack`, com `49KB` e `55KB`. Não foram tocados.
 
 ## Histórico: modal de informação dos cards de preço (PRs #37 e #38)
 
