@@ -1138,7 +1138,7 @@ button.buy-betslip__metric {
   overflow: hidden;
   border-radius: 28px 28px 0 0;
   background:
-    url('../../assets/bgHeaderBS.png') center top / 100% auto no-repeat,
+    url('../../assets/bgHeaderBS.webp') center top / 100% auto no-repeat,
     linear-gradient(
       180deg,
       var(--color-background-primary-gradient-start) 0%,

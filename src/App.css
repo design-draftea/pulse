@@ -12,7 +12,7 @@
   right: 0;
   left: 0;
   height: 300px;
-  background: #000 url('./assets/bgHeader.png') center top / cover no-repeat;
+  background: #000 url('./assets/bgHeader.webp') center top / cover no-repeat;
   pointer-events: none;
 }
 
@@ -100,7 +100,7 @@
   position: absolute;
   z-index: -1;
   inset: 0;
-  background-image: url('./assets/bgHeader.png');
+  background-image: url('./assets/bgHeader.webp');
   background-repeat: no-repeat;
   background-position: center top;
   background-size: max(100vw, 391px) auto;

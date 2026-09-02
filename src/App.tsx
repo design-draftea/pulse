@@ -41,6 +41,7 @@ import {
 } from './components/RoundWinToast/RoundWinToast'
 import { SubHeader } from './components/SubHeader/SubHeader'
 import { useAnimatedMarketPrice } from './hooks/useAnimatedMarketPrice'
+import { useDeferredAssetWarmup } from './hooks/useDeferredAssetWarmup'
 import { useResilientBtcMarketRound } from './hooks/useResilientBtcMarketRound'
 import { useMockChartEntries } from './hooks/useMockChartEntries'
 import { useOutcomeMarket } from './hooks/useOutcomeMarket'
@@ -120,6 +121,8 @@ const resetScrollTop = () => {
 }
 
 function App() {
+  useDeferredAssetWarmup()
+
   const [activeSection, setActiveSection] = useState<AppSection>(getAppSection)
   const [pageTransition, setPageTransition] = useState<
     PageTransitionState | null

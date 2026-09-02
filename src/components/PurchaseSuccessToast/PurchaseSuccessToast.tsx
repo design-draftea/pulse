@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import bgToasterSucesso from '../../assets/bgToasterSucesso.png'
-import ilustraSucesso from '../../assets/ilustraSucesso.png'
+import bgToasterSucesso from '../../assets/bgToasterSucesso.webp'
+import ilustraSucesso from '../../assets/ilustraSucesso.webp'
 import type { BetslipSuccessDetails } from '../BuyBetslip/BuyBetslip'
 import './PurchaseSuccessToast.css'
 
