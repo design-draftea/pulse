@@ -5,7 +5,7 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado localmente. Sem autorização ainda para push, Pull Request, merge ou deploy
+- Status: implementado e validado localmente. Push, Pull Request, merge e deploy autorizados pela pessoa usuária
 - Objetivo: implementar o nó `497:12722` do Figma como resumo das entradas abertas na Home, logo abaixo do gráfico
 - Escopo acordado: a seção aparece na Home entre `MarketPriceChart` e `PreviousRounds` e empurra o restante para baixo; no máximo duas entradas por rodada, uma em UP e outra em DOWN, pela mesma regra já usada na aba `Entradas`; a entrada nova é revelada com a mesma microinteração de uma ronda que chega em `PreviousRounds`
 - Ajuste pedido depois do primeiro teste, já implementado: a entrada só aparece depois do toaster de sucesso; antes disso a página centraliza a seção na janela; o título entra com fade quando a seção passa a existir e sai com fade na venda
@@ -302,7 +302,7 @@ Numa segunda passagem, pelo PR #35:
 
 ### Resumo de entradas abertas na Home (`feature/entradas-abiertas-home`)
 
-- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck. As sete suítes somaram 86 testes aprovados e nenhuma falha (`chart` 19, `market` 25, `wallet` 19, `entries` 8, `fallback` 6, `proxy` 6, `assets` 3).
 - Navegador em `localhost:5176`, viewport de `375px`. A seção mede `202px` de altura, exatamente a altura do nó no Figma, e o card mede `335x116` a partir de `x=16`, pela mesma convenção responsiva de `PreviousRounds`.
 - Conferidos por estilo computado: grade de duas colunas com `2px`, rótulos em `rgba(251,251,251,0.5)` a `12/18`, `DOWN` em `#f87171` e `UP` em `#34d399`, rodapé com borda superior de 12% e `8px` de topo, valor em `900` a `16px` com altura de linha `19.2px`, botão de `120x32` com raio `10px` e o degradê `75.115deg` de `actionPrimaryDefault`, brilho posicionado a `-35px` do topo do card.
 - Estados verificados: sem posição a seção não existe e a Home volta a ser gráfico, `Últimas 10 rondas` e rodapé; com uma entrada o carrossel não mostra bullets e a seção cai para `188px`; com duas entradas os dois bullets aparecem, o segundo card entra por snap e o bullet ativo acompanha a rolagem.
