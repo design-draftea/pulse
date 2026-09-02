@@ -61,9 +61,13 @@ import './App.css'
 
 const MARKET_HEADER_COMPACT_SCROLL_Y = 80
 const DEFAULT_CONTENT_BOTTOM_INSET = 114
-const ROUND_RESULT_PREVIEW_MODE = import.meta.env.DEV
-  && new URLSearchParams(window.location.search).get('previewRoundResult')
-    === 'won'
+// Único atalho de demonstração disponível também em produção. Sem ele, mostrar
+// o momento de vitória exige esperar até 15 minutos e ainda depender de acertar
+// o lado. A rodada de 5 segundos com confetti é impossível de confundir com o
+// comportamento real, ao contrário dos parâmetros de injeção de falha, que
+// degradam os dados de forma invisível e seguem restritos ao desenvolvimento.
+const ROUND_RESULT_PREVIEW_MODE = new URLSearchParams(window.location.search)
+  .get('previewRoundResult') === 'won'
 const MARKET_CHOICE_PREVIEW_MODE = import.meta.env.DEV
   ? new URLSearchParams(window.location.search).get('previewMarketChoice')
   : null
