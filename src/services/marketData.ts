@@ -62,7 +62,7 @@ const fetchBtcRoundPrice = async (
   signal?: AbortSignal,
 ) => {
   if (POLYMARKET_TARGET_ENDPOINT === null) {
-    throw new Error('Proxy público de mercado não configurado')
+    throw new Error('Proxy público de mercado no configurado')
   }
 
   const params = new URLSearchParams({
@@ -143,7 +143,7 @@ const fetchCoinbaseBtcRounds = async (
   })
 
   if (!response.ok) {
-    throw new Error(`Histórico alternativo indisponível (${response.status})`)
+    throw new Error(`Historial alternativo no disponible (${response.status})`)
   }
 
   const candles = await response.json() as CoinbaseCandle[]
@@ -229,7 +229,7 @@ export const fetchBtcRoundMinutePoints = async (
   })
 
   if (!response.ok) {
-    throw new Error(`Histórico de la ronda no disponible (${response.status})`)
+    throw new Error(`Historial de la ronda no disponible (${response.status})`)
   }
 
   const candles = await response.json() as CoinbaseCandle[]
