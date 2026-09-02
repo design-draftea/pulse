@@ -71,7 +71,7 @@ const clamp = (value: number, minimum: number, maximum: number) => (
 const formatAmount = (value: number) => dollarAmountFormatter.format(value)
 
 const formatAveragePrice = (quote: ExecutionQuote | null) => (
-  quote?.complete ? `$${Math.round(quote.averagePrice * 100)}¢` : '—'
+  quote?.complete ? `${Math.round(quote.averagePrice * 100)}¢` : '—'
 )
 
 const formatPotentialPayout = (quote: ExecutionQuote | null) => (
@@ -1137,7 +1137,7 @@ export function BuyBetslip({
           <button
             className="buy-betslip__handle"
             type="button"
-            aria-label="Recolher compra"
+            aria-label="Contraer compra"
             onPointerDown={handleSheetPointerDown}
             onPointerMove={handleSheetPointerMove}
             onPointerUp={finishSheetGesture}

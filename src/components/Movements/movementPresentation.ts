@@ -12,7 +12,7 @@ export const MONTH_LABELS = [
   'Jun.',
   'Jul.',
   'Ago.',
-  'Set.',
+  'Sep.',
   'Oct.',
   'Nov.',
   'Dic.',
