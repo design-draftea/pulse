@@ -5,13 +5,33 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: concluído — implementado, validado, mesclado pelo PR #31 e publicado. O merge foi autorizado depois do teste local no celular; a publicação em `https://design-draftea.github.io/pulse/` foi verificada com a consulta `granularity=60` respondendo `200` e a série começando exatamente no início da rodada
-- Objetivo: permitir arrastar o gráfico para horários anteriores da rodada corrente, com botão de retorno ao vivo, e preencher com candles de 1 minuto o trecho anterior à abertura da página
-- Escopo acordado: pan + `En vivo` + backfill, sem zoom. A ausência de zoom foi apontada antes da implementação: a janela é de aproximadamente `9,8s` a `24px/s`, então alcançar o início da rodada exige vários gestos
-- Critérios de aceite: o arrasto não rouba a rolagem vertical da página; o limite à esquerda é o ponto mais antigo da série; chegar ao presente volta ao estado ao vivo; a linha continua desenhada no trecho preenchido por candles; o domínio vertical acompanha a janela visível; indicador direcional e entradas simuladas ficam suprimidos enquanto arrastado; a virada de rodada volta ao vivo
-- Branch/worktree: `feature/chart-time-pan`, mesclada pelo PR #31 em `7971051` e removida; `main` local sincronizada com `origin/main`
+- Status: concluído — implementado, validado, mesclado pelo PR #33 em `f760ddb` e publicado em `https://design-draftea.github.io/pulse/`. Push, PR, merge e deploy foram autorizados explicitamente pela pessoa usuária numa única instrução
+- Objetivo: corrigir a notação de centavos do preço médio e traduzir para espanhol os textos que haviam ficado em português
+- Escopo acordado: somente os quatro pontos já identificados numa revisão de compreensão da interface. A revisão levantou vinte lacunas; as demais não foram tocadas
+- Critérios de aceite: nenhum número exibido com `¢` pode trazer também o cifrão; nenhum texto visível ou rótulo acessível pode permanecer em português
+- Branch/worktree: `fix/copy-espanol-centavos`, mesclada pelo PR #33 e removida; `main` local sincronizada com `origin/main`
 
 ## Alterações realizadas
+
+- `src/components/BuyBetslip/BuyBetslip.tsx`: `formatAveragePrice` deixou de prefixar o cifrão. O preço médio era exibido como `$71¢`, com dois símbolos de moeda no mesmo número, no betslip expandido e no resumo recolhido. Os outros seis pontos da interface que mostram centavos já usavam apenas `¢`, então a correção alinhou o betslip ao restante.
+- `src/components/BuyBetslip/BuyBetslip.tsx`: o rótulo acessível do handle passou de `Recolher compra` para `Contraer compra`.
+- `src/components/BuyBetslip/QuickAmountEditorSheet.tsx`: o botão do rodapé passou de `Salvar` para `Guardar`.
+- `src/components/Movements/movementPresentation.ts`: `MONTH_LABELS` passou de `Set.` para `Sep.`, que é a abreviação de setembro em espanhol.
+
+## Validações executadas nesta tarefa
+
+- `pnpm lint` e `pnpm build` sem erros.
+- Navegador em `390 × 844`, com dados reais e rodada ao vivo: `77¢` no betslip expandido, `73¢` no resumo recolhido, `Guardar` no rodapé de `Editar montos`, `Contraer compra` no rótulo acessível do handle e `01 Sep. 2026` nos grupos de data de `Movimientos`.
+- Varredura por diacríticos e termos em português nas strings de `src/`: nenhum texto visível remanescente.
+- Deploy verificado: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para o merge do PR #33.
+
+## Pendências conhecidas desta tarefa
+
+- `Contraer compra` continua estático e lê "compra" também quando o betslip está em modo venda. O botão de resumo ao lado já resolve o caso com `Expandir detalles de la ${venta|compra}`. Não foi alterado porque passaria de tradução para mudança de comportamento.
+- Mensagens de `Error` internas seguem misturando português e espanhol em `useOutcomeMarket.ts` e `marketData.ts`. Nenhuma chega à interface; são engolidas pela contingência.
+- A revisão de compreensão que originou esta tarefa levantou outras dezenove lacunas ainda abertas, entre elas `Ganancia potencial` exibindo o retorno bruto em vez do lucro, a ausência de qualquer aviso na derrota e os itens `Preguntas frecuentes` sem destino.
+
+## Histórico: arrasto do gráfico (PR #31)
 
 - `src/hooks/usePriceChartPan.ts`: gesto de arrasto por eventos de ponteiro, com trava de eixo em `8px`, captura de ponteiro protegida por `try/catch`, inércia com decaimento de `0,94` por quadro de referência e retorno animado ao vivo em `320ms`. O estado do gesto vive em refs; o contexto lido pelos manipuladores é atualizado por efeito, e não durante o render.
 - `src/components/priceChartModel.ts`: `interpolatePriceAt`, `getPriceChartWindowPoints` e `clampPriceChartAnchor` novos; `calculatePriceChartDomain` ganhou a opção `applyTrendShift`, desligada no estado arrastado porque o deslocamento por tendência pressupõe que o último ponto é o presente.
