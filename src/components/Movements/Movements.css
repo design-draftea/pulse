@@ -150,3 +150,30 @@
 .movements__item-button:active {
   background: var(--color-action-transparency-default);
 }
+
+/* Numa mesma rodada podem existir compra UP, compra DOWN, venda e ganho, com
+   títulos parecidos e horários quase iguais. O lado é o que distingue a linha
+   num escaneio rápido. Ele acompanha o horário, e não o título, porque o
+   título usa reticências e cortaria o rótulo. */
+.movements__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-fill-tertiary);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.movements__side {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.movements__side--up {
+  color: var(--color-fill-success);
+}
+
+.movements__side--down {
+  color: var(--color-fill-error);
+}

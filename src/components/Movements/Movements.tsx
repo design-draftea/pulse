@@ -82,7 +82,7 @@ export function Movements({ movements }: MovementsProps) {
                   <button
                     className="movements__item-button"
                     type="button"
-                    aria-label={`Ver detalle: ${movementTitles[item.type]}, ${formatMovementAmount(item.amountCents)}`}
+                    aria-label={`Ver detalle: ${movementTitles[item.type]}${item.side ? `, ${item.side.toUpperCase()}` : ''}, ${formatMovementAmount(item.amountCents)}`}
                     onClick={() => setSelectedMovement(item)}
                   >
                     <span className="movements__icon-wrap" aria-hidden="true">
@@ -97,12 +97,16 @@ export function Movements({ movements }: MovementsProps) {
                       <span className="movements__title">
                         {movementTitles[item.type]}
                       </span>
-                      <time
-                        className="movements__time"
-                        dateTime={occurredAt.toISOString()}
-                      >
-                        {formatMovementTime(occurredAt)}
-                      </time>
+                      <span className="movements__meta">
+                        <time dateTime={occurredAt.toISOString()}>
+                          {formatMovementTime(occurredAt)}
+                        </time>
+                        {item.side && (
+                          <span className={`movements__side movements__side--${item.side}`}>
+                            {item.side.toUpperCase()}
+                          </span>
+                        )}
+                      </span>
                     </span>
 
                     <span className="movements__value-wrap">
