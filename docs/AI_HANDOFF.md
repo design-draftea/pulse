@@ -5,7 +5,7 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado localmente. Push, Pull Request, merge e deploy autorizados pela pessoa usuária
+- Status: concluído. Implementado, validado localmente, mesclado na `main` pelo PR #41 e publicado no GitHub Pages
 - Objetivo: implementar o nó `497:12722` do Figma como resumo das entradas abertas na Home, logo abaixo do gráfico
 - Escopo acordado: a seção aparece na Home entre `MarketPriceChart` e `PreviousRounds` e empurra o restante para baixo; no máximo duas entradas por rodada, uma em UP e outra em DOWN, pela mesma regra já usada na aba `Entradas`; a entrada nova é revelada com a mesma microinteração de uma ronda que chega em `PreviousRounds`
 - Ajuste pedido depois do primeiro teste, já implementado: a entrada só aparece depois do toaster de sucesso; antes disso a página centraliza a seção na janela; o título entra com fade quando a seção passa a existir e sai com fade na venda
@@ -13,7 +13,7 @@
 - Defeito relatado no terceiro teste e corrigido: ao comprar DOWN o card entrava imediatamente. Não era do lado DOWN, e sim de repetir o mesmo lado na mesma rodada, que reaproveitava a deixa da revelação anterior
 - Ajuste pedido depois do quarto teste, já implementado: na venda o card sai só com fade, parado, e com duas entradas a que fica ocupa a posição da que saiu
 - Critérios de aceite: layout fiel ao nó, seção ausente sem posição aberta, `Vender` abrindo o betslip em modo de venda no lado correto, revelação animada apenas quando a entrada nasce na sessão
-- Branch: `feature/entradas-abiertas-home`, criada a partir da `main` em `500d1a5`, no checkout principal
+- Branch: `feature/entradas-abiertas-home`, criada a partir da `main` em `500d1a5`, no checkout principal. Mesclada em `b5c0eb6` e removida do remoto
 - Acesso ao Figma: o servidor MCP remoto respondeu `sem acesso de edição` para este arquivo. O design foi lido pelo servidor local do Figma Desktop em `127.0.0.1:3845`, que usa a sessão da pessoa usuária. Vale registrar para a próxima tarefa que depender do Figma
 
 ## Alterações realizadas
@@ -318,6 +318,8 @@ Numa segunda passagem, pelo PR #35:
 - Largura medida numa janela de `357px`: com uma entrada o card vai de `16` a `341`, com `16px` de folga dos dois lados e sem bullets; com duas, os cards ficam com `317px` e o primeiro mantém `24px` livres à direita, com os dois bullets visíveis.
 - Segunda entrada: comprar o outro lado com uma entrada já aberta não reanima o título, leva o carrossel para o card revelado (`scrollLeft` no máximo de `317`, bullet ativo no índice 1) e mantém essa posição depois que a revelação termina.
 - O painel do navegador desta sessão fica oculto, o que congela `requestAnimationFrame` (medidos `0` quadros em `500ms`). Por isso `behavior: 'smooth'` não avança sozinho e `animationend` não dispara. As medições acima foram feitas forçando quadros por capturas de tela; a limpeza das classes de animação foi exercitada por `animationend` sintético.
+- Deploy verificado: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para o merge em `b5c0eb6`. No bundle publicado estão `home-open-entries`, `home-open-entry-card`, `home-open-entry-card-collapse` e `data-staying-count` no CSS, e `Entradas abiertas`, `Ganancia potencial:`, `home-open-entry-card--waiting` e `home-open-entry-card--leaving` no JS. O `homeEntryLight.svg` não vira arquivo próprio porque tem menos de `4KB` e o Vite o embute como data URI; a confirmação de que ele chegou é o identificador `filter0_f_498_13507` do nó original presente no bundle.
+- Site publicado conferido no navegador a `375px`, com uma posição semeada: a seção aparece entre o gráfico e `Últimas 10 rondas`, com o card `DOWN` ocupando a largura inteira (`343px` em `375px`, começando em `16`), e a ordem do conteúdo é gráfico, entradas abertas, últimas rondas e rodapé.
 - Não validado: gesto real de arraste no controle de deslize e observação do encadeamento em tempo real, em velocidade normal, num navegador visível. Também não foi comparado o comportamento em `499px`.
 
 - Tradução do `MobileOnly` (Claude, nesta máquina, após instalar Node 24): `pnpm lint` sem erros; `pnpm build` concluído (typecheck + Vite); as seis suítes somaram 71 testes aprovados e nenhuma falha (`chart` 13, `fallback` 6, `market` 23, `proxy` 6, `wallet` 15, `entries` 8); `git diff --check` passou.
@@ -502,6 +504,7 @@ Numa segunda passagem, pelo PR #35:
 
 ## Próximo passo
 
-- `feature/entradas-abiertas-home` está pronta e commitada localmente, sem push. Aguardando autorização da pessoa usuária para push e Pull Request.
-- Vale ver o encadeamento inteiro rodando em tempo real num navegador visível antes do merge: toaster, scroll de centralização, revelação do card e fade do título. Nesta sessão ele só pôde ser percorrido forçando quadros.
+- Nenhum trabalho em andamento. O PR #41 está mesclado e publicado.
+- Vale ver o encadeamento inteiro rodando em tempo real num aparelho: toaster, scroll de centralização, revelação do card, fade do título e a saída em que a entrada que fica assume a posição. Nesta sessão ele só pôde ser percorrido forçando quadros, porque o painel do navegador mantém `requestAnimationFrame` congelado.
+- O passo `Test` do workflow não executa `pnpm test:assets`, que existe desde a tarefa anterior. As outras seis suítes estão lá. Vale incluir na próxima vez que o workflow for tocado.
 - Itens antigos, para quando houver prioridade: comparar as capturas de `499px` e `500px` que mantêm `design-qa.md` bloqueado; e subir `actions/checkout`, `actions/setup-node` e `cloudflare/wrangler-action`, que têm major mais novo mas não estavam no aviso de depreciação.
