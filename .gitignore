@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Configuração local do servidor de desenvolvimento (caminhos da máquina)
+.claude/
