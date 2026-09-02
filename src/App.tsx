@@ -15,6 +15,7 @@ import {
   type SaleSuccessDetails,
 } from './components/BuyBetslip/BuyBetslip'
 import { Header } from './components/Header/Header'
+import { HomeOpenEntries } from './components/HomeOpenEntries/HomeOpenEntries'
 import {
   MarketChoice,
   type MarketSide,
@@ -781,6 +782,15 @@ function App() {
           currentSource={marketRound.currentPriceSource}
           currentStatus={marketRound.currentStatus}
           currentUpdatedAt={marketRound.currentPriceUpdatedAt}
+        />
+        <HomeOpenEntries
+          roundStart={marketRound.roundStart}
+          position={currentPosition}
+          costBasis={currentCostBasis}
+          successToast={purchaseSuccess}
+          exitingEntry={saleExit}
+          onExitEnd={handleSaleExitEnd}
+          onSell={handleEntrySell}
         />
         <PreviousRounds
           animatedRoundStart={animatedPreviousRoundStart}
