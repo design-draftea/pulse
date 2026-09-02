@@ -1,7 +1,11 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import arrowDownRed from '../../assets/arrowDownRed.svg'
 import arrowUpGreen from '../../assets/arrowUpGreen.svg'
 import lightPriceCurrent from '../../assets/lightPriceCurrent.svg'
 import lightPriceTarget from '../../assets/lightPriceTarget.svg'
+import { InfoModal } from '../InfoModal'
+import { priceInfoById, type PriceInfoId } from './priceInfoContent'
 import './PriceComparison.css'
 
 interface PriceComparisonProps {
@@ -27,6 +31,36 @@ export function PriceComparison({
   targetPrice,
   currentPrice,
 }: PriceComparisonProps) {
+  const [activeInfoId, setActiveInfoId] = useState<PriceInfoId | null>(null)
+  const infoReturnFocusRef = useRef<HTMLElement | null>(null)
+
+  const openInfoModal = useCallback((
+    infoId: PriceInfoId,
+    trigger: HTMLElement,
+  ) => {
+    infoReturnFocusRef.current = trigger
+    setActiveInfoId(infoId)
+  }, [])
+
+  const closeInfoModal = useCallback(() => {
+    const returnFocusTarget = infoReturnFocusRef.current
+
+    setActiveInfoId(null)
+    window.requestAnimationFrame(() => returnFocusTarget?.focus())
+  }, [])
+
+  useEffect(() => {
+    if (activeInfoId === null) return
+
+    const previousBodyOverflow = document.body.style.overflow
+
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow
+    }
+  }, [activeInfoId])
+
   const priceDifference = targetPrice !== null && currentPrice !== null
     ? currentPrice - targetPrice
     : null
@@ -46,9 +80,12 @@ export function PriceComparison({
         aria-label="Comparación de precios de Bitcoin"
         data-node-id={isCompact ? '198:3376' : '188:2941'}
       >
-        <article
+        <button
           className="price-comparison__card price-comparison__card--target"
+          type="button"
+          aria-haspopup="dialog"
           data-market-price={targetPrice ?? ''}
+          onClick={(event) => openInfoModal('targetPrice', event.currentTarget)}
         >
           <span className="price-comparison__label">Precio objetivo</span>
           <strong className="price-comparison__value">
@@ -57,13 +94,16 @@ export function PriceComparison({
           <span className="price-comparison__light" aria-hidden="true">
             <img src={lightPriceTarget} alt="" />
           </span>
-        </article>
+        </button>
 
-        <article
+        <button
           className="price-comparison__card price-comparison__card--current"
+          type="button"
+          aria-haspopup="dialog"
           data-market-price={currentPrice ?? ''}
+          onClick={(event) => openInfoModal('currentPrice', event.currentTarget)}
         >
-          <div className="price-comparison__heading">
+          <span className="price-comparison__heading">
             <span className="price-comparison__label">Precio actual</span>
             {priceDifference !== null && (
               <span
@@ -75,15 +115,26 @@ export function PriceComparison({
                 <span>{priceFormatter.format(Math.abs(priceDifference))}</span>
               </span>
             )}
-          </div>
+          </span>
           <strong className="price-comparison__value">
             {formatPrice(currentPrice)}
           </strong>
           <span className="price-comparison__light" aria-hidden="true">
             <img src={lightPriceCurrent} alt="" />
           </span>
-        </article>
+        </button>
       </section>
+
+      {activeInfoId
+        ? createPortal(
+          <InfoModal
+            containerClassName="price-comparison__info-modal"
+            info={priceInfoById[activeInfoId]}
+            onClose={closeInfoModal}
+          />,
+          document.body,
+        )
+        : null}
     </div>
   )
 }

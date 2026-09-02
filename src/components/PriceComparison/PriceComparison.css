@@ -28,6 +28,7 @@
 }
 
 .price-comparison__card {
+  appearance: none;
   position: relative;
   display: flex;
   height: 74px;
@@ -41,10 +42,23 @@
   padding: 12px 12px 16px;
   border: 1px solid transparent;
   border-radius: 16px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
   transition:
     height 240ms ease-in-out,
     gap 240ms ease-in-out,
     padding 240ms ease-in-out;
+}
+
+.price-comparison__card:focus-visible {
+  outline: 2px solid var(--color-fill-primary);
+  outline-offset: -2px;
 }
 
 .price-comparison__card::after {
@@ -93,6 +107,10 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.info-modal__container.price-comparison__info-modal {
+  z-index: 2000;
 }
 
 .price-comparison__card--current .price-comparison__label,
