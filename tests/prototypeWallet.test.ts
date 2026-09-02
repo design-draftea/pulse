@@ -190,7 +190,7 @@ test('restaura uma entrada cancelada junto do histórico de movimientos', () => 
   assert.deepEqual(restored.movements, wallet.movements)
 })
 
-test('restaura uma carteira v3 válida e reinicia versões anteriores ou estado inválido', () => {
+test('restaura uma carteira v4 válida e reinicia versões anteriores ou estado inválido', () => {
   const wallet = applyWalletPurchase(createInitialWalletState(), {
     roundStart: ROUND_START,
     side: 'up',
@@ -235,7 +235,12 @@ test('restaura uma carteira v3 válida e reinicia versões anteriores ou estado 
     SEEDED_AVAILABLE_BALANCE_CENTS,
   )
   assert.equal(
-    deserializeWalletState('{"version":3,"balanceCents":-1}').balanceCents,
+    deserializeWalletState('{"version":4,"balanceCents":-1}').balanceCents,
+    SEEDED_AVAILABLE_BALANCE_CENTS,
+  )
+  // A v3 é descartada por não ter participações nem saldo por movimento.
+  assert.equal(
+    deserializeWalletState(JSON.stringify({ ...wallet, version: 3 })).balanceCents,
     SEEDED_AVAILABLE_BALANCE_CENTS,
   )
   assert.deepEqual(
