@@ -108,13 +108,18 @@ type RevealPhase = 'held' | 'reserved' | 'entering'
 interface RevealState {
   key: string
   phase: RevealPhase
+  // Aviso que já estava na tela quando esta revelação começou. A deixa é o
+  // aviso *desta* operação, então um aviso anterior ainda visível não serve.
+  ignoredToast: unknown
 }
 
 interface HomeOpenEntriesProps {
   roundStart: number
   position: PrototypeWalletPosition
   costBasis: PrototypeWalletCostBasis
-  isSuccessToastVisible: boolean
+  // Objeto do aviso de sucesso. A referência muda a cada aviso, e é isso que
+  // distingue o aviso desta operação de um anterior ainda na tela.
+  successToast: unknown
   exitingEntry?: HomeOpenEntryExit | null
   onExitEnd?: () => void
   onSell: (side: OutcomeSide) => void
@@ -214,7 +219,7 @@ export function HomeOpenEntries({
   roundStart,
   position,
   costBasis,
-  isSuccessToastVisible,
+  successToast,
   exitingEntry,
   onExitEnd,
   onSell,
@@ -262,15 +267,26 @@ export function HomeOpenEntries({
 
     setTrackedSignature(entryKeysSignature)
 
-    if (freshKey !== null) setReveal({ key: freshKey, phase: 'held' })
+    if (freshKey !== null) {
+      setReveal({ key: freshKey, phase: 'held', ignoredToast: successToast })
+      // A deixa anterior precisa ser esquecida. Comprar, vender e comprar de
+      // novo o mesmo lado na mesma rodada repete a chave, e uma deixa herdada
+      // fazia a entrada nascer já liberada, entrando sem esperar o aviso.
+      setCuedKey(null)
+    }
   }
 
   const revealKey = reveal?.key ?? null
   const storedPhase = reveal?.phase ?? null
 
-  // A deixa é o aviso de sucesso, e ela só anda para a frente: o aviso some
+  // A deixa é o aviso desta operação, e ela só anda para a frente: o aviso some
   // depois de 4s e uma revelação em curso não pode voltar a ficar retida.
-  if (storedPhase === 'held' && isSuccessToastVisible && cuedKey !== revealKey) {
+  if (
+    storedPhase === 'held'
+    && successToast !== null
+    && successToast !== reveal?.ignoredToast
+    && cuedKey !== revealKey
+  ) {
     setCuedKey(revealKey)
   }
 
@@ -310,14 +326,16 @@ export function HomeOpenEntries({
 
     const section = sectionRef.current
 
+    const enter = () => setReveal(
+      (current) => (current === null ? null : { ...current, phase: 'entering' }),
+    )
+
     if (section === null) {
-      setReveal({ key: revealKey, phase: 'entering' })
+      enter()
       return
     }
 
-    return centerInViewport(section, !prefersReducedMotion(), () => {
-      setReveal({ key: revealKey, phase: 'entering' })
-    })
+    return centerInViewport(section, !prefersReducedMotion(), enter)
   }, [revealKey, revealPhase])
 
   // Rede de segurança: sem `animationend` o card ficaria preso no estado de

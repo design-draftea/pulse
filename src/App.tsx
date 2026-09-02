@@ -787,7 +787,7 @@ function App() {
           roundStart={marketRound.roundStart}
           position={currentPosition}
           costBasis={currentCostBasis}
-          isSuccessToastVisible={purchaseSuccess !== null}
+          successToast={purchaseSuccess}
           exitingEntry={saleExit}
           onExitEnd={handleSaleExitEnd}
           onSell={handleEntrySell}
