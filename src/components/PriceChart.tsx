@@ -4,8 +4,10 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+import type { CSSProperties } from 'react'
 import {
   layoutPriceChartEntries,
   type PriceChartEntry,
@@ -264,6 +266,22 @@ export function PriceChart({
 
     return () => window.clearTimeout(timer)
   }, [directionAnimationSequence])
+  const priceLabelSample = priceFormatter.format(renderDomain.top)
+  const priceLabelRef = useRef<SVGTextElement | null>(null)
+  const [priceLabelWidth, setPriceLabelWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const node = priceLabelRef.current
+    if (node === null) return
+
+    const measuredWidth = node.getBBox().width
+    if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) return
+
+    setPriceLabelWidth((currentWidth) =>
+      Math.abs(currentWidth - measuredWidth) < 0.5 ? currentWidth : measuredWidth,
+    )
+  }, [priceLabelSample.length, chartWidth])
+
   const renderTime = useRenderTime()
   const displayTime = Math.max(renderTime, latestPoint?.timestamp ?? renderTime)
   const windowSpanMs = (seriesRight / PIXELS_PER_SECOND) * 1000
@@ -374,6 +392,14 @@ export function PriceChart({
       data-panned={isPanned}
       data-view-anchor={viewAnchorTimestamp ?? ''}
       data-window-span={Math.round(windowSpanMs)}
+      style={priceLabelWidth > 0
+        ? {
+            '--price-chart-value-right': `${Math.max(
+              0,
+              chartWidth - priceLabelX - priceLabelWidth,
+            )}px`,
+          } as CSSProperties
+        : undefined}
       {...panHandlers}
       data-point-count={safePoints.length}
       data-displayed-price={latestPrice}
@@ -540,7 +566,11 @@ export function PriceChart({
                 style={{ transform: `translateY(${y}px)` }}
               >
                 <line x1={PLOT_LEFT} x2={plotRight} y1="0" y2="0" />
-                <text x={priceLabelX} y="4">
+                <text
+                  ref={index === 0 ? priceLabelRef : undefined}
+                  x={priceLabelX}
+                  y="4"
+                >
                   {priceFormatter.format(tick)}
                 </text>
               </g>

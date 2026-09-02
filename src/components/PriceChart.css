@@ -227,7 +227,7 @@
 
 .price-chart__live-button {
   position: absolute;
-  right: 16px;
+  right: var(--price-chart-value-right, 24px);
   bottom: 3px;
   display: inline-flex;
   align-items: center;
