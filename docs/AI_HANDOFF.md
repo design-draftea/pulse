@@ -2,13 +2,13 @@
 
 ## Estado atual
 
-- Atualizado em: 2026-09-01
+- Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: pronto para revisão — tradução aplicada e validada localmente
-- Objetivo: agrupar ajustes avulsos — traduzir o aviso `MobileOnly` para espanhol do México, corrigir o reset de scroll na troca de rotas no Chrome do iOS fazer o preenchimento do controle de deslizar terminar exatamente na borda do trilho dar saída animada ao betslip ao concluir a operação centralizar verticalmente a dobra do ticket no toaster de sucesso, compactar esse toaster e disparar confetti no aviso de vitória de rodada
-- Critérios de aceite: nenhum texto visível ao usuário em português, com tom coerente com os textos existentes e sem mudança de layout, classe ou estrutura; a troca de rotas termina em `scrollY = 0` inclusive vindo do fim da rolagem, sem regressão em voltar/avançar nem no cancelamento da transição; o preenchimento do deslizar termina com a folga de `2px` do CSS em qualquer largura, sem depender de medição em JavaScript; ao concluir compra ou venda o betslip desce e desaparece antes de ser removido, e com `prefers-reduced-motion` sai imediatamente como antes; a dobra do ticket fica no centro vertical do quadro, com desvio zero; o toaster encolhe sem distorcer o fundo; o confetti dispara uma única vez por vitória e não dispara com `prefers-reduced-motion`
-- Branch/worktree: `chore/misc-updates` no checkout principal `/Users/tiagococciramon/Desktop/PITACO/pulse`
+- Status: concluído — implementado, validado, mesclado e publicado
+- Objetivo: agrupar ajustes avulsos de interface, do fluxo de venda e do histórico de entradas, além de atualizar as actions do workflow de publicação
+- Critérios de aceite: nenhum texto visível ao usuário em português; a troca de rotas termina em `scrollY = 0` inclusive vindo do fim da rolagem; o preenchimento do deslizar termina na borda do trilho em qualquer largura, sem medição em JavaScript; o betslip desce ao concluir a operação e o card de venda só sai depois do aviso; a dobra do ticket fica no centro vertical do quadro; o confetti dispara uma vez por vitória e respeita `prefers-reduced-motion`; `Vender` em Entradas abre o betslip; toda venda entra em `PASADAS`, com vendas sucessivas acumuladas; o deploy roda sem avisos de depreciação
+- Branch/worktree: trabalho concluído nas branches `chore/misc-updates`, `chore/update-workflow-actions` e `fix/keyboard-swipe-clipping`, todas mescladas e removidas; `main` local sincronizada com `origin/main`
 
 ## Alterações realizadas
 
@@ -332,6 +332,10 @@
 - Nova aba limpa carregou sem erros ou avisos no console.
 - Indicador de entrada ativa validado a `430 × 832px`: começou ausente, apareceu após compra de `$100` em UP, usou `8 × 8px`, `rgb(248, 113, 113)` e animação `navbar-live-pulse` de `1,6s`, permaneceu após F5 e desapareceu após a venda total. O estado de teste foi limpo para `$2,000.00` e uma nova aba carregou sem erros ou avisos.
 
+- Pull Request, merge e deploy: `chore/misc-updates` foi ao PR #19 em sete commits temáticos e mesclada; `chore/update-workflow-actions` ao PR #20; `fix/keyboard-swipe-clipping` ao PR #21. As três branches remotas foram removidas no merge.
+- Deploys concluídos com sucesso em sequência: `33572918727` para o PR #19, `33573528711` para o #20 e `33573618725` para o #21. O #20 foi mesclado antes do #21 de propósito, para que o próprio deploy validasse as actions novas antes de a correção seguinte subir. Os avisos de depreciação do Node 20 caíram de dois para zero.
+- Produção conferida em `https://design-draftea.github.io/pulse/`: resposta `200`, e o CSS servido contém a regra `buy-betslip--keyboard .buy-betslip__expanded{padding-top:...}`, confirmando que o build publicado é o corrigido.
+
 ## Pendências e riscos
 
 - O swipe real de compra foi exercitado por arraste contínuo nesta tarefa; nenhuma pendência funcional foi encontrada no escopo do histórico inicial.
@@ -342,12 +346,12 @@
 - Repetir a observação dos snapshots reais do CLOB quando o ambiente voltar a resolver `polymarket.com` e `gamma-api.polymarket.com`; nesta sessão somente o caminho resiliente local pôde ser exercitado de ponta a ponta.
 - `fix/last-round-seen-animation` já foi publicada e mesclada pelo PR #18; a `main` local e a `origin/main` estão em `536e538`. Essa pendência está encerrada.
 - A máquina não tinha Node instalado. Foi instalado `node@24` (24.20.0) via Homebrew e ativado `pnpm@11.19.0` por corepack; como a fórmula é keg-only, `export PATH="/opt/homebrew/opt/node@24/bin:$PATH"` foi acrescentado ao `~/.zshrc` (backup em `~/.zshrc.bak-pre-node24`). Terminais já abertos precisam ser recarregados.
-- `.claude/launch.json` foi criado sem versionamento para o servidor de desenvolvimento e aponta para o caminho absoluto do pnpm, porque o preview não herda o `PATH` do perfil. O arquivo não faz parte do commit.
+- `.claude/launch.json` configura o servidor de desenvolvimento e aponta para o caminho absoluto do pnpm, porque o preview não herda o `PATH` do perfil. Por ser específico da máquina, `.claude/` passou a constar no `.gitignore`.
 - O betslip não pôde ser exercitado por gesto real de toque no fim da sessão porque o mercado ficou indisponível no ambiente (`Precio actual —`, UP/DOWN em `50%`); a verificação do preenchimento foi feita por eventos de ponteiro sintéticos e por medição direta da geometria.
 - Dívida conhecida: o `key` de `SwipeToBuy` ainda inclui `isKeyboardOpen`, então abrir ou fechar o teclado continua recriando o componente. É intencional, porque o layout muda, mas vale reavaliar se algum dia o estado do gesto precisar sobreviver a essa troca.
-- A correção de scroll **não** foi verificada no Chrome do iPhone, que é onde o defeito aparece. O ambiente local não tem esse navegador e o simulador iOS não instala Chrome; o diagnóstico foi feito por medição do documento e do `scrollY` no navegador disponível. A confirmação depende de um teste no aparelho.
+- A correção de scroll foi confirmada pela pessoa usuária no Chrome do iPhone, que é onde o defeito aparecia e que o ambiente local não reproduz. O confetti também foi confirmado em aparelho real, sem engasgo na virada de rodada. Ambas as pendências estão encerradas.
 - No ambiente local, `polymarket.com` responde `502` e `gamma-api.polymarket.com` não resolve; Chainlink RTDS também não conecta. A contingência silenciosa cobriu preços, livro e histórico, então os erros de console observados são de rede e não têm relação com esta mudança.
 
 ## Próximo passo
 
-- Revisar a tradução e decidir sobre commit, Pull Request e merge de `chore/misc-updates`; nada foi commitado, publicado ou mesclado nesta sessão.
+- Nenhum trabalho em andamento. Itens abertos para quando houver prioridade: comparar as capturas de `499px` e `500px` que mantêm `design-qa.md` bloqueado; publicar o Worker do proxy, que depende de uma conta Cloudflare; e subir `actions/checkout`, `actions/setup-node` e `cloudflare/wrangler-action`, que têm major mais novo mas não estavam no aviso de depreciação.
