@@ -5,11 +5,12 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado localmente. Sem Pull Request, sem merge e sem deploy
+- Status: implementado e validado. Push, Pull Request, merge e deploy autorizados pela pessoa usuária
 - Objetivo: eliminar o intervalo em que o toaster de sucesso aparecia sem o fundo na primeira compra da sessão
 - Escopo acordado: aquecer em tempo ocioso as imagens que só entram no DOM depois da primeira tela e reexportar para WebP essas três imagens e, num pedido seguinte, também o `bgHeader`. Não foi criada tela de carregamento nem pré-carregamento bloqueante, porque somar `bgHeader`, `bgHeaderBS`, o toaster e os logos passa de `1,8 MB` e atrasaria a primeira pintura
 - Critérios de aceite: as imagens diferidas são pedidas logo depois da primeira renderização, sem atrasar a primeira pintura; o fundo e a ilustração já estão decodificados quando o toaster monta; nenhuma imagem muda de aparência
-- Branch/worktree: `fix/preload-toaster-assets`, criada a partir da `main` sincronizada
+- Branch/worktree: `fix/preload-toaster-assets`, rebaseada sobre `origin/main` em `7a969dc` e trabalhada no worktree isolado `/private/tmp/pulse-toaster-warmup`
+- Colisão de agentes registrada: os dois commits desta tarefa nasceram no checkout principal enquanto outro agente movia aquele checkout entre branches, e acabaram pousando na `main` local. Nada se perdeu, mas a `main` local da pasta principal ficou com dois commits que não pertencem a ela e precisa ser realinhada com `origin/main` por quem estiver com aquele checkout. O push inicial de `fix/preload-toaster-assets` levou o conteúdo errado e foi corrigido por força depois do rebase
 
 ## Alterações realizadas
 
