@@ -201,7 +201,7 @@ export function QuickAmountEditorSheet({
         </div>
 
         <footer className="quick-amount-sheet__footer">
-          <button type="button" onClick={saveAmounts}>Salvar</button>
+          <button type="button" onClick={saveAmounts}>Guardar</button>
         </footer>
       </section>
     </div>,
