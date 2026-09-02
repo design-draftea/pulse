@@ -225,6 +225,22 @@
   animation: none;
 }
 
+.price-chart__direction-clear {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 180ms ease-out;
+}
+
+.price-chart__direction-clear--closed {
+  transform: scale(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-chart__direction-clear {
+    transition: none;
+  }
+}
+
 .price-chart__live-button {
   position: absolute;
   right: var(--price-chart-value-right, 24px);

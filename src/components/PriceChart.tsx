@@ -352,7 +352,12 @@ export function PriceChart({
     x: seriesRight,
     y: priceToY(anchorPrice),
   }
-  const directionClearSize = isPanned ? 0 : DIRECTION_CLEAR_SIZE
+  // O recorte existe apenas para abrir espaço para os chevrons. Sem direção
+  // confirmada ele deixaria um buraco permanente no tracejado, então fecha.
+  const isDirectionActive = priceDirection !== null && !isPanned
+  const directionClearClassName = `price-chart__direction-clear${
+    isDirectionActive ? '' : ' price-chart__direction-clear--closed'
+  }`
   const directionCenterX = directionIconX + 12
   const visibleLinePoints = chartPoints.length > 0
     ? chartPoints
@@ -484,10 +489,11 @@ export function PriceChart({
               fill={`url(#plot-fade-${id})`}
             />
             <rect
-              x={directionCenterX - directionClearSize / 2}
-              y={currentPoint.y - directionClearSize / 2}
-              width={directionClearSize}
-              height={directionClearSize}
+              className={directionClearClassName}
+              x={directionCenterX - DIRECTION_CLEAR_SIZE / 2}
+              y={currentPoint.y - DIRECTION_CLEAR_SIZE / 2}
+              width={DIRECTION_CLEAR_SIZE}
+              height={DIRECTION_CLEAR_SIZE}
               fill="#000"
             />
           </mask>
@@ -501,10 +507,11 @@ export function PriceChart({
           >
             <rect width={chartWidth} height={PRICE_CHART_HEIGHT} fill="#fff" />
             <rect
-              x={directionCenterX - directionClearSize / 2}
-              y={currentPoint.y - directionClearSize / 2}
-              width={directionClearSize}
-              height={directionClearSize}
+              className={directionClearClassName}
+              x={directionCenterX - DIRECTION_CLEAR_SIZE / 2}
+              y={currentPoint.y - DIRECTION_CLEAR_SIZE / 2}
+              width={DIRECTION_CLEAR_SIZE}
+              height={DIRECTION_CLEAR_SIZE}
               fill="#000"
             />
           </mask>
@@ -524,10 +531,11 @@ export function PriceChart({
               fill="#fff"
             />
             <rect
-              x={directionCenterX - directionClearSize / 2}
+              className={directionClearClassName}
+              x={directionCenterX - DIRECTION_CLEAR_SIZE / 2}
               y={-DIRECTION_CLEAR_SIZE / 2}
-              width={directionClearSize}
-              height={directionClearSize}
+              width={DIRECTION_CLEAR_SIZE}
+              height={DIRECTION_CLEAR_SIZE}
               fill="#000"
             />
           </mask>
