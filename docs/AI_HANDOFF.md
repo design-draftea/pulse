@@ -5,32 +5,23 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado. Push, Pull Request, merge e deploy autorizados pela pessoa usuária
-- Objetivo: eliminar o intervalo em que o toaster de sucesso aparecia sem o fundo na primeira compra da sessão
-- Escopo acordado: aquecer em tempo ocioso as imagens que só entram no DOM depois da primeira tela e reexportar para WebP essas três imagens e, num pedido seguinte, também o `bgHeader`. Não foi criada tela de carregamento nem pré-carregamento bloqueante, porque somar `bgHeader`, `bgHeaderBS`, o toaster e os logos passa de `1,8 MB` e atrasaria a primeira pintura
-- Critérios de aceite: as imagens diferidas são pedidas logo depois da primeira renderização, sem atrasar a primeira pintura; o fundo e a ilustração já estão decodificados quando o toaster monta; nenhuma imagem muda de aparência
-- Branch/worktree: `fix/preload-toaster-assets`, rebaseada sobre `origin/main` em `7a969dc` e trabalhada no worktree isolado `/private/tmp/pulse-toaster-warmup`
-- Colisão de agentes registrada: os dois commits desta tarefa nasceram no checkout principal enquanto outro agente movia aquele checkout entre branches, e acabaram pousando na `main` local. Nada se perdeu, mas a `main` local da pasta principal ficou com dois commits que não pertencem a ela e precisa ser realinhada com `origin/main` por quem estiver com aquele checkout. O push inicial de `fix/preload-toaster-assets` levou o conteúdo errado e foi corrigido por força depois do rebase
+- Status: implementado e validado localmente. Sem autorização ainda para push, Pull Request, merge ou deploy
+- Objetivo: implementar o nó `497:12722` do Figma como resumo das entradas abertas na Home, logo abaixo do gráfico
+- Escopo acordado: a seção aparece na Home entre `MarketPriceChart` e `PreviousRounds` e empurra o restante para baixo; no máximo duas entradas por rodada, uma em UP e outra em DOWN, pela mesma regra já usada na aba `Entradas`; a entrada nova é revelada com a mesma microinteração de uma ronda que chega em `PreviousRounds`
+- Critérios de aceite: layout fiel ao nó, seção ausente sem posição aberta, `Vender` abrindo o betslip em modo de venda no lado correto, revelação animada apenas quando a entrada nasce na sessão
+- Branch: `feature/entradas-abiertas-home`, criada a partir da `main` em `500d1a5`, no checkout principal
+- Acesso ao Figma: o servidor MCP remoto respondeu `sem acesso de edição` para este arquivo. O design foi lido pelo servidor local do Figma Desktop em `127.0.0.1:3845`, que usa a sessão da pessoa usuária. Vale registrar para a próxima tarefa que depender do Figma
 
 ## Alterações realizadas
 
-- `src/services/assetWarmup.ts` (novo): `selectColdSources` escolhe as origens ainda não aquecidas, sem repetição; `warmImageSources` busca as frias em paralelo e devolve as que ficaram prontas; `createBrowserImageWarmer` usa `new Image()` com `decode()`, para a imagem chegar já decodificada e não apenas baixada. Uma falha não marca a origem como aquecida, então uma tentativa futura continua possível, e o componente segue funcionando sem o aquecimento.
-- `src/hooks/useDeferredAssetWarmup.ts` (novo): agenda o aquecimento em `requestIdleCallback` com `timeout` de `2000ms`, com `setTimeout` de `1200ms` onde `requestIdleCallback` não existe, e cancela no desmonte. O conjunto de aquecidas vive no módulo, então o efeito duplo do StrictMode não repete a busca.
-- `src/App.tsx`: `useDeferredAssetWarmup()` na primeira linha de `App`.
-- Imagens diferidas cobertas: `bgToasterSucesso`, `ilustraSucesso` e `bgHeaderBS`. As demais já são pedidas na abertura, pelo `App.css` ou pelo `SubHeader`, e não precisam de aquecimento.
-- Reexportação para WebP, preservando as dimensões originais: `bgToasterSucesso` `431KB → 14KB` (`-97%`, qualidade `90`), `ilustraSucesso` `114KB → 57KB` (`-50%`, `nearLossless`) e `bgHeaderBS` `685KB → 173KB` (`-75%`, qualidade `80`). Os três PNG foram removidos porque nenhuma referência restou.
-- Fidelidade medida antes de trocar as referências, comparando os canais compostos sobre o alfa: a maior diferença por pixel ficou em `4/255` no fundo do toaster, `2/255` na ilustração e `2/255` no fundo do betslip; o canal alfa saiu idêntico ao original nos três arquivos. A ilustração recebeu `nearLossless` justamente por ser a única com detalhe fino.
-- `src/components/PurchaseSuccessToast/PurchaseSuccessToast.tsx`, `src/components/BuyBetslip/BuyBetslip.css` e `src/components/ProfileBottomSheet/ProfileBottomSheet.css`: referências apontando para os `.webp`.
-- `tests/assetWarmup.test.ts` (novo) e script `test:assets`: três casos para a seleção sem repetição, a busca única por origem entre chamadas e o comportamento em falha.
-- Verificado no build: `bgHeaderBS` é emitido uma única vez e o CSS e o JS apontam para o mesmo arquivo com hash, então o aquecimento preenche exatamente a entrada de cache que o betslip vai usar.
-- Validação: `pnpm lint` sem avisos, `pnpm build` concluído e as sete suítes passando (`chart` 19, `market` 25, `wallet` 19, `fallback` 6, `entries` 8, `proxy` 6, `assets` 3).
-- Validação no navegador depois da troca do `bgHeader`: o degradê do topo continua idêntico, o arquivo é pedido pelo CSS em `72ms` e as três imagens diferidas seguem saindo depois dele, em `95ms`.
-- Validação no navegador, sobre o build de produção em `localhost:4173`, viewport de `375px`: pelo `Resource Timing`, `bgHeader` e os logos saem entre `24ms` e `29ms` e as três imagens diferidas saem em `42ms`, com `initiatorType: img`, ou seja, depois da primeira tela e ainda muito antes de qualquer compra ser possível. Numa compra real, no primeiro instante em que o toaster existe no DOM, `complete` já era `true` para o fundo e para a ilustração, com `naturalWidth` de `1404`. O toaster e o bottom sheet de perfil foram inspecionados visualmente com os WebP, sem diferença perceptível.
-- `requestIdleCallback` disparou mesmo com a aba oculta, então o `timeout` de `2000ms` cobre o caso de aba em segundo plano.
-- Não validado: comportamento em rede lenta real e em cache totalmente frio de um dispositivo novo. A validação foi feita em `localhost`, onde o download é instantâneo; o argumento para o caso frio é o intervalo entre os `42ms` do aquecimento e os segundos que a pessoa leva para abrir o betslip e concluir o gesto, agora sobre `72KB` de toaster em vez de `545KB`.
-- `src/App.css` e `src/components/OpenEntries/OpenEntries.css`: `bgHeader` também passou a WebP, por pedido posterior da pessoa usuária. Aqui a reexportação teve de ser **sem perdas**: `513KB → 364KB` (`-29%`), com todos os pixels idênticos ao original. O PNG foi removido.
-- Decisão registrada sobre o `bgHeader`: com perdas ele cairia para `9KB` na qualidade `90` e `27KB` na qualidade `100`, mas o arquivo é um degradê suave e pontilhado de propósito. Medindo o maior degrau entre pixels vizinhos ao longo de cinco colunas, o original vai a `1` na fonte e a `2` no tamanho exibido em `1x`; qualquer versão com perdas, inclusive na qualidade `100`, sobe para `4` na fonte e `6` em `1x`. Reduzir para o tamanho de exibição não suaviza esse degrau, ele piora. Como o degradê do topo é a superfície mais visível da aplicação e o pontilhado do arquivo original existe justamente para evitar faixas, a versão com perdas foi descartada apesar de ser `40` vezes menor. O ganho seguro de `149KB` foi preferido ao ganho arriscado de `504KB`.
-- Restam dois PNG: `logoBTC` e `logoBTCBack`, com `49KB` e `55KB`. Não foram tocados.
+- `src/components/HomeOpenEntries/HomeOpenEntries.tsx` (novo): implementa o nó `497:12722`. O título `Entradas abiertas`, o carrossel com snap, o card do nó `498:13381` e os bullets. As entradas vêm de `getOpenEntrySummaries`, o mesmo serviço da aba `Entradas`, então o limite de uma posição por lado por rodada não precisou de regra nova. O componente devolve `null` sem entradas, e por isso a seção só ocupa espaço quando existe posição aberta.
+- `src/components/HomeOpenEntries/HomeOpenEntries.css` (novo): medidas do nó, com `calc(100vw - 40px)` de largura e a mesma composição de borda de `PreviousRounds`. A revelação reaproveita as três animações de uma ronda que chega: `home-open-entry-card-enter` de `860ms`, o brilho diagonal e o pulso de borda, com o acento por lado. A saída após venda total repete a semântica de `open-entry-card-leave`.
+- `src/assets/homeEntryLight.svg` (novo): brilho superior do card, exportado do nó `498:13402`.
+- `src/App.tsx`: `HomeOpenEntries` montado entre `MarketPriceChart` e `PreviousRounds`, recebendo `roundStart`, posição, custo-base, o `saleExit` já existente e o mesmo `handleEntrySell` da aba `Entradas`.
+- Decisão sobre a identidade da revelação: a chave é `roundStart` mais o lado, e o conjunto de chaves conhecidas é semeado na primeira renderização. Assim uma entrada anima uma única vez, chegar à Home com posição já aberta ou recarregar a página permanece neutro, e uma compra na rodada seguinte volta a animar.
+- Decisão sobre o que ficou de fora da microinteração: o badge `Nueva` e o aviso `aria-live` de `PreviousRounds` não foram copiados. Numa ronda que chega eles avisam de algo que aconteceu sozinho; aqui a pessoa acabou de comprar e o toaster de sucesso já confirma a operação.
+- Decisão sobre o asset: `entryCardLight.svg` e `lightPriceTarget.svg` não foram reaproveitados porque a elipse deste card ocupa toda a largura e usa opacidade de 28%; esticar qualquer um dos dois mudaria o decaimento do brilho.
+- Duas correções de especificidade encontradas na validação e já resolvidas: `.home-open-entry-card__row > strong` sobrepunha a cor de `UP`/`DOWN`, que aparecia branca em vez de verde ou vermelha, e a regra do rótulo do rodapé alcançava também o bloco do valor, que perdia a altura de linha de `1.2`.
 
 ## Limpeza de assets órfãos
 
@@ -300,6 +291,17 @@ Numa segunda passagem, pelo PR #35:
 
 ## Validações executadas
 
+### Resumo de entradas abertas na Home (`feature/entradas-abiertas-home`)
+
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- Navegador em `localhost:5176`, viewport de `375px`. A seção mede `202px` de altura, exatamente a altura do nó no Figma, e o card mede `335x116` a partir de `x=16`, pela mesma convenção responsiva de `PreviousRounds`.
+- Conferidos por estilo computado: grade de duas colunas com `2px`, rótulos em `rgba(251,251,251,0.5)` a `12/18`, `DOWN` em `#f87171` e `UP` em `#34d399`, rodapé com borda superior de 12% e `8px` de topo, valor em `900` a `16px` com altura de linha `19.2px`, botão de `120x32` com raio `10px` e o degradê `75.115deg` de `actionPrimaryDefault`, brilho posicionado a `-35px` do topo do card.
+- Estados verificados: sem posição a seção não existe e a Home volta a ser gráfico, `Últimas 10 rondas` e rodapé; com uma entrada o carrossel não mostra bullets e a seção cai para `188px`; com duas entradas os dois bullets aparecem, o segundo card entra por snap e o bullet ativo acompanha a rolagem.
+- Revelação: ao surgir uma posição durante a sessão o card recebe `home-open-entry-card--entering` com as três animações. Como o painel do navegador ficou oculto nesta sessão, o relógio de animação estava congelado; a animação foi percorrida pela Web Animations API e capturada no meio do caminho, com o card revelado da esquerda para a direita e a borda pulsando em vermelho no lado `DOWN`. A limpeza da classe foi exercitada por `animationend` sintético: o evento do pseudo-elemento é ignorado e só o da própria animação de entrada limpa o estado.
+- `Vender` do card `UP` abriu o betslip em `buy-betslip--sell` com `150.5 participaciones`, `Precio de venta` e `Monto a recibir`, igual à aba `Entradas`.
+- Venda total executada de ponta a ponta pelo caminho de teclado do controle de deslize: a posição `UP` foi a zero, o saldo foi creditado, o card ficou retido com `home-open-entry-card--leaving` e saiu da lista ao fim da animação, sem afetar o card `DOWN`.
+- Não validado: gesto real de arraste no controle de deslize e observação da animação em tempo real, porque o painel do navegador permaneceu oculto durante a sessão. Também não foi comparado o comportamento em `499px`.
+
 - Tradução do `MobileOnly` (Claude, nesta máquina, após instalar Node 24): `pnpm lint` sem erros; `pnpm build` concluído (typecheck + Vite); as seis suítes somaram 71 testes aprovados e nenhuma falha (`chart` 13, `fallback` 6, `market` 23, `proxy` 6, `wallet` 15, `entries` 8); `git diff --check` passou.
 - Navegador em `500 × 832px`: o aviso cobre a aplicação inteira e exibe `Versión solo móvil`, a descrição em espanhol e `Ancho máximo compatible: 499px`, sem overflow horizontal.
 - Navegador em `499 × 832px`: o aviso desaparece e a Home renderiza normalmente com header, gráfico, `Últimas 10 rondas`, UP/DOWN e Navbar.
@@ -482,4 +484,6 @@ Numa segunda passagem, pelo PR #35:
 
 ## Próximo passo
 
-- Nenhum trabalho em andamento. Itens abertos para quando houver prioridade: comparar as capturas de `499px` e `500px` que mantêm `design-qa.md` bloqueado; e subir `actions/checkout`, `actions/setup-node` e `cloudflare/wrangler-action`, que têm major mais novo mas não estavam no aviso de depreciação.
+- `feature/entradas-abiertas-home` está pronta e commitada localmente, sem push. Aguardando autorização da pessoa usuária para push e Pull Request.
+- Vale ver a revelação rodando em tempo real num navegador visível antes do merge; nesta sessão ela só pôde ser percorrida quadro a quadro.
+- Itens antigos, para quando houver prioridade: comparar as capturas de `499px` e `500px` que mantêm `design-qa.md` bloqueado; e subir `actions/checkout`, `actions/setup-node` e `cloudflare/wrangler-action`, que têm major mais novo mas não estavam no aviso de depreciação.
