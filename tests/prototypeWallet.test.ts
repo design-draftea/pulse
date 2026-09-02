@@ -376,6 +376,8 @@ test('liquida somente as participações restantes do lado vencedor', () => {
       occurredAt: settled.state.movements.at(-1)?.occurredAt,
       roundStart: ROUND_START,
       side: 'up',
+      participations: 129.25,
+      balanceAfterCents: 199_925,
     },
   )
   assert.deepEqual(settled.state.costBasisCentsByRound, {})
@@ -644,4 +646,51 @@ test('entrada vendida sobrevive à serialização e dispensa preço objetivo', (
 
   const restored = deserializeWalletState(JSON.stringify(sold))
   assert.deepEqual(restored.settledEntries, sold.settledEntries)
+})
+
+
+test('movimentos registram participações e saldo resultante', () => {
+  const purchased = applyWalletPurchase(createOperationTestWallet(), {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountCents: 10_000,
+    participations: 125,
+  })
+  const compra = purchased.state.movements.at(-1)
+
+  assert.equal(compra?.participations, 125)
+  assert.equal(compra?.balanceAfterCents, purchased.state.balanceCents)
+
+  const sold = applyWalletSale(purchased.state, {
+    roundStart: ROUND_START,
+    side: 'up',
+    amountReceivedCents: 7_500,
+    participations: 125,
+  })
+  const venda = sold.state.movements.at(-1)
+
+  assert.equal(venda?.participations, 125)
+  assert.equal(venda?.balanceAfterCents, sold.state.balanceCents)
+
+  // O saldo de cada linha precisa reconstituir o saldo final da carteira.
+  const ultimo = sold.state.movements.at(-1)?.balanceAfterCents
+  assert.equal(ultimo, sold.state.balanceCents)
+})
+
+test('o histórico da persona encadeia os saldos até o saldo inicial', () => {
+  const state = createInitialWalletState()
+  const saldos = state.movements.map((movement) => movement.balanceAfterCents)
+
+  assert.ok(saldos.every((valor) => typeof valor === 'number'))
+  assert.equal(saldos.at(-1), state.balanceCents)
+  assert.equal(saldos.at(-1), SEEDED_AVAILABLE_BALANCE_CENTS)
+
+  // Cada linha soma o próprio valor ao saldo da anterior.
+  state.movements.forEach((movement, index) => {
+    const anterior = index === 0
+      ? 0
+      : state.movements[index - 1].balanceAfterCents ?? 0
+
+    assert.equal(movement.balanceAfterCents, anterior + movement.amountCents)
+  })
 })

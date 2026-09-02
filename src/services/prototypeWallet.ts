@@ -96,6 +96,12 @@ export interface PrototypeWalletMovement {
   occurredAt: number
   roundStart?: number
   side?: OutcomeSide
+  // Participações movimentadas, quando a operação envolve posição. Permite
+  // exibir o que foi comprado ou vendido, e não apenas quanto custou.
+  participations?: number
+  // Saldo logo após o movimento, para o histórico ser reconciliável linha a
+  // linha. Opcional porque estados persistidos antes deste campo não o têm.
+  balanceAfterCents?: number
 }
 
 export interface PrototypeWalletPosition {
@@ -215,6 +221,7 @@ const createInitialDepositMovement = (
   type: 'deposit',
   amountCents: INITIAL_DEPOSIT_CENTS,
   occurredAt,
+  balanceAfterCents: INITIAL_DEPOSIT_CENTS,
 })
 
 const getRelativeLocalTimestamp = (
@@ -264,6 +271,7 @@ const createSeededWalletHistory = (createdAt: number) => {
         occurredAt: entry.roundStart + SEEDED_PURCHASE_DELAY_MS,
         roundStart: entry.roundStart,
         side: entry.side,
+        participations: entry.participations,
       },
       ...(entry.outcome === 'won'
         ? [{
@@ -273,10 +281,23 @@ const createSeededWalletHistory = (createdAt: number) => {
             occurredAt: entry.roundEnd,
             roundStart: entry.roundStart,
             side: entry.side,
+            participations: entry.participations,
           }]
         : []),
     ]),
-  ].sort((left, right) => left.occurredAt - right.occurredAt)
+  ]
+    .sort((left, right) => left.occurredAt - right.occurredAt)
+    // O saldo de cada linha é acumulado depois da ordenação, para o histórico
+    // da persona fechar na mesma sequência em que é exibido.
+    .reduce<{ balanceCents: number; movements: PrototypeWalletMovement[] }>(
+      (accumulated, movement) => {
+        const balanceCents = accumulated.balanceCents + movement.amountCents
+
+        accumulated.movements.push({ ...movement, balanceAfterCents: balanceCents })
+        return { balanceCents, movements: accumulated.movements }
+      },
+      { balanceCents: 0, movements: [] },
+    ).movements
   const totalPurchasesCents = settledEntries.reduce(
     (total, entry) => total + entry.amountCents,
     0,
@@ -321,6 +342,15 @@ const normalizeMovement = (
       && movement.side !== 'up'
       && movement.side !== 'down'
     )
+    || (
+      movement.participations !== undefined
+      && !(isNonNegativeFinite(movement.participations)
+        && movement.participations > 0)
+    )
+    || (
+      movement.balanceAfterCents !== undefined
+      && !isNonNegativeInteger(movement.balanceAfterCents)
+    )
   ) {
     return null
   }
@@ -334,6 +364,12 @@ const normalizeMovement = (
       ? {}
       : { roundStart: movement.roundStart }),
     ...(movement.side === undefined ? {} : { side: movement.side }),
+    ...(movement.participations === undefined
+      ? {}
+      : { participations: movement.participations }),
+    ...(movement.balanceAfterCents === undefined
+      ? {}
+      : { balanceAfterCents: movement.balanceAfterCents }),
   }
 }
 
@@ -668,6 +704,8 @@ export const applyWalletPurchase = (
       occurredAt: Date.now(),
       roundStart,
       side,
+      participations,
+      balanceAfterCents: state.balanceCents - amountCents,
     }),
   })
 
@@ -767,6 +805,8 @@ export const applyWalletSale = (
       occurredAt: Date.now(),
       roundStart,
       side,
+      participations,
+      balanceAfterCents: state.balanceCents + amountReceivedCents,
     }),
   })
 
@@ -874,6 +914,8 @@ export const settleWalletRound = (
         occurredAt: Date.now(),
         roundStart,
         side: winner,
+        participations: position[winner],
+        balanceAfterCents: state.balanceCents + payoutCents,
       })
       : state.movements,
     settledEntries: nextSettledEntries,
@@ -913,6 +955,7 @@ export const creditWalletEvent = (
       type: 'win',
       amountCents,
       occurredAt: Date.now(),
+      balanceAfterCents: state.balanceCents + amountCents,
     }),
   })
 
