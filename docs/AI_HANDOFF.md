@@ -5,11 +5,11 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado localmente. Não commitado em `main`, sem Pull Request, sem merge e sem deploy
+- Status: concluído — implementado, validado, mesclado pelo PR #37 e publicado em `https://design-draftea.github.io/pulse/`. O push, o merge e o deploy foram autorizados pela pessoa usuária
 - Objetivo: abrir a mesma explicação em modal de baixo para cima ao tocar nos cards `Precio objetivo` e `Precio actual` do cabeçalho, replicando o comportamento que os cards de métrica do perfil já tinham
 - Escopo acordado: apenas os dois cards do `PriceComparison` e o texto de cada um, fornecido pela pessoa usuária. Nenhuma mudança no visual dos cards
 - Critérios de aceite: tocar em cada card abre o mesmo modal do perfil, com o título e o texto correspondentes; o modal fecha pelo X, pelo fundo e por `Escape`; os cards de métrica do perfil continuam funcionando como antes
-- Branch/worktree: `feature/price-comparison-info-modal`, em worktree isolado, porque a pasta principal tem trabalho não commitado de outra tarefa (aquecimento de assets e conversão para `webp`)
+- Branch/worktree: `feature/price-comparison-info-modal`, mesclada pelo PR #37 e removida. O trabalho foi feito em worktree isolado porque a pasta principal tem trabalho não commitado de outra tarefa (aquecimento de assets e conversão para `webp`); por isso a `main` local não foi sincronizada
 
 ## Alterações realizadas
 
@@ -34,12 +34,14 @@
 - Navegador em `375 × 812`, com rodada ao vivo, servidor deste worktree em `localhost:5180`: tocar em cada card abre o modal com o título e o texto certos; fecha pelo X, pelo fundo e por `Escape`; ao fechar, o foco volta ao card que o abriu e a trava de rolagem do `body` é liberada.
 - Estado compacto do cabeçalho, com a página rolada: o modal continua abrindo por cima do betslip e da Navbar, e o layout dos cards em `55px` não mudou.
 - Regressão do perfil conferida no navegador: `Compras totales` abre o mesmo modal de sempre depois da mudança de nome e de lugar do componente.
+- Deploy verificado: o workflow `Deploy Pulse to GitHub Pages` concluiu com sucesso para o merge do PR #37. No bundle publicado estão presentes `info-modal__container` e `price-comparison__info-modal`, no JS e no CSS, e os dois textos dos cards; `profile-info-modal` não aparece em nenhum dos dois arquivos, o que confirma que a renomeação chegou inteira.
+- Site publicado conferido no navegador em `375 × 812`: os dois cards são `<button>` e `Precio objetivo` abre o modal com o texto certo.
 
 ## Pendências conhecidas desta tarefa
 
-- Nada foi commitado. A branch `feature/price-comparison-info-modal` está no worktree `.claude/worktrees/pulse-price-info-modal` e ainda não foi enviada.
 - A interação não tem indicação visual nos cards, conforme a decisão registrada acima.
 - Falta validação em toque real. A conferência foi feita no painel do navegador desta sessão, onde o clique automatizado dispara duas vezes seguidas e abre e fecha o modal no mesmo gesto; a abertura foi verificada por clique programático e por captura de tela.
+- A `main` local da pasta principal continua em `eb7e7f8`, atrás do `origin/main`, porque tem trabalho não commitado de outra tarefa. Sincronizar é decisão de quem estiver com aquele trabalho.
 
 ## Histórico: espanhol e notação de centavos (PRs #33 e #35)
 
