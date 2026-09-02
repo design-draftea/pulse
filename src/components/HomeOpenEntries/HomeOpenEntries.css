@@ -93,12 +93,18 @@
   border: 1px solid transparent;
   border-radius: 16px;
   scroll-snap-align: start;
+  transition:
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    min-width 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Os `24px` livres à direita existem para mostrar que há um segundo card. Com
    uma entrada só não há o que espiar, então o card ocupa a largura inteira,
-   alinhado às mesmas margens de `16px` do resto da Home. */
-.home-open-entries[data-entry-count='1'] .home-open-entry-card {
+   alinhado às mesmas margens de `16px` do resto da Home. A conta é por quantas
+   entradas ficam, e não por quantos cards ainda estão no DOM, para a que fica
+   já alargar durante a saída da outra, e não depois dela. */
+.home-open-entries[data-staying-count='1'] .home-open-entry-card:not(.home-open-entry-card--leaving),
+.home-open-entries[data-staying-count='0'] .home-open-entry-card {
   width: calc(100vw - 32px);
   min-width: calc(100vw - 32px);
 }
@@ -312,10 +318,24 @@
 }
 
 /* Saída do card após uma venda total. Só começa quando o aviso de sucesso já
-   está na tela, para o card não desaparecer antes da confirmação. */
+   está na tela, para o card não desaparecer antes da confirmação. O card sai
+   parado: quem se move é a entrada que fica. */
 .home-open-entry-card--leaving {
-  animation: home-open-entry-card-leave 320ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: home-open-entry-card-leave 320ms ease-in both;
   pointer-events: none;
+}
+
+/* Com outra entrada ficando, o espaço do card que sai é recolhido, então a que
+   fica desliza para a posição dele em vez de saltar quando ele é removido. */
+.home-open-entries[data-staying-count='1'] .home-open-entry-card--leaving {
+  animation:
+    home-open-entry-card-leave 320ms ease-in both,
+    home-open-entry-card-collapse 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* O encaixe automático brigaria com a largura mudando a cada quadro. */
+.home-open-entries__track:has(.home-open-entry-card--leaving) {
+  scroll-snap-type: none;
 }
 
 @keyframes home-open-entry-card-enter {
@@ -383,7 +403,12 @@
     transform: none;
   }
 
+  .home-open-entry-card {
+    transition: none;
+  }
+
   .home-open-entry-card--leaving,
+  .home-open-entries[data-staying-count='1'] .home-open-entry-card--leaving,
   .home-open-entries__heading--leaving {
     animation-duration: 0.01ms;
   }
@@ -392,11 +417,20 @@
 @keyframes home-open-entry-card-leave {
   from {
     opacity: 1;
-    transform: translateX(0);
   }
 
   to {
     opacity: 0;
-    transform: translateX(40px);
+  }
+}
+
+/* Recolhe a própria largura mais o vão, sem mover o card que está saindo. */
+@keyframes home-open-entry-card-collapse {
+  from {
+    margin-inline-end: 0;
+  }
+
+  to {
+    margin-inline-end: calc(32px - 100vw);
   }
 }

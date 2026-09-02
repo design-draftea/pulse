@@ -299,9 +299,14 @@ export function HomeOpenEntries({
   ))
   const visibleKeysSignature = visibleItems.map(({ key }) => key).join('|')
   const visibleCount = visibleItems.length
-  const isSectionLeaving = exitingEntry?.isLeaving === true
-    && visibleCount === 1
-    && visibleItems[0].entry.side === exitingEntry.side
+  const leavingSide = exitingEntry?.isLeaving === true ? exitingEntry.side : null
+  // Quantas entradas continuam existindo depois da saída em curso. É o que
+  // define a largura do card, os bullets e se a seção inteira está saindo, para
+  // que tudo aconteça junto com a saída, e não depois dela.
+  const stayingCount = visibleItems.filter(
+    ({ entry }) => entry.side !== leavingSide,
+  ).length
+  const isSectionLeaving = leavingSide !== null && stayingCount === 0
   // A entrada revelada sozinha na lista é a que acabou de criar a seção, então
   // o título também não existia até agora e entra com ela.
   const isTitleEntering = revealPhase === 'reserved' || revealPhase === 'entering'
@@ -348,6 +353,23 @@ export function HomeOpenEntries({
     return () => window.clearTimeout(timer)
   }, [revealPhase])
 
+  // Quando uma de duas entradas sai, a que fica assume a primeira posição. Se o
+  // card que sai era o segundo, e a pessoa rolou até ele para vender, é o
+  // carrossel que precisa voltar; se era o primeiro, o recolhimento da largura
+  // já traz o outro e este scroll não tem o que fazer.
+  useEffect(() => {
+    if (leavingSide === null || stayingCount !== 1) return
+
+    const track = trackRef.current
+
+    if (!track || track.scrollLeft === 0) return
+
+    track.scrollTo({
+      left: 0,
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+    })
+  }, [leavingSide, stayingCount])
+
   // O carrossel só se reposiciona quando a lista muda: na entrada ele para no
   // card revelado, para a revelação não acontecer fora da tela, e na saída
   // volta ao primeiro. Depois disso a posição é de quem está navegando.
@@ -390,6 +412,7 @@ export function HomeOpenEntries({
       className="home-open-entries"
       aria-labelledby="home-open-entries-title"
       data-entry-count={visibleCount}
+      data-staying-count={stayingCount}
       data-node-id="497:12722"
       ref={sectionRef}
     >
@@ -424,7 +447,7 @@ export function HomeOpenEntries({
           ))}
         </div>
 
-        {visibleCount > 1 && (
+        {stayingCount > 1 && (
           <div className="home-open-entries__bullets" aria-hidden="true">
             {visibleItems.map(({ entry }, index) => (
               <span
