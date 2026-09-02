@@ -5,11 +5,11 @@
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado localmente; sem Pull Request, sem merge e sem deploy, por decisão da pessoa usuária ("não é para subir em produção, vamos testar local antes")
+- Status: concluído — implementado, validado, mesclado pelo PR #31 e publicado. O merge foi autorizado depois do teste local no celular; a publicação em `https://design-draftea.github.io/pulse/` foi verificada com a consulta `granularity=60` respondendo `200` e a série começando exatamente no início da rodada
 - Objetivo: permitir arrastar o gráfico para horários anteriores da rodada corrente, com botão de retorno ao vivo, e preencher com candles de 1 minuto o trecho anterior à abertura da página
 - Escopo acordado: pan + `En vivo` + backfill, sem zoom. A ausência de zoom foi apontada antes da implementação: a janela é de aproximadamente `9,8s` a `24px/s`, então alcançar o início da rodada exige vários gestos
 - Critérios de aceite: o arrasto não rouba a rolagem vertical da página; o limite à esquerda é o ponto mais antigo da série; chegar ao presente volta ao estado ao vivo; a linha continua desenhada no trecho preenchido por candles; o domínio vertical acompanha a janela visível; indicador direcional e entradas simuladas ficam suprimidos enquanto arrastado; a virada de rodada volta ao vivo
-- Branch/worktree: `feature/chart-time-pan`, criada a partir da `main` sincronizada, ainda não publicada
+- Branch/worktree: `feature/chart-time-pan`, mesclada pelo PR #31 em `7971051` e removida; `main` local sincronizada com `origin/main`
 
 ## Alterações realizadas
 
@@ -28,6 +28,8 @@
 - Validação no navegador: feita em um harness temporário, já removido, porque o painel do navegador desta sessão fica oculto e o Chrome suspende `requestAnimationFrame` nessa condição, o que congela o laço de render do gráfico. O harness trocava `requestAnimationFrame` por temporizadores. Confirmados: arrasto de `240px` movendo exatamente `10s`, limite à esquerda em `ponto mais antigo + vão da janela`, gesto vertical não arrastando, supressão do indicador e das entradas, domínio acompanhando a janela, linha contínua no trecho de 1 minuto e retorno ao vivo pelo botão.
 - Validação no app real em `localhost:5174`: a consulta com `granularity=60` sai na abertura, a série passou a começar exatamente no início da rodada (`data-series-start` igual a `roundStart`) e o arrasto ativa `data-panned` e a pílula `En vivo`.
 - Não validado ainda: inércia e retorno animado em uso real, e a convivência do gesto com a rolagem vertical em um toque de verdade. Ambos dependem de `requestAnimationFrame` e de toque real, indisponíveis no painel oculto desta sessão.
+- Etapas seguintes concluídas nesta ordem: push da branch, PR #31, merge por commit de merge com remoção da branch, e o deploy automático de `deploy-pages.yml`, cujo build e deploy terminaram com sucesso. Os marcadores da mudança foram conferidos nos assets publicados: `price-chart__live-button`, `price-chart__direction-clear--closed`, `price-chart-value-right`, `live-indicator-size`, `touch-action:pan-y` e `user-select:none` no CSS; `Volver al precio en vivo` e `granularity` no JS.
+- Pendência conhecida, não corrigida: abrir a página no primeiro minuto de uma rodada pula o preenchimento daquela rodada. `fetchBtcRoundMinutePoints` devolve vazio antes de um minuto decorrido e o efeito só repete a consulta em caso de erro, não nesse retorno vazio. O impacto é limitado ao trecho entre o início da rodada e a chegada, sempre menor que `60s`, e desaparece na virada seguinte, quando a série é semeada no `roundStart`. A correção seria reagendar a consulta para o instante em que a rodada completa um minuto.
 
 - `src/components/MobileOnly/MobileOnly.tsx`: título, descrição e nota de largura traduzidos para espanhol do México (`Versión solo móvil`, `Esta aplicación fue diseñada exclusivamente para dispositivos móviles.…`, `Ancho máximo compatible: 499px`). Somente conteúdo de texto mudou; marcação, classes e SVG permanecem idênticos.
 - Varredura de português no código-fonte: os únicos outros trechos são mensagens internas de `Error` em `src/services/marketData.ts` e um comentário em `src/hooks/useBtcMarketRound.ts`, nenhum deles renderizado na interface. Ficaram como estão.
