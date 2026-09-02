@@ -1,11 +1,17 @@
 import type { OutcomeSide } from './outcomeMarket'
 
-export const PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v3'
+export const PROTOTYPE_WALLET_STORAGE_KEY = 'pulse.prototype-wallet.v4'
 export const LEGACY_PROTOTYPE_WALLET_STORAGE_KEYS = [
   'pulse.prototype-wallet.v1',
   'pulse.prototype-wallet.v2',
+  'pulse.prototype-wallet.v3',
 ] as const
-export const PROTOTYPE_WALLET_VERSION = 3
+// A v4 acrescenta participações e saldo resultante a cada movimento. Estados
+// da v3 não têm esses campos e não permitem derivá-los com segurança: duas
+// compras na mesma rodada e lado colapsam numa única entrada liquidada, então
+// o rateio ficaria arbitrário. Como o histórico é simulado, a virada de versão
+// recarrega o seed completo em vez de migrar pela metade.
+export const PROTOTYPE_WALLET_VERSION = 4
 export const INITIAL_DEPOSIT_CENTS = 200_000
 export const SEEDED_AVAILABLE_BALANCE_CENTS = 204_000
 
