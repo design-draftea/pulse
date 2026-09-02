@@ -95,6 +95,14 @@
   scroll-snap-align: start;
 }
 
+/* Os `24px` livres à direita existem para mostrar que há um segundo card. Com
+   uma entrada só não há o que espiar, então o card ocupa a largura inteira,
+   alinhado às mesmas margens de `16px` do resto da Home. */
+.home-open-entries[data-entry-count='1'] .home-open-entry-card {
+  width: calc(100vw - 32px);
+  min-width: calc(100vw - 32px);
+}
+
 /* Mesma composição de `PreviousRounds`: a estrutura reserva 1px transparente e
    o token de 12% é desenhado sobre o próprio card. */
 .home-open-entry-card::after {
