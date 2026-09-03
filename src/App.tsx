@@ -29,7 +29,10 @@ import {
 } from './components/Navbar/Navbar'
 import { MarketPriceChart } from './components/MarketPriceChart/MarketPriceChart'
 import { PriceComparison } from './components/PriceComparison/PriceComparison'
-import { ProfileBottomSheet } from './components/ProfileBottomSheet'
+import {
+  ProfileBottomSheet,
+  type ProfileBottomSheetMode,
+} from './components/ProfileBottomSheet'
 import { PulseFooter } from './components/PulseFooter/PulseFooter'
 import {
   PreviousRounds,
@@ -131,6 +134,7 @@ function App() {
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [profileSheetMode, setProfileSheetMode] = useState<ProfileBottomSheetMode>('profile')
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(
     LOCKED_BETSLIP_PREVIEW_MODE ? 'up' : null,
   )
@@ -591,6 +595,12 @@ function App() {
   }, [])
 
   const handleProfileOpen = useCallback(() => {
+    setProfileSheetMode('profile')
+    setIsProfileOpen(true)
+  }, [])
+
+  const handleHelpOpen = useCallback(() => {
+    setProfileSheetMode('help')
     setIsProfileOpen(true)
   }, [])
 
@@ -797,7 +807,7 @@ function App() {
           onAnimatedRoundSeen={handleAnimatedRoundSeen}
           rounds={visiblePreviousRounds}
         />
-        <PulseFooter />
+        <PulseFooter onHelpOpen={handleHelpOpen} />
       </main>
     </>
   )
@@ -927,6 +937,7 @@ function App() {
       )}
 
       <ProfileBottomSheet
+        initialMode={profileSheetMode}
         isOpen={isProfileOpen}
         metrics={profileMetrics}
         onClose={handleProfileClose}

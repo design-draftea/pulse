@@ -103,18 +103,29 @@
   transform: translateX(-50%);
 }
 
-.profile-sheet__header h2 {
+/* Os tres titulos ficam empilhados na mesma celula do header e trocam por
+   fade cruzado, do mesmo jeito que o bottom sheet do draftaco-v0. */
+.profile-sheet__titles {
+  display: grid;
+  min-width: 0;
+  grid-template-areas: 'title';
+}
+
+.profile-sheet__title {
   margin: 8px 0 0;
+  grid-area: title;
   color: var(--color-fill-primary);
   font-size: 16px;
   font-weight: 700;
   line-height: 24px;
   text-align: center;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
 }
 
-.profile-sheet__header-spacer {
-  width: 48px;
-  height: 56px;
+.profile-sheet__title--visible {
+  opacity: 1;
+  transition-delay: 150ms;
 }
 
 .profile-sheet__close {
@@ -131,26 +142,101 @@
   cursor: pointer;
 }
 
+.profile-sheet__header-action {
+  appearance: none;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 48px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0 0 8px;
+  border: 0;
+  border-radius: 56px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+
+.profile-sheet__header-action--visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 150ms;
+}
+
+.profile-sheet__header-action:disabled {
+  cursor: default;
+}
+
 .profile-sheet__close img {
   display: block;
   width: 20px;
   height: 20px;
 }
 
-.profile-sheet__content {
+/* Palco de rotas do bottom sheet, portado do draftaco-v0: as telas ficam
+   todas montadas, empilhadas em cima do palco, e deslizam na horizontal.
+   Quem esta atras descansa a esquerda, quem esta adiante descansa a direita. */
+.profile-sheet__stage {
   position: relative;
   z-index: 1;
+  display: block;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.profile-sheet__route {
+  position: absolute;
   display: flex;
+  min-width: 0;
+  min-height: 0;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(100%, 0, 0);
+  transition:
+    transform 300ms ease-out,
+    opacity 300ms ease-out;
+  will-change: transform, opacity;
+}
+
+.profile-sheet__route--past {
+  transform: translate3d(-100%, 0, 0);
+}
+
+.profile-sheet__route--current {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+}
+
+.profile-sheet__content {
+  display: flex;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
   gap: 24px;
-  padding: 4px 16px 32px;
+  padding: 16px;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-sheet__route,
+  .profile-sheet__title,
+  .profile-sheet__header-action {
+    transition: none;
+  }
 }
 
 .profile-sheet__content::-webkit-scrollbar,
@@ -594,9 +680,262 @@
   outline-offset: -2px;
 }
 
+.profile-sheet__header-action:focus-visible,
+.profile-sheet__menu-button:focus-visible,
+.profile-sheet__help-action:focus-visible,
+.profile-sheet__help-faq-item:focus-visible {
+  outline: 2px solid var(--color-fill-primary);
+  outline-offset: -2px;
+}
+
 .profile-sheet__info-trigger:focus-visible {
   border-radius: 4px;
   outline-offset: 2px;
+}
+
+.profile-sheet__menu-button,
+.profile-sheet__help-action,
+.profile-sheet__help-faq-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.profile-sheet__help {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0 0;
+}
+
+.profile-sheet__help-essentials {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-sheet__help-essentials-title {
+  margin: 0;
+  color: var(--color-fill-primary);
+  font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.profile-sheet__help-actions {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-sheet__help-action {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 0 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  overflow: clip;
+  border: 1px solid var(--color-fill-opacity-quaternary);
+  border-radius: 16px;
+  text-align: center;
+}
+
+/* O nó 457:8809 do Figma usa fillOpacityQuinary só no primeiro card. */
+.profile-sheet__help-action:first-child {
+  border-color: var(--color-fill-opacity-quinary);
+}
+
+/* Ellipse 1 do Figma: círculo de 50px com desfoque gaussiano de 44px,
+   centrado no topo do card e recortado pelo overflow. */
+.profile-sheet__help-action-glow {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--help-action-glow, var(--color-fill-primary));
+  filter: blur(44px);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.profile-sheet__help-action-icon {
+  position: relative;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  overflow: clip;
+}
+
+.profile-sheet__help-action-icon img {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+.profile-sheet__help-action-title {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+  color: var(--color-fill-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+}
+
+.profile-sheet__help-faq h3,
+.profile-sheet__help-faq-item span {
+  color: var(--color-fill-primary);
+}
+
+.profile-sheet__help-faq h3 {
+  margin: 0 0 8px;
+  color: var(--color-fill-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
+}
+
+.profile-sheet__help-faq-list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+
+.profile-sheet__help-faq-item {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  padding: 12px 0;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-fill-secondary);
+  border-bottom: 1px solid var(--color-fill-opacity-quaternary);
+}
+
+.profile-sheet__help-faq-item span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--color-fill-secondary);
+  font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
+}
+
+.profile-sheet__help-faq-item img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+
+.profile-sheet__help-question {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.profile-sheet__help-question-title {
+  margin: 0;
+  color: var(--color-fill-primary);
+  font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
+  font-size: 22px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 33px;
+}
+
+.profile-sheet__help-question-answer {
+  margin: 0;
+  color: var(--color-fill-secondary);
+  font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 21px;
+}
+
+.profile-sheet__help-glossary {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.profile-sheet__help-glossary-item {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Nó 467:12038 do Figma: a coluna do traço estica na altura da caixa e
+   tem 12px de respiro, o que deixa o traço no centro da primeira linha
+   do termo, que tem 24px de altura. */
+.profile-sheet__help-glossary-line {
+  width: 16px;
+  flex: 0 0 16px;
+  align-self: stretch;
+  padding: 12px 0;
+}
+
+.profile-sheet__help-glossary-line::before {
+  display: block;
+  width: 16px;
+  height: 1px;
+  background: var(--color-fill-primary);
+  content: '';
+}
+
+.profile-sheet__help-glossary-content {
+  display: flex;
+  min-width: 0;
+  flex: 1 0 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-sheet__help-glossary-item h3 {
+  margin: 0;
+  color: var(--color-fill-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.profile-sheet__help-glossary-item p {
+  margin: 0;
+  color: var(--color-fill-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
+}
+
+.profile-sheet__help-spacer {
+  height: 0;
+  flex: 0 0 0;
 }
 
 @keyframes profile-sheet-enter {

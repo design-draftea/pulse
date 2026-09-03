@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -15,11 +16,15 @@ import closeIcon from '../../assets/iconClose.svg'
 import personalDataIcon from '../../assets/iconDados.svg'
 import depositIcon from '../../assets/iconDeposito.svg'
 import faqIcon from '../../assets/iconFaq.svg'
+import playIcon from '../../assets/iconPlay.svg'
 import privacyIcon from '../../assets/iconPrivacidade.svg'
 import logoutIcon from '../../assets/iconSair.svg'
 import withdrawIcon from '../../assets/iconSaque.svg'
 import supportIcon from '../../assets/iconSuporte.svg'
 import termsIcon from '../../assets/iconTermos.svg'
+import speakIcon from '../../assets/iconFalar.svg'
+import glossaryIcon from '../../assets/iconGlossario.svg'
+import backIcon from '../../assets/iconVoltar.svg'
 import { InfoModal } from '../InfoModal'
 import {
   profileInfoById,
@@ -67,6 +72,8 @@ export interface ProfileBottomSheetMetrics {
 }
 
 interface ProfileBottomSheetProps {
+  // Tela em que o sheet abre. O rodapé da Home entra direto no Centro de ayuda.
+  initialMode?: ProfileBottomSheetMode
   isOpen: boolean
   metrics: ProfileBottomSheetMetrics
   onClose: () => void
@@ -83,32 +90,224 @@ interface MenuSection {
   id: string
   title: string
   items: Array<{
+    id: string
     label: string
     icon: string
+    openMode?: ProfileBottomSheetMode
   }>
+}
+
+export type ProfileBottomSheetMode = 'profile' | 'help' | 'help-question' | 'help-glossary'
+
+const ROUTE_MOTION_MS = 300
+
+// Profundidade de cada rota. É ela que decide de que lado a tela descansa
+// quando não é a ativa: as mais rasas ficam à esquerda, as mais fundas à direita.
+const routeDepthByMode: Record<ProfileBottomSheetMode, number> = {
+  profile: 0,
+  help: 1,
+  'help-question': 2,
+  'help-glossary': 2,
+}
+
+interface HelpFaqItem {
+  answer: string
+  id: string
+  question: string
+}
+
+interface HelpGlossaryItem {
+  description: string
+  id: string
+  title: string
 }
 
 const menuSections: MenuSection[] = [
   {
     id: 'account',
     title: 'MI CUENTA',
-    items: [{ label: 'Mis datos', icon: personalDataIcon }],
+    items: [{ id: 'my-data', label: 'Mis datos', icon: personalDataIcon }],
   },
   {
     id: 'support',
     title: 'SOPORTE',
     items: [
-      { label: 'Soporte', icon: supportIcon },
-      { label: 'Preguntas frecuentes', icon: faqIcon },
+      { id: 'support-help', label: 'Soporte', icon: supportIcon, openMode: 'help' },
+      { id: 'support-faq', label: 'Preguntas frecuentes', icon: faqIcon, openMode: 'help' },
     ],
   },
   {
     id: 'about',
     title: 'ACERCA DE',
     items: [
-      { label: 'Términos y condiciones', icon: termsIcon },
-      { label: 'Aviso de privacidad', icon: privacyIcon },
+      { id: 'terms', label: 'Términos y condiciones', icon: termsIcon },
+      { id: 'privacy', label: 'Aviso de privacidad', icon: privacyIcon },
     ],
+  },
+]
+
+const helpQuickActionItems: Array<{ id: string; label: string; icon: string; glow: string }> = [
+  {
+    id: 'help-speak',
+    label: 'Hablar con alguien',
+    icon: speakIcon,
+    glow: 'var(--color-component-level-content)',
+  },
+  { id: 'help-play', label: 'Aprende a jugar', icon: playIcon, glow: 'var(--color-fill-primary)' },
+  {
+    id: 'help-glossary',
+    label: 'Glosario en Draftea',
+    icon: glossaryIcon,
+    glow: 'var(--color-fill-warning)',
+  },
+]
+
+const helpQuickActionItemsWithMode: Array<{
+  id: string
+  label: string
+  icon: string
+  glow: string
+  openMode?: ProfileBottomSheetMode
+}> = helpQuickActionItems.map((item) => ({
+  ...item,
+  openMode: item.id === 'help-glossary' ? 'help-glossary' : undefined,
+}))
+
+const helpFaqItems: HelpFaqItem[] = [
+  {
+    id: 'what-is-pulse',
+    question: '¿Qué es Draftea Pulse?',
+    answer:
+      'Draftea Pulse es una experiencia en la que puedes predecir si el precio de Bitcoin terminará arriba o abajo de un valor de referencia. Cada predicción ocurre dentro de una ronda de 15 minutos. En esta versión, el saldo y las operaciones son simulados.',
+  },
+  {
+    id: 'how-round-works',
+    question: '¿Cómo funciona una ronda de 15 minutos?',
+    answer:
+      'Cada ronda comienza con un precio objetivo de Bitcoin. Durante los 15 minutos, puedes elegir si el precio terminará arriba o abajo de ese valor. Cuando el tiempo se acaba, el precio final se compara con el precio objetivo para definir el resultado.',
+  },
+  {
+    id: 'can-play-after-start',
+    question: '¿Puedo participar después de que la ronda ya comenzó?',
+    answer:
+      'Sí. Puedes entrar mientras la ronda siga abierta y las opciones de compra estén disponibles. Antes de confirmar, revisa cuánto tiempo queda, ya que el precio de las participaciones puede cambiar durante la ronda.',
+  },
+  {
+    id: 'what-is-up-down',
+    question: '¿Qué significa elegir UP o DOWN?',
+    answer:
+      'Elige UP si crees que el precio final de Bitcoin será igual o mayor que el precio objetivo. Elige DOWN si crees que terminará por debajo. Tu selección queda asociada a esa ronda específica.',
+  },
+  {
+    id: 'what-is-target-price',
+    question: '¿Qué es el precio objetivo?',
+    answer:
+      'Es el precio de Bitcoin registrado al inicio de la ronda y sirve como referencia para definir el resultado. Este valor permanece fijo durante los 15 minutos, aunque el precio actual siga subiendo o bajando.',
+  },
+  {
+    id: 'where-price-comes-from',
+    question: '¿De dónde viene el precio de Bitcoin que muestra Pulse?',
+    answer:
+      'Pulse utiliza fuentes externas de datos de mercado para mostrar el precio de Bitcoin. El precio objetivo se registra al inicio de cada ronda, mientras que el precio actual se actualiza durante la experiencia.',
+  },
+  {
+    id: 'price-difference',
+    question: '¿Por qué el precio puede ser diferente al de otras plataformas?',
+    answer:
+      'Cada plataforma puede consultar una fuente distinta o actualizar el precio en momentos diferentes. Por eso pueden existir pequeñas variaciones entre los valores mostrados. Para definir el resultado, Pulse utiliza la referencia establecida para la ronda.',
+  },
+  {
+    id: 'possible-win',
+    question: '¿Cuánto puedo recibir si acierto?',
+    answer:
+      'Cada participación ganadora paga US$1 al finalizar la ronda. El monto total dependerá de cuántas participaciones tengas. Antes de confirmar una compra, puedes consultar el retorno potencial estimado.',
+  },
+  {
+    id: 'can-sell-before-end',
+    question: '¿Puedo vender mi participación antes de que termine la ronda?',
+    answer:
+      'Sí. Puedes vender mientras esta opción esté disponible y exista un precio de venta. El monto que recibirás depende del valor de tus participaciones en ese momento y puede ser mayor o menor que el monto utilizado en la compra.',
+  },
+  {
+    id: 'where-to-check-entries',
+    question: '¿Dónde puedo consultar mis entradas y resultados?',
+    answer:
+      'En la sección Entradas puedes acompañar tus participaciones abiertas y consultar las que ya terminaron. Las entradas se organizan entre Abiertas, Ganadas y Pasadas, según su estado.',
+  },
+  {
+    id: 'equal-price-result',
+    question: '¿Qué pasa si el precio final es igual al precio objetivo?',
+    answer:
+      'Cuando ambos precios son iguales, el resultado se considera UP. La ronda se liquida siguiendo esta regla y las participaciones ganadoras se actualizan en tu saldo.',
+  },
+  {
+    id: 'what-if-round-canceled',
+    question: '¿Qué pasa cuando se cancela una ronda?',
+    answer:
+      'Si una ronda se cancela, las participaciones asociadas también se cancelan. El monto utilizado en la compra se devuelve a tu saldo y la entrada queda registrada como cancelada.',
+  },
+]
+
+const helpGlossaryItems: HelpGlossaryItem[] = [
+  {
+    description: 'Es un activo digital cuyo precio cambia constantemente. En Draftea Pulse, este precio se utiliza para crear las rondas y definir sus resultados.',
+    id: 'bitcoin',
+    title: 'Bitcoin',
+  },
+  {
+    description: 'Es el periodo de 15 minutos en el que puedes elegir UP o DOWN. Cada ronda tiene su propio precio objetivo, tiempo restante y resultado.',
+    id: 'round',
+    title: 'Ronda',
+  },
+  {
+    description: 'Es el precio de Bitcoin registrado al inicio de la ronda. Sirve como referencia para determinar si el resultado será UP o DOWN.',
+    id: 'target-price',
+    title: 'Precio objetivo',
+  },
+  {
+    description: 'Es el precio más reciente de Bitcoin mostrado durante la ronda. Puede cambiar varias veces antes de que termine el tiempo.',
+    id: 'current-price',
+    title: 'Precio actual',
+  },
+  {
+    description: 'Es el precio utilizado al cierre de la ronda. Se compara con el precio objetivo para definir el resultado.',
+    id: 'final-price',
+    title: 'Precio final',
+  },
+  {
+    description: 'Es la opción que representa una subida. Gana cuando el precio final es igual o mayor que el precio objetivo.',
+    id: 'up',
+    title: 'UP',
+  },
+  {
+    description: 'Es la opción que representa una bajada. Gana cuando el precio final queda por debajo del precio objetivo.',
+    id: 'down',
+    title: 'DOWN',
+  },
+  {
+    description: 'Es la unidad que recibes al comprar UP o DOWN. Su valor puede cambiar durante la ronda y cada participación ganadora paga US$1.',
+    id: 'participation',
+    title: 'Participación',
+  },
+  {
+    description: 'Es el registro de tu participación en una ronda. Incluye información como tu selección, el monto utilizado y el estado del resultado.',
+    id: 'entry',
+    title: 'Entrada',
+  },
+  {
+    description: 'Es el total de participaciones que mantienes en UP o DOWN dentro de una ronda. Puede aumentar con nuevas compras o disminuir cuando realizas una venta.',
+    id: 'position',
+    title: 'Posición',
+  },
+  {
+    description: 'Es el monto estimado que recibirías si tu selección gana. Puede cambiar según la cantidad y el precio de las participaciones que compres.',
+    id: 'potential-return',
+    title: 'Retorno potencial',
+  },
+  {
+    description: 'Es el proceso que ocurre después del cierre de la ronda. En ese momento se confirma el resultado, se calculan las participaciones ganadoras y se actualiza el saldo.',
+    id: 'settlement',
+    title: 'Liquidación',
   },
 ]
 
@@ -228,6 +427,7 @@ function AnimatedCurrencyValue({
 }
 
 export function ProfileBottomSheet({
+  initialMode = 'profile',
   isOpen,
   metrics,
   onClose,
@@ -238,8 +438,17 @@ export function ProfileBottomSheet({
   const [activeInfoId, setActiveInfoId] = useState<ProfileInfoId | null>(null)
   const [isHeaderDragging, setIsHeaderDragging] = useState(false)
   const [isHeaderDragClosing, setIsHeaderDragClosing] = useState(false)
+  const [activeMode, setActiveMode] = useState<ProfileBottomSheetMode>('profile')
+  const [activeHelpQuestionId, setActiveHelpQuestionId] = useState<string | null>(null)
+  const [isRouteTransitioning, setIsRouteTransitioning] = useState(false)
+  // Tela em que o sheet abriu. É a raiz da pilha, então é ela que decide se
+  // existe para onde voltar. Aberto pelo rodapé da Home, o Centro de ayuda é
+  // a raiz e o header não mostra a seta.
+  const [rootMode, setRootMode] = useState<ProfileBottomSheetMode>('profile')
   const isClosingRef = useRef(false)
   const closeTimerRef = useRef<number | null>(null)
+  const routeTimerRef = useRef<number | null>(null)
+  const routeContentRefs = useRef<Partial<Record<ProfileBottomSheetMode, HTMLDivElement | null>>>({})
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const infoReturnFocusRef = useRef<HTMLElement | null>(null)
   const dragRef = useRef<HeaderDragState | null>(null)
@@ -251,6 +460,12 @@ export function ProfileBottomSheet({
     if (closeTimerRef.current === null) return
     window.clearTimeout(closeTimerRef.current)
     closeTimerRef.current = null
+  }, [])
+
+  const clearRouteMotion = useCallback(() => {
+    if (routeTimerRef.current === null) return
+    window.clearTimeout(routeTimerRef.current)
+    routeTimerRef.current = null
   }, [])
 
   const finishClose = useCallback(() => {
@@ -290,6 +505,10 @@ export function ProfileBottomSheet({
     const openTimer = window.setTimeout(() => {
       setShouldRender(true)
       setIsClosing(false)
+      setActiveMode(initialMode)
+      setRootMode(initialMode)
+      setActiveHelpQuestionId(null)
+      setIsRouteTransitioning(false)
       setIsBalanceExpanded(true)
       setActiveInfoId(null)
       setIsHeaderDragging(false)
@@ -303,7 +522,7 @@ export function ProfileBottomSheet({
       window.clearTimeout(openTimer)
       if (focusFrame !== null) window.cancelAnimationFrame(focusFrame)
     }
-  }, [clearCloseTimer, isOpen])
+  }, [clearCloseTimer, initialMode, isOpen])
 
   useEffect(() => {
     if (isOpen || !shouldRender) return undefined
@@ -311,7 +530,10 @@ export function ProfileBottomSheet({
     return () => window.cancelAnimationFrame(closeFrame)
   }, [isOpen, requestClose, shouldRender])
 
-  useEffect(() => () => clearCloseTimer(), [clearCloseTimer])
+  useEffect(() => () => {
+    clearCloseTimer()
+    clearRouteMotion()
+  }, [clearCloseTimer, clearRouteMotion])
 
   useEffect(() => {
     if (!shouldRender) return undefined
@@ -344,6 +566,42 @@ export function ProfileBottomSheet({
     setActiveInfoId(null)
     window.requestAnimationFrame(() => returnFocusTarget?.focus())
   }, [])
+
+  const goToMode = useCallback((
+    nextMode: ProfileBottomSheetMode,
+    nextQuestionId: string | null = null,
+  ) => {
+    if (nextMode === activeMode || isRouteTransitioning) return
+
+    clearRouteMotion()
+    if (nextQuestionId !== null) setActiveHelpQuestionId(nextQuestionId)
+    // A rota de destino ainda está fora da tela, então zerar a rolagem agora
+    // não é visível e ela entra sempre mostrando o começo do conteúdo.
+    const nextContent = routeContentRefs.current[nextMode]
+    if (nextContent) nextContent.scrollTop = 0
+    setIsRouteTransitioning(true)
+    setActiveMode(nextMode)
+
+    routeTimerRef.current = window.setTimeout(() => {
+      routeTimerRef.current = null
+      // A pergunta só é esquecida depois que a rota terminou de sair. Limpar
+      // antes esvaziaria a tela no meio do trajeto.
+      if (nextMode !== 'help-question') setActiveHelpQuestionId(null)
+      setIsRouteTransitioning(false)
+    }, ROUTE_MOTION_MS)
+  }, [activeMode, clearRouteMotion, isRouteTransitioning])
+
+  const openProfileMode = useCallback(() => {
+    goToMode('profile')
+  }, [goToMode])
+
+  const openHelpListMode = useCallback(() => {
+    goToMode('help')
+  }, [goToMode])
+
+  const openHelpQuestion = useCallback((id: string) => {
+    goToMode('help-question', id)
+  }, [goToMode])
 
   const handleHeaderPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (isClosing || isHeaderDragClosing) return
@@ -460,6 +718,270 @@ export function ProfileBottomSheet({
     : metrics.netResultCents < 0
       ? 'negative'
       : 'neutral'
+  const isHelpMode = activeMode === 'help'
+    || activeMode === 'help-question'
+    || activeMode === 'help-glossary'
+  const isDeepHelpMode = activeMode === 'help-question' || activeMode === 'help-glossary'
+  const canGoBack = routeDepthByMode[activeMode] > routeDepthByMode[rootMode]
+  const sheetTitles: Array<{ mode: ProfileBottomSheetMode; label: string }> = [
+    { mode: 'profile', label: 'Mi perfil' },
+    { mode: 'help', label: 'Centro de ayuda' },
+    { mode: 'help-glossary', label: 'Glosario' },
+  ]
+  // A pergunta aberta continua sob o título do Centro de ayuda, então as duas
+  // rotas compartilham o mesmo título e ele não pisca ao entrar numa pergunta.
+  const titleMode: ProfileBottomSheetMode = activeMode === 'help-question'
+    ? 'help'
+    : activeMode
+  const sheetTitle = sheetTitles.find((title) => title.mode === titleMode)?.label ?? 'Mi perfil'
+  const sheetCloseLabel = isHelpMode
+    ? activeMode === 'help-glossary'
+      ? 'Cerrar glosario'
+      : 'Cerrar ayuda'
+    : 'Cerrar mi perfil'
+  const selectedHelpQuestion = helpFaqItems.find(
+    (faqItem) => faqItem.id === activeHelpQuestionId,
+  )
+
+  const renderProfileView = (
+    <>
+      <section
+        className={`profile-sheet__balance${isBalanceExpanded ? ' profile-sheet__balance--expanded' : ''}`}
+        aria-label="Resumen del saldo"
+      >
+        <button
+          className="profile-sheet__balance-summary"
+          type="button"
+          aria-expanded={isBalanceExpanded}
+          aria-controls="profile-sheet-balance-breakdown"
+          onClick={() => setIsBalanceExpanded((current) => !current)}
+        >
+          <span className="profile-sheet__balance-heading">
+            <strong>{formatBalance(metrics.availableBalanceCents)}</strong>
+            <span>Disponible para jugar</span>
+          </span>
+          <span className="profile-sheet__balance-chevron" aria-hidden="true">
+            <img src={chevronUpIcon} alt="" />
+          </span>
+        </button>
+
+        <div
+          className="profile-sheet__balance-breakdown"
+          id="profile-sheet-balance-breakdown"
+          aria-hidden={!isBalanceExpanded}
+        >
+          <span className="profile-sheet__balance-row">
+            <button
+              className="profile-sheet__label-with-info profile-sheet__info-trigger"
+              type="button"
+              aria-haspopup="dialog"
+              aria-label="Más información sobre Saldo disponible"
+              onClick={(event) => openInfoModal('availableBalance', event.currentTarget)}
+            >
+              Saldo disponible
+              <img src={infoIcon} alt="" aria-hidden="true" />
+            </button>
+            <strong>{formatBalance(metrics.availableBalanceCents)}</strong>
+          </span>
+          <span className="profile-sheet__balance-row">
+            <button
+              className="profile-sheet__label-with-info profile-sheet__info-trigger"
+              type="button"
+              aria-haspopup="dialog"
+              aria-label="Más información sobre Portafolio total"
+              onClick={(event) => openInfoModal('portfolioTotal', event.currentTarget)}
+            >
+              Portafolio total
+              <img src={infoIcon} alt="" aria-hidden="true" />
+            </button>
+            <AnimatedCurrencyValue
+              delayMs={80}
+              formatter={balanceFormatter}
+              valueCents={metrics.portfolioTotalCents}
+            />
+          </span>
+        </div>
+
+        <div className="profile-sheet__balance-actions" aria-label="Acciones de saldo no disponibles en el prototipo">
+          <div className="profile-sheet__balance-action profile-sheet__balance-action--secondary" aria-hidden="true">
+            <img src={withdrawIcon} alt="" />
+            <span>Retirar</span>
+          </div>
+          <div className="profile-sheet__balance-action profile-sheet__balance-action--primary" aria-hidden="true">
+            <img src={depositIcon} alt="" />
+            <span>Depositar</span>
+          </div>
+        </div>
+      </section>
+
+      <div className="profile-sheet__metrics-scroll" aria-label="Métricas de la cuenta">
+        <div className="profile-sheet__metrics">
+          {metricCards.map((card, index) => (
+            <article className="profile-sheet__metric" key={card.label}>
+              <button
+                className="profile-sheet__label-with-info profile-sheet__info-trigger"
+                type="button"
+                aria-haspopup="dialog"
+                aria-label={`Más información sobre ${card.label}`}
+                onClick={(event) => openInfoModal(card.infoId, event.currentTarget)}
+              >
+                {card.label}
+                <img src={infoIcon} alt="" aria-hidden="true" />
+              </button>
+              <AnimatedCurrencyValue
+                className={card.isNetResult
+                  ? `profile-sheet__metric-value profile-sheet__metric-value--${netResultTone}`
+                  : 'profile-sheet__metric-value'}
+                delayMs={160 + index * 80}
+                formatter={card.isNetResult
+                  ? netResultFormatter
+                  : metricFormatter}
+                valueCents={card.value}
+              />
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="profile-sheet__menu-groups">
+        {menuSections.map((section) => (
+          <section
+            className="profile-sheet__menu-section"
+            key={section.id}
+            aria-labelledby={`profile-sheet-${section.id}`}
+          >
+            <h3 id={`profile-sheet-${section.id}`}>{section.title}</h3>
+            <div className="profile-sheet__menu-items">
+              {section.items.map((item) => (
+                item.openMode ? (
+                  <button
+                    className="profile-sheet__menu-item profile-sheet__menu-button"
+                    key={item.id}
+                    type="button"
+                    onClick={() => goToMode(item.openMode!)}
+                  >
+                    <span className="profile-sheet__menu-icon" aria-hidden="true">
+                      <img src={item.icon} alt="" />
+                    </span>
+                    <span className="profile-sheet__menu-body">
+                      <span>{item.label}</span>
+                      <img src={chevronRightIcon} alt="" aria-hidden="true" />
+                    </span>
+                  </button>
+                ) : (
+                  <div className="profile-sheet__menu-item" key={item.id}>
+                    <span className="profile-sheet__menu-icon" aria-hidden="true">
+                      <img src={item.icon} alt="" />
+                    </span>
+                    <span className="profile-sheet__menu-body">
+                      <span>{item.label}</span>
+                      <img src={chevronRightIcon} alt="" aria-hidden="true" />
+                    </span>
+                  </div>
+                )
+              ))}
+            </div>
+          </section>
+        ))}
+
+        <section className="profile-sheet__footer" aria-label="Sesión y versión">
+          <div className="profile-sheet__menu-item profile-sheet__menu-item--logout">
+            <span className="profile-sheet__menu-icon" aria-hidden="true">
+              <img src={logoutIcon} alt="" />
+            </span>
+            <span className="profile-sheet__menu-body">
+              <span>Cerrar sesión</span>
+              <img src={chevronRightIcon} alt="" aria-hidden="true" />
+            </span>
+          </div>
+          <p>
+            www.draftea.mx operadora en México por Producciones Móviles S.A. de C.V., titular del permiso DGAJS/SCEVF/P-06/2005-TER en unión de Unocapali La Paz Operadora S.A. de C.V. de conformidad con los oficios DGJS/1580/2021 y DGJS/DCRCA/2420/2022. Juegos prohibidos para menores de edad, juegue responsablemente, no olvide que el principal propósito es la recreación, diversión y esparcimiento.
+          </p>
+          <p>VERSIÓN 2.4.5</p>
+        </section>
+      </div>
+    </>
+  )
+
+  const renderHelpView = (
+    <section className="profile-sheet__help">
+      <div className="profile-sheet__help-essentials">
+        <h3 className="profile-sheet__help-essentials-title">Esencial en Draftea</h3>
+        <div className="profile-sheet__help-actions">
+          {helpQuickActionItemsWithMode.map((action) => (
+            <button
+              key={action.id}
+              className="profile-sheet__help-action"
+              style={{ '--help-action-glow': action.glow } as CSSProperties}
+              type="button"
+              onClick={action.openMode
+                ? () => goToMode(action.openMode!)
+                : undefined}
+            >
+              <span className="profile-sheet__help-action-glow" aria-hidden="true" />
+              <span className="profile-sheet__help-action-icon" aria-hidden="true">
+                <img src={action.icon} alt="" />
+              </span>
+              <span className="profile-sheet__help-action-title">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="profile-sheet__help-faq">
+        <h3>Preguntas frecuentes</h3>
+        <div className="profile-sheet__help-faq-list">
+          {helpFaqItems.map((question) => (
+            <button
+              key={question.id}
+              className="profile-sheet__help-faq-item"
+              type="button"
+              onClick={() => openHelpQuestion(question.id)}
+            >
+              <span>{question.question}</span>
+              <img src={chevronRightIcon} alt="" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="profile-sheet__help-spacer" aria-hidden="true" />
+    </section>
+  )
+
+  const renderHelpGlossaryView = (
+    <section className="profile-sheet__help-glossary">
+      {helpGlossaryItems.map((item) => (
+        <article className="profile-sheet__help-glossary-item" key={item.id}>
+          <div className="profile-sheet__help-glossary-line" aria-hidden="true" />
+          <div className="profile-sheet__help-glossary-content">
+            <h3>{item.title}</h3>
+            <p>{item.description}</p>
+          </div>
+        </article>
+      ))}
+
+      <div className="profile-sheet__help-spacer" aria-hidden="true" />
+    </section>
+  )
+
+  const renderHelpQuestionView = selectedHelpQuestion ? (
+    <section className="profile-sheet__help-question">
+      <h3 className="profile-sheet__help-question-title">
+        {selectedHelpQuestion.question}
+      </h3>
+      <p className="profile-sheet__help-question-answer">
+        {selectedHelpQuestion.answer}
+      </p>
+    </section>
+  ) : null
+
+  const sheetRoutes: Array<{ mode: ProfileBottomSheetMode; view: ReactNode }> = [
+    { mode: 'profile', view: renderProfileView },
+    { mode: 'help', view: renderHelpView },
+    { mode: 'help-question', view: renderHelpQuestionView },
+    { mode: 'help-glossary', view: renderHelpGlossaryView },
+  ]
 
   return createPortal(
     <div className="profile-sheet__container" data-node-id="383:18489">
@@ -468,7 +990,7 @@ export function ProfileBottomSheet({
         className={`profile-sheet__overlay${isClosing ? ' profile-sheet__overlay--closing' : ''}`}
         style={OVERLAY_BLUR_STYLE}
         type="button"
-        aria-label="Cerrar mi perfil"
+        aria-label={sheetCloseLabel}
         onClick={() => requestClose()}
       />
 
@@ -482,170 +1004,81 @@ export function ProfileBottomSheet({
         ].filter(Boolean).join(' ')}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="profile-sheet-title"
+        aria-label={sheetTitle}
         inert={activeInfoId !== null}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
         onPointerCancel={cancelHeaderDrag}
         onPointerMove={handleHeaderPointerMove}
         onPointerUp={finishHeaderDrag}
-      >
+        >
         <header
           className="profile-sheet__header"
           onClickCapture={handleHeaderClickCapture}
           onPointerDown={handleHeaderPointerDown}
         >
-          <span className="profile-sheet__header-spacer" aria-hidden="true" />
-          <h2 id="profile-sheet-title">Mi perfil</h2>
+          <button
+            className={`profile-sheet__header-action${
+              canGoBack ? ' profile-sheet__header-action--visible' : ''
+            }`}
+            type="button"
+            aria-label={isDeepHelpMode ? 'Volver' : 'Volver al perfil'}
+            aria-hidden={!canGoBack}
+            tabIndex={canGoBack ? 0 : -1}
+            disabled={!canGoBack || isRouteTransitioning}
+            onClick={isDeepHelpMode ? openHelpListMode : openProfileMode}
+          >
+            <img src={backIcon} alt="" aria-hidden="true" />
+          </button>
+          <div className="profile-sheet__titles" aria-live="polite">
+            {sheetTitles.map((title) => (
+              <h2
+                key={title.mode}
+                className={`profile-sheet__title${
+                  title.mode === titleMode ? ' profile-sheet__title--visible' : ''
+                }`}
+                aria-hidden={title.mode !== titleMode}
+              >
+                {title.label}
+              </h2>
+            ))}
+          </div>
           <button
             className="profile-sheet__close"
             type="button"
-            aria-label="Cerrar mi perfil"
+            aria-label={sheetCloseLabel}
             onClick={() => requestClose()}
           >
             <img src={closeIcon} alt="" aria-hidden="true" />
           </button>
         </header>
 
-        <div className="profile-sheet__content">
-          <section
-            className={`profile-sheet__balance${isBalanceExpanded ? ' profile-sheet__balance--expanded' : ''}`}
-            aria-label="Resumen del saldo"
-          >
-            <button
-              className="profile-sheet__balance-summary"
-              type="button"
-              aria-expanded={isBalanceExpanded}
-              aria-controls="profile-sheet-balance-breakdown"
-              onClick={() => setIsBalanceExpanded((current) => !current)}
-            >
-              <span className="profile-sheet__balance-heading">
-                <strong>{formatBalance(metrics.availableBalanceCents)}</strong>
-                <span>Disponible para jugar</span>
-              </span>
-              <span className="profile-sheet__balance-chevron" aria-hidden="true">
-                <img src={chevronUpIcon} alt="" />
-              </span>
-            </button>
+        <div className={`profile-sheet__stage profile-sheet__stage--${activeMode}`}>
+          {sheetRoutes.map((route) => {
+            const position = route.mode === activeMode
+              ? 'current'
+              : routeDepthByMode[route.mode] < routeDepthByMode[activeMode]
+                ? 'past'
+                : 'future'
 
-            <div
-              className="profile-sheet__balance-breakdown"
-              id="profile-sheet-balance-breakdown"
-              aria-hidden={!isBalanceExpanded}
-            >
-              <span className="profile-sheet__balance-row">
-                <button
-                  className="profile-sheet__label-with-info profile-sheet__info-trigger"
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-label="Más información sobre Saldo disponible"
-                  onClick={(event) => openInfoModal('availableBalance', event.currentTarget)}
-                >
-                  Saldo disponible
-                  <img src={infoIcon} alt="" aria-hidden="true" />
-                </button>
-                <strong>{formatBalance(metrics.availableBalanceCents)}</strong>
-              </span>
-              <span className="profile-sheet__balance-row">
-                <button
-                  className="profile-sheet__label-with-info profile-sheet__info-trigger"
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-label="Más información sobre Portafolio total"
-                  onClick={(event) => openInfoModal('portfolioTotal', event.currentTarget)}
-                >
-                  Portafolio total
-                  <img src={infoIcon} alt="" aria-hidden="true" />
-                </button>
-                <AnimatedCurrencyValue
-                  delayMs={80}
-                  formatter={balanceFormatter}
-                  valueCents={metrics.portfolioTotalCents}
-                />
-              </span>
-            </div>
-
-            <div className="profile-sheet__balance-actions" aria-label="Acciones de saldo no disponibles en el prototipo">
-              <div className="profile-sheet__balance-action profile-sheet__balance-action--secondary" aria-hidden="true">
-                <img src={withdrawIcon} alt="" />
-                <span>Retirar</span>
-              </div>
-              <div className="profile-sheet__balance-action profile-sheet__balance-action--primary" aria-hidden="true">
-                <img src={depositIcon} alt="" />
-                <span>Depositar</span>
-              </div>
-            </div>
-          </section>
-
-          <div className="profile-sheet__metrics-scroll" aria-label="Métricas de la cuenta">
-            <div className="profile-sheet__metrics">
-              {metricCards.map((card, index) => (
-                <article className="profile-sheet__metric" key={card.label}>
-                  <button
-                    className="profile-sheet__label-with-info profile-sheet__info-trigger"
-                    type="button"
-                    aria-haspopup="dialog"
-                    aria-label={`Más información sobre ${card.label}`}
-                    onClick={(event) => openInfoModal(card.infoId, event.currentTarget)}
-                  >
-                    {card.label}
-                    <img src={infoIcon} alt="" aria-hidden="true" />
-                  </button>
-                  <AnimatedCurrencyValue
-                    className={card.isNetResult
-                      ? `profile-sheet__metric-value profile-sheet__metric-value--${netResultTone}`
-                      : 'profile-sheet__metric-value'}
-                    delayMs={160 + index * 80}
-                    formatter={card.isNetResult
-                      ? netResultFormatter
-                      : metricFormatter}
-                    valueCents={card.value}
-                  />
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="profile-sheet__menu-groups">
-            {menuSections.map((section) => (
-              <section
-                className="profile-sheet__menu-section"
-                key={section.id}
-                aria-labelledby={`profile-sheet-${section.id}`}
+            return (
+              <div
+                key={route.mode}
+                className={`profile-sheet__route profile-sheet__route--${position}`}
+                aria-hidden={route.mode !== activeMode}
+                inert={route.mode !== activeMode ? true : undefined}
               >
-                <h3 id={`profile-sheet-${section.id}`}>{section.title}</h3>
-                <div className="profile-sheet__menu-items">
-                  {section.items.map((item) => (
-                    <div className="profile-sheet__menu-item" key={item.label}>
-                      <span className="profile-sheet__menu-icon" aria-hidden="true">
-                        <img src={item.icon} alt="" />
-                      </span>
-                      <span className="profile-sheet__menu-body">
-                        <span>{item.label}</span>
-                        <img src={chevronRightIcon} alt="" aria-hidden="true" />
-                      </span>
-                    </div>
-                  ))}
+                <div
+                  ref={(node) => {
+                    routeContentRefs.current[route.mode] = node
+                  }}
+                  className="profile-sheet__content"
+                >
+                  {route.view}
                 </div>
-              </section>
-            ))}
-
-            <section className="profile-sheet__footer" aria-label="Sesión y versión">
-              <div className="profile-sheet__menu-item profile-sheet__menu-item--logout">
-                <span className="profile-sheet__menu-icon" aria-hidden="true">
-                  <img src={logoutIcon} alt="" />
-                </span>
-                <span className="profile-sheet__menu-body">
-                  <span>Cerrar sesión</span>
-                  <img src={chevronRightIcon} alt="" aria-hidden="true" />
-                </span>
               </div>
-              <p>
-                www.draftea.mx operadora en México por Producciones Móviles S.A. de C.V., titular del permiso DGAJS/SCEVF/P-06/2005-TER en unión de Unocapali La Paz Operadora S.A. de C.V. de conformidad con los oficios DGJS/1580/2021 y DGJS/DCRCA/2420/2022. Juegos prohibidos para menores de edad, juegue responsablemente, no olvide que el principal propósito es la recreación, diversión y esparcimiento.
-              </p>
-              <p>VERSIÓN 2.4.5</p>
-            </section>
-          </div>
+            )
+          })}
         </div>
       </aside>
 
