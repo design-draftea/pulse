@@ -4,7 +4,6 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 import type { CSSProperties } from 'react'
@@ -310,20 +309,39 @@ export function PriceChart({
     return () => window.clearTimeout(timer)
   }, [directionAnimationSequence])
   const priceLabelSample = priceFormatter.format(renderDomain.top)
-  const priceLabelRef = useRef<SVGTextElement | null>(null)
+  // O nó fica em estado pelo mesmo motivo da etiqueta do objetivo, logo
+  // abaixo: enquanto a série está vazia o componente sai pelo retorno
+  // antecipado e este `<text>` não existe. Com `useRef` o efeito rodava uma
+  // vez, encontrava `null` e nunca mais voltava, porque nem o comprimento do
+  // rótulo nem a largura do gráfico mudam quando a série chega — o contêiner
+  // já é medido no estado vazio. `priceLabelWidth` ficava zero,
+  // `--price-chart-value-right` não era publicada e a pílula `LIVE` caía no
+  // retorno `right: 24px` do CSS em vez do alinhamento medido.
+  const [priceLabelNode, setPriceLabelNode] = useState<SVGTextElement | null>(
+    null,
+  )
   const [priceLabelWidth, setPriceLabelWidth] = useState(0)
 
+  // A medição fica em uma função nomeada, como nas duas medições irmãs do
+  // arquivo. Chamar `setPriceLabelWidth` direto no corpo do efeito faz o
+  // `react(set-state-in-effect)` do oxlint acusar cascata de renderização,
+  // porque o efeito passou a depender de estado próprio.
   useLayoutEffect(() => {
-    const node = priceLabelRef.current
-    if (node === null) return
+    if (priceLabelNode === null) return
 
-    const measuredWidth = node.getBBox().width
-    if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) return
+    const measure = () => {
+      const measuredWidth = priceLabelNode.getBBox().width
+      if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) return
 
-    setPriceLabelWidth((currentWidth) =>
-      Math.abs(currentWidth - measuredWidth) < 0.5 ? currentWidth : measuredWidth,
-    )
-  }, [priceLabelSample.length, chartWidth])
+      setPriceLabelWidth((currentWidth) =>
+        Math.abs(currentWidth - measuredWidth) < 0.5
+          ? currentWidth
+          : measuredWidth,
+      )
+    }
+
+    measure()
+  }, [priceLabelNode, priceLabelSample.length, chartWidth])
 
   const targetLabel = targetPrice === null || !Number.isFinite(targetPrice)
     ? null
@@ -692,7 +710,7 @@ export function PriceChart({
               >
                 <line x1={PLOT_LEFT} x2={plotRight} y1="0" y2="0" />
                 <text
-                  ref={index === 0 ? priceLabelRef : undefined}
+                  ref={index === 0 ? setPriceLabelNode : undefined}
                   x={priceLabelX}
                   y="4"
                 >
