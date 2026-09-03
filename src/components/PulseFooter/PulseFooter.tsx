@@ -2,13 +2,17 @@ import iconChevronRight from '../../assets/iconChevronRight.svg'
 import './PulseFooter.css'
 
 const FOOTER_LINKS = [
-  'Términos y condiciones',
-  'Aviso de privacidad',
-  'Preguntas frecuentes',
-  'Soporte',
+  { id: 'terms', label: 'Términos y condiciones' },
+  { id: 'privacy', label: 'Aviso de privacidad' },
+  { id: 'faq', label: 'Preguntas frecuentes' },
+  { id: 'support', label: 'Soporte' },
 ]
 
-export function PulseFooter() {
+interface PulseFooterProps {
+  onHelpOpen?: () => void
+}
+
+export function PulseFooter({ onHelpOpen }: PulseFooterProps) {
   return (
     <footer className="pulse-footer" data-node-id="188:3060">
       <div className="pulse-footer__base">
@@ -23,10 +27,15 @@ export function PulseFooter() {
         </div>
 
         <nav className="pulse-footer__links" aria-label="Enlaces de Pulse">
-          {FOOTER_LINKS.map((label) => (
-            <button className="pulse-footer__link" type="button" key={label}>
+          {FOOTER_LINKS.map((link) => (
+            <button
+              className="pulse-footer__link"
+              type="button"
+              key={link.id}
+              onClick={link.id === 'faq' ? onHelpOpen : undefined}
+            >
               <img src={iconChevronRight} alt="" aria-hidden="true" />
-              <span>{label}</span>
+              <span>{link.label}</span>
             </button>
           ))}
         </nav>

@@ -2,6 +2,59 @@
 
 ## Estado atual
 
+- Atualizado em: 2026-09-03
+- Agente que entrega: Claude
+- Agente esperado a seguir: nenhum
+- Status: implementado e validado localmente. Sem commit, sem PR, sem merge e sem deploy. Aguardando revisão da pessoa usuária
+- Objetivo: alinhar o Centro de ayuda ao Figma em duas frentes — os três atalhos seguem o nó `457:8806` e o glossário segue o nó `467:10540` — e trocar a navegação do bottom sheet pela do `draftaco-v0`, em que as telas deslizam na horizontal
+- Escopo acordado: o bloco `Esencial en Draftea`, a tela de glossário, a navegação entre as telas do bottom sheet e a entrada pelo rodapé da Home. O conteúdo das `Preguntas frecuentes` e o restante do sheet não foram tocados
+- Critérios de aceite: três cards lado a lado, cada um com o brilho colorido no topo, o ícone de `32px` e o rótulo centrado; no glossário, cada termo precedido por um traço horizontal de `16px`, sem título repetido dentro do conteúdo; e a troca de tela deslizando, com título em fade cruzado e seta de voltar aparecendo por fade, igual ao `draftaco-v0`
+- Branch: `feature/ajuda-hf`, que já continha trabalho não commitado da pessoa usuária nos mesmos arquivos. Nada foi revertido nem commitado
+
+## Alterações realizadas
+
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`: `helpQuickActionItems` ganhou o campo `glow` com o token de cada brilho. O bloco passou a ser envolvido por `profile-sheet__help-essentials`, com o título `Esencial en Draftea`, e cada botão recebeu o `span` do brilho e a variável inline `--help-action-glow`.
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.css`: a lista vertical de `55px` deu lugar à linha de três cards, com `gap` de `8px`, borda de `1px`, raio de `16px`, `padding` de `12px`, `gap` interno de `16px`, ícone de `32px` e rótulo de `42px` em `14/16`.
+- `src/styles/tokens/colors.css`: três tokens novos, todos já existentes em `mode-1.tokens.json` e apenas ausentes do subconjunto em uso — `--color-fill-opacity-quinary`, `--color-fill-warning` e `--color-component-level-content`.
+- Decisão sobre o brilho: no Figma cada card traz uma `Ellipse 1` exportada como SVG, um círculo de `50px` com desfoque gaussiano de `44px`. Em vez de commitar três SVGs quase idênticos, o efeito foi reproduzido em CSS por um `span` circular de `50px` com `filter: blur(44px)`, recortado pelo `overflow: clip` do card. O `stdDeviation` do SVG e o raio do `blur()` do CSS são a mesma grandeza, então o resultado é o mesmo desenho, e a cor passa a vir de token em vez de ficar embutida no asset.
+- Decisão sobre os ícones: `iconFalar.svg`, `iconPlay.svg` e `iconGlossario.svg`, que a pessoa usuária já tinha posto em `src/assets`, são os mesmos glifos do Figma, só que normalizados para uma `viewBox` de `32x32`. Foram reaproveitados como estão, sem reexportar.
+- Divergência mantida de propósito: no nó do Figma o primeiro card usa `fillOpacityQuinary` na borda e os outros dois usam `fillOpacityQuaternary`. A diferença foi reproduzida como está, com comentário no CSS. Parece deslize do arquivo de design, e não intenção; vale confirmar com quem desenhou.
+
+### Glossário (nó `467:10540`)
+
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`: o `h3` interno com o texto `Glosario` saiu, porque o cabeçalho do sheet já mostra esse título e o nó do Figma não o repete no conteúdo. Com ele fora, os termos subiram de `h4` para `h3`, logo abaixo do `h2` do cabeçalho, sem pular nível. O `div` intermediário `profile-sheet__help-glossary-list` também saiu, já que a própria seção passou a ser a lista.
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.css`: o traço deixou de ser vertical e passou a ser o traço horizontal de `16px` do nó `467:12039`. A coluna do traço estica na altura da caixa e tem `12px` de respiro vertical, que é o que alinha o traço ao centro da primeira linha do termo. A separação entre termos deixou de ser `padding` de `12px` e virou `gap` de `24px`, e o `margin-bottom` de `4px` do termo saiu em favor do `gap` de `2px` do Figma.
+- Decisão sobre a cor do traço: o SVG exportado traz `stroke="#FBFBFB"` sem opacidade, e a amostragem do render do Figma confirmou, então o traço usa `--color-fill-primary`. Antes usava `--color-fill-secondary`.
+- Os doze termos e as doze definições já batiam com o Figma palavra por palavra. Nenhum texto foi alterado.
+- O `profile-sheet__help-spacer` foi mantido. Ele tem altura zero e só contribui um `gap`, e é a única folga que sobra abaixo do último termo, já que o sheet não trata `safe-area-inset-bottom`. O nó do Figma termina no último bloco, então isso é uma diferença consciente, a favor do aparelho real.
+
+### Navegação do bottom sheet, portada do `draftaco-v0`
+
+- Referência: `draftaco-v0/src/components/ProfileBottomSheet/ProfileBottomSheet.tsx` e o CSS ao lado, no caminho em que o perfil abre depósito ou saque. O repositório já estava clonado em `~/Desktop/PITACO/draftaco-v0`. Nada foi copiado de lá para cá; o padrão foi lido e reescrito com os nomes do Pulse.
+- Antes as quatro telas trocavam por um ternário dentro de um único `profile-sheet__content`, sem transição. Agora existe um `profile-sheet__stage` com as quatro rotas montadas ao mesmo tempo, `position: absolute` sobre o palco, deslizando por `transform` e `opacity` em `300ms ease-out`.
+- Cada rota tem uma profundidade em `routeDepthByMode`: `profile` é `0`, `help` é `1`, e `help-question` e `help-glossary` são `2`. Quem está mais raso que a rota ativa descansa em `-100%`, quem está mais fundo descansa em `100%`. É isso que faz avançar empurrar para a esquerda e voltar empurrar para a direita, sem precisar guardar o sentido do movimento.
+- Os três títulos passaram a ficar empilhados na coluna do meio do header, por `grid-template-areas`, e trocam por fade cruzado de `150ms` com `150ms` de atraso na entrada. `help-question` reaproveita o título de `help`, então entrar numa pergunta não pisca o título.
+- A seta de voltar deixou de ser montada e desmontada. Agora está sempre no DOM e aparece pelo mesmo fade, com `aria-hidden`, `tabIndex` e `disabled` acompanhando.
+- `goToMode` centralizou as trocas, com a trava `isRouteTransitioning` durante os `300ms`, igual ao `isRouteTransitioning` do draftaco. A pergunta aberta só é esquecida no fim do temporizador, senão a tela esvaziaria no meio do trajeto.
+- `aria-labelledby="profile-sheet-title"` deu lugar a `aria-label={sheetTitle}` no diálogo, porque agora há três `h2` no header e o `id` único deixaria de fazer sentido. É o mesmo que o draftaco faz.
+- Cada rota passou a ter o próprio contêiner de rolagem, e `goToMode` zera a rolagem da rota de destino antes de ela entrar. Como o destino ainda está fora da tela nesse instante, o salto não é visível e a tela entra sempre mostrando o começo do conteúdo. A pendência da tarefa anterior, em que voltar do glossário devolvia o Centro de ayuda rolado no meio, está encerrada.
+- Decisão de escopo: a pessoa usuária pediu isso para o botão de voltar. O mesmo vale para a ida, porque abrir o glossário e cair no meio da lista seria o mesmo defeito na direção oposta. Se um dia só a volta precisar zerar, a condição é uma linha em `goToMode`.
+
+### Entrada pelo rodapé da Home
+
+- `src/components/PulseFooter/PulseFooter.tsx`: `FOOTER_LINKS` deixou de ser uma lista de textos e passou a ter `id` e `label`, para que só a entrada `faq` receba ação. O componente ganhou a prop opcional `onHelpOpen`. `Términos y condiciones`, `Aviso de privacidad` e `Soporte` continuam sem ação, como antes.
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`: nova prop opcional `initialMode`, com `profile` como padrão. O efeito de abertura passou a usá-la no lugar do `profile` fixo. O tipo `ProfileBottomSheetMode` passou a ser exportado, pelo arquivo e pelo `index.ts`.
+- `src/App.tsx`: novo estado `profileSheetMode` e novo `handleHelpOpen`. O avatar do header continua abrindo em `profile`; o rodapé abre em `help`.
+- Decisão, corrigida a pedido da pessoa usuária: a raiz da pilha é a tela em que o sheet abriu, e não o perfil. O estado `rootMode` guarda o `initialMode` no momento da abertura, e `canGoBack` compara a profundidade da rota ativa com a da raiz. Aberto pelo rodapé, o Centro de ayuda é a raiz e o header não mostra a seta; entrar no glossário a partir dali faz a seta aparecer, e voltar para a ajuda a esconde de novo. Aberto pelo avatar, o perfil é a raiz e a mesma tela de ajuda passa a ter seta. Antes a seta aparecia sempre que o modo fosse de ajuda, o que dava um caminho de volta para um perfil de onde a pessoa nunca tinha vindo.
+
+- Foi acrescentado um bloco `prefers-reduced-motion` desligando as três transições.
+
+
+
+## Histórico: cor das setas do gráfico (PR #43)
+
+### Estado no encerramento
+
 - Atualizado em: 2026-09-02
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
@@ -11,7 +64,7 @@
 - Critérios de aceite: subida em verde, queda em vermelho, sem cor nova fora dos tokens existentes
 - Branch: `feature/setas-grafico-cor-direcao`, criada a partir da `main` em `3f8d386`, no checkout principal. Commit `ce6128a`, mesclada em `3afaa51` e removida do remoto
 
-## Alterações realizadas
+### Alterações realizadas
 
 - `src/components/PriceChart.css`: duas regras novas, `.price-chart__direction-state--up .price-chart__direction-chevron` com `var(--color-fill-success)` e `.price-chart__direction-state--down .price-chart__direction-chevron` com `var(--color-fill-error)`. O diff inteiro tem 8 linhas.
 - Decisão sobre a cor: foram reaproveitados os tokens de `src/styles/tokens/colors.css` que UP e DOWN já usam, `#34d399` e `#f87171`, em vez de criar um par novo. Assim a seta e o lado do mercado que ela sugere falam a mesma língua visual.
@@ -321,6 +374,42 @@ Numa segunda passagem, pelo PR #35:
 
 ## Validações executadas
 
+### Entrada do Centro de ayuda pelo rodapé (`feature/ajuda-hf`)
+
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- Dos quatro botões do rodapé, apenas `Preguntas frecuentes` tem `onClick`; os outros três continuam sem ação.
+- Percurso conferido: avatar abre em `Mi perfil`; fechar e clicar em `Preguntas frecuentes` no rodapé abre direto em `Centro de ayuda`, com a rota de ajuda em `x=0` e o perfil estacionado em `-380px`; e o avatar continua abrindo em `Mi perfil`.
+- Seta de voltar conferida nos cinco estados, por classe, `aria-hidden`, `tabIndex` e `disabled`: pelo rodapé, a ajuda é raiz e não tem seta; entrar no glossário a partir dali mostra a seta; voltar para a ajuda a esconde; pelo avatar, o perfil é raiz e não tem seta; e a mesma tela de ajuda, alcançada pelo avatar, passa a ter seta.
+- Ressalva do ambiente, a mesma da navegação: com o painel oculto, as transições de `opacity` do título ficam congeladas no valor anterior mesmo depois de segundos, embora o React já tenha trocado as classes e o `aria-hidden`. Desligando as transições, o estado final lido foi o correto: `Mi perfil` em `1`, `Centro de ayuda` e `Glosario` em `0`, perfil em `x=0` e seta de voltar em `0`. O estilo temporário foi removido em seguida.
+
+### Navegação do bottom sheet (`feature/ajuda-hf`)
+
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- Navegador em `localhost:5173`, viewport de `375x812`. As transições foram medidas por estilo computado no meio do trajeto, e não por captura, porque a captura chega depois dos `300ms`.
+- Perfil para Centro de ayuda: em `120ms` o perfil estava em `-213px` com opacidade `0,43` e a ajuda em `167px` com `0,56`; em `420ms` os dois já estavam assentados em `-380px` e `0`, e a seta de voltar em opacidade `1` e habilitada.
+- Centro de ayuda para glossário e volta: na ida, a ajuda saiu para `-212px` e o glossário entrou de `168px`; na volta, a ajuda voltou de `-194px` e o glossário saiu para `186px` e depois `380px`. Os títulos acompanharam, com `Centro de ayuda` em `0,07` no meio da ida e `Glosario` em `0,15` no meio da volta.
+- Pergunta do FAQ: o texto da pergunta continuou presente durante toda a saída, em `140ms` e em `237px`, e só ficou vazio depois que a rota chegou a `380px`. O título permaneceu `Centro de ayuda` na ida, sem piscar.
+- Depois de recarregar a página, as quatro rotas têm cada uma o seu contêiner de rolagem, todos com `564px` de altura visível, e só a rota ativa fica sem `inert`. O carrossel horizontal de métricas do perfil continua rolando, com `711px` de conteúdo em `380px` de visível.
+- O estilo temporário usado para desacelerar a transição foi removido e a página recarregada; a ausência dele foi conferida depois da recarga.
+- Rolagem zerada na troca de tela, conferida por `scrollTop`: com o perfil em `300` e o Centro de ayuda em `380`, entrar no glossário e voltar devolveu a ajuda em `0`; voltar de novo devolveu o perfil em `0`; e reentrar no glossário, que tinha ficado em `700`, mostrou o primeiro termo, `Bitcoin`, com `scrollTop` em `0`.
+- Ressalva do ambiente: nesta sessão o painel do navegador fica com `visibilityState` em `hidden`, então o Chrome estrangula os temporizadores e quase congela o `requestAnimationFrame`. Um `setTimeout` de `300ms` levou de `461ms` a `890ms`. Por causa disso a trava de `300ms` de `isRouteTransitioning` mantém a seta de voltar desabilitada por mais tempo aqui, e um clique dado cedo demais é engolido. Não é defeito do código: as medições foram refeitas com esperas de `2s` e a navegação respondeu a todos os cliques. Ainda assim, vale conferir num aparelho real.
+
+### Glossário do Centro de ayuda (`feature/ajuda-hf`)
+
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- Navegador em `localhost:5173`, viewport de `375x812`, no caminho perfil → `Preguntas frecuentes` → `Glosario en Draftea`.
+- Estilo computado conferido contra o nó `467:10540`: contêiner com `padding` de `16px` e `gap` de `24px`, `gap` real de `24px` entre termos, caixa com `gap` de `4px` e `align-items: flex-start`, coluna do traço com `16px` de largura e `12px` de respiro vertical, traço de `16x1px` em `rgb(251, 251, 251)` a `12px` do topo da caixa, conteúdo com `gap` de `2px` e `flex: 1 0 0`, termo em `700` a `16/24` em `#fbfbfb` e definição em `400` a `14/21` em `rgba(251,251,251,0.7)`.
+- Os doze termos foram percorridos até `Liquidación` com rolagem até o fim. O título interno duplicado não existe mais e a seta de voltar retorna ao Centro de ayuda.
+- Observação, anterior a esta mudança: ao voltar do glossário o contêiner de rolagem mantém a posição em que estava, então o Centro de ayuda reaparece rolado no meio das `Preguntas frecuentes`. A rolagem é do mesmo elemento nos dois modos e não foi tocada aqui.
+
+### Atalhos do Centro de ayuda (`feature/ajuda-hf`)
+
+- `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
+- Navegador em `localhost:5173`, viewport de `375x812`, no bottom sheet de perfil, em `Preguntas frecuentes`.
+- Estilo computado conferido contra o nó `457:8806`: `gap` de `12px` entre título e linha, título em `700` a `16/24` em `#fbfbfb`, linha com `gap` de `8px` e `align-items: center`, cards de `111x116` com raio `16px`, `padding` de `12px`, `gap` de `16px` e `overflow: clip`, bordas em `rgba(251,251,251,0.08)` no primeiro e `rgba(251,251,251,0.12)` nos outros dois, brilhos de `50x50` com `blur(44px)` em `#2dd4bf`, `#fbfbfb` e `#fde047`, ícones de `32x32` e rótulos de `42px` em `500` a `14/16` em `rgba(251,251,251,0.7)`, centrados.
+- Comportamento preservado: o card `Glosario en Draftea` continua abrindo o glossário, e a seta de voltar retorna ao Centro de ayuda. Os outros dois seguem sem ação, como antes.
+- Viewport de `320px` conferido: os rótulos passam a três linhas e transbordam a caixa de `42px`, mas ficam dentro do `padding` de `12px` do card e nada é recortado. A altura fixa foi mantida porque é ela que conserva os três cards com a mesma altura, já que a linha do Figma usa `align-items: center` e não estica os cards.
+
 ### Cor das setas de direção do gráfico (`feature/setas-grafico-cor-direcao`)
 
 - `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
@@ -533,7 +622,9 @@ Numa segunda passagem, pelo PR #35:
 
 ## Próximo passo
 
-- Nenhum trabalho em andamento. O PR #43 está mesclado e publicado.
+- Revisar os atalhos e o glossário do Centro de ayuda na `feature/ajuda-hf`. A branch tem trabalho não commitado da pessoa usuária além desta mudança; commit, PR, merge e deploy dependem de autorização.
+- Confirmar com quem desenhou se a borda mais fraca do primeiro card no nó `457:8806` é intenção ou deslize.
+- Ver a navegação deslizante num aparelho real. Aqui ela foi medida por estilo computado no meio do trajeto, o que prova o percurso mas não o quanto ele parece fluido ao dedo.
 - Vale olhar as setas coloridas num aparelho real, em movimento de preço, para confirmar que o verde e o vermelho leem bem sobre o fundo do gráfico nos `620ms` em que aparecem.
 - Vale ver o encadeamento das entradas abertas rodando em tempo real num aparelho: toaster, scroll de centralização, revelação do card, fade do título e a saída em que a entrada que fica assume a posição. Na sessão do PR #41 ele só pôde ser percorrido forçando quadros, porque o painel do navegador mantém `requestAnimationFrame` congelado.
 - O passo `Test` do workflow não executa `pnpm test:assets`, que existe desde a tarefa anterior. As outras seis suítes estão lá. Vale incluir na próxima vez que o workflow for tocado.

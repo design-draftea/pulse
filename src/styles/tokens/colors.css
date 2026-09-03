@@ -6,10 +6,13 @@
   --color-fill-disabled: rgb(251 251 251 / 0.32);
   --color-fill-opacity-primary: rgb(251 251 251 / 0.32);
   --color-fill-opacity-quaternary: rgb(251 251 251 / 0.12);
+  --color-fill-opacity-quinary: rgb(251 251 251 / 0.08);
   --color-fill-opacity-tertiary: rgb(251 251 251 / 0.16);
   --color-fill-success: #34d399;
   --color-fill-error: #f87171;
+  --color-fill-warning: #fde047;
   --color-component-live: #f43f5e;
+  --color-component-level-content: #2dd4bf;
   --color-action-transparency-default: rgb(251 251 251 / 0.08);
   --color-action-secondary-default: rgb(240 242 244 / 0.12);
   --color-action-primary-default-start: #4b20ff;
