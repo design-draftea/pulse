@@ -328,13 +328,21 @@ export function PriceChart({
   const targetLabel = targetPrice === null || !Number.isFinite(targetPrice)
     ? null
     : `${priceFormatter.format(targetPrice)} - objetivo`
-  const targetLabelRef = useRef<SVGTextElement | null>(null)
+  // O nó fica em estado, e não em `useRef`, para a medição reagir à entrada
+  // dele no DOM. Enquanto a série está vazia o componente sai pelo retorno
+  // antecipado do estado vazio e o `<text>` não existe; com `useRef` o efeito
+  // rodaria uma vez, encontraria `null` e nunca mais voltaria, porque o
+  // comprimento do rótulo não muda dentro da rodada. A pílula ficava com
+  // largura zero e a etiqueta invisível, sobrando só a linha.
+  const [targetLabelNode, setTargetLabelNode] = useState<SVGTextElement | null>(
+    null,
+  )
   const [targetLabelWidth, setTargetLabelWidth] = useState(0)
 
   // A pílula é desenhada a partir da largura real do texto. Os numerais são
-  // tabulares, então remedir só quando o número de caracteres muda basta.
+  // tabulares, então remedir quando o número de caracteres muda basta.
   useLayoutEffect(() => {
-    const node = targetLabelRef.current
+    const node = targetLabelNode
     if (node === null) return
 
     const measure = () => {
@@ -363,7 +371,7 @@ export function PriceChart({
     return () => {
       isCancelled = true
     }
-  }, [targetLabel?.length])
+  }, [targetLabelNode, targetLabel?.length])
 
   const renderTime = useRenderTime()
   const displayTime = Math.max(renderTime, latestPoint?.timestamp ?? renderTime)
@@ -794,7 +802,7 @@ export function PriceChart({
                 rx={TARGET_PILL_HEIGHT / 2}
               />
               <text
-                ref={targetLabelRef}
+                ref={setTargetLabelNode}
                 x={TARGET_PILL_PADDING_LEFT}
                 y={TARGET_LABEL_BASELINE}
               >
