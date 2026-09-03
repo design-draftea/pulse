@@ -158,6 +158,7 @@
 }
 
 .buy-betslip__mode-pills::before {
+  box-sizing: border-box;
   position: absolute;
   z-index: 0;
   top: 0;

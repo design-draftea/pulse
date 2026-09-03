@@ -4,6 +4,45 @@
 
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
+- Agente esperado a seguir: Claude ou Codex
+- Status: implementado e validado localmente. Sem commit, PR, merge ou publicação — nada foi autorizado
+- Objetivo: corrigir o chip ativo, que ficava mais alto e mais largo que os inativos, no betslip e em `Entradas`
+- Branch: `fix/altura-chip-ativo`, criada a partir da `main` em `f7166ea`
+
+### O defeito
+
+- O fundo do chip ativo não é um estado do botão: é o pseudo-elemento `::before` do contêiner, com largura e altura fixas e uma borda de 1px em degradê (`padding-box` + `border-box`). Ele desliza por `transform` entre as posições.
+- O reset de `src/index.css` é `* { box-sizing: border-box; }`. O seletor universal **não** alcança `::before` e `::after`, então esses dois pseudo-elementos ficavam em `content-box` e somavam os 2px das bordas ao tamanho declarado.
+- Medido no navegador antes da correção, em `Entradas`: os botões em 104x32, 86x32 e 82x32, e o pseudo-elemento em 106x34. Com `top: 8px` alinhado à borda superior do botão, os 2px sobravam embaixo e à direita — daí a leitura de que o chip ativo é mais alto.
+- No betslip o mesmo: pílula declarada em 72x32 e renderizada em 74x34.
+
+### A correção
+
+- `box-sizing: border-box` declarado nos dois pseudo-elementos: `.buy-betslip__mode-pills::before` e `.open-entries__tabs::before`.
+- A correção é pontual, e não no reset global, porque o repositório já segue essa convenção: `.previous-rounds__card::after`, `.price-comparison__card::after`, `.home-open-entry-card::after`, `.buy-betslip__quick-amount::after` e `.quick-amount-sheet__amount::after` já declaram `box-sizing: border-box` no próprio pseudo-elemento. Mudar o reset para `*, *::before, *::after` também encolheria `.onboarding-series__marker::before`, que hoje é 13px declarado e 15px renderizado, alterando uma ilustração do onboarding já validada e fora do pedido.
+
+### Arquivos alterados
+
+- `src/components/BuyBetslip/BuyBetslip.css` — uma linha
+- `src/components/OpenEntries/OpenEntries.css` — uma linha
+
+### Validações
+
+- `pnpm lint` limpo e `pnpm build` sem erros.
+- Navegador em `localhost:5173`, viewport mobile. Em `Entradas`, depois da correção, o pseudo-elemento mede 104x32, exatamente o botão `ABIERTAS`, e as três posições continuam corretas: `GANADAS` em `translateX(112px)` com 86 de largura e `PASADAS` em `translateX(206px)` com 82. Conferido também em imagem com `PASADAS` ativo.
+- No betslip, pílulas em 72x32 e pseudo-elemento em 72x32, com `Comprar` em `left: 0` e `Vender` em `left: 80`, que é o `translateX(80px)` do estado de venda. Conferido em imagem com `Comprar` ativo.
+- Não validado: o estado `Vender` do betslip em imagem. A medição já cobre a geometria, que é a mesma pílula deslocada.
+
+### Pendências e próximo passo
+
+- Sem commit, PR, merge ou publicação. Nada foi autorizado.
+- `.onboarding-series__marker::before` tem o mesmo problema de `box-sizing`: 13x13 declarado, 15x15 renderizado. Como ele é centralizado por `translate(-50%, -50%)`, não desalinha nada, e a ilustração foi aprovada com o tamanho atual. Fica registrado; corrigir é decisão de design, não de bug.
+
+
+## Histórico: onboarding em bottom sheet (PRs #52 e #53)
+
+- Atualizado em: 2026-09-03
+- Agente que entrega: Claude
 - Agente esperado a seguir: Claude, na mesma branch, quando os cards 2, 3 e 4 do onboarding chegarem
 - Status: concluído — mesclado pelo PR #52 e publicado no GitHub Pages, com a publicação verificada no artefato real. A pessoa usuária autorizou explicitamente push, merge e deploy depois da entrega técnica
 - Objetivo: nova feature de onboarding. Um botão de ajuda no subheader, com um pulsante de convite que morre na primeira abertura, e o bottom sheet de onboarding de quatro passos
@@ -238,7 +277,7 @@ Verificado nos dois estados, simulando a preferência ao zerar a variável — q
 - Causa: `onClose` derruba o `inert` do conteúdo principal num commit do React sem ordem garantida em relação ao próximo quadro. Enquanto o `inert` está no DOM, `focus()` é ignorado em silêncio.
 - Correção: `restoreFocus` insiste por até seis quadros, até o foco pousar. O `ProfileBottomSheet` tem o mesmo `requestAnimationFrame` único e provavelmente a mesma corrida — não verificado, e fora do escopo desta tarefa.
 
-## Arquivos alterados
+### Arquivos alterados
 
 - `src/components/SubHeader/SubHeader.tsx` e `.css` — o botão, a geometria do Figma, o halo em rajadas, o estado compacto
 - `src/hooks/useOnboardingInvite.ts` — flag do convite em `localStorage` e `?resetOnboarding=1`
@@ -247,7 +286,7 @@ Verificado nos dois estados, simulando a preferência ao zerar a variável — q
 - `src/App.tsx` — estado, handlers, `inert` e render do sheet
 - `src/assets/iconOnboading.svg` é export da pessoa usuária, não versionado ainda, com typo no nome. Renomear depende de autorização
 
-## Validações
+### Validações
 
 - `pnpm lint` limpo e `pnpm build` sem erros.
 - Suíte completa passando, 93 testes: `test:chart` 26, `test:market` 25, `test:wallet` 19, `test:entries` 8, `test:fallback` 6, `test:assets` 3.
@@ -282,7 +321,7 @@ Verificado nos dois estados, simulando a preferência ao zerar a variável — q
 - Não validado: quadro intermediário por captura de tela. O `screenshot` do painel do browser vem com pintura defasada nesses elementos animados, e a troca de visibilidade do painel desfaz `pause()` via JS. A validação da coreografia foi por estilo computado, não por imagem.
 - Não validado: clique real de ponteiro. O `computer` do painel dá timeout nesta sessão, então os cliques foram despachados por DOM, que passa pelo `onClick` do React.
 
-## Pendências e próximo passo
+### Pendências e próximo passo
 
 - Os quatro cards estão implementados, mesclados e publicados. Não há próximo passo pendente de design.
 - Publicação verificada em `https://design-draftea.github.io/pulse/` por marcador no código minificado, como a tarefa anterior registrou que é o método certo — comparar hash do bundle não funciona porque o workflow injeta `VITE_BASE_PATH` e `VITE_POLYMARKET_PROXY_ORIGIN`. Conferidos no JS: `onboarding-sheet`, `Cómo funciona Draftea Pulse`, `pulse.onboarding.invite.dismissed`, `Valor de venta`, `Vendido por`, `resetOnboarding`, `Puedes vender antes` e `Entendido, empezar`. No CSS: `onboarding-series-marker`, `onboarding-chart-crossing`, `sub-header-help-invite`, `onboarding-motion` e `onboarding-step-enter-forward`.
