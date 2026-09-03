@@ -4,6 +4,302 @@
 
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
+- Agente esperado a seguir: Claude, na mesma branch, quando os cards 2, 3 e 4 do onboarding chegarem
+- Status: implementado e validado localmente. Sem commit, sem Pull Request, sem merge e sem publicação — a pessoa usuária pediu para revisar antes
+- Objetivo: nova feature de onboarding. Um botão de ajuda no subheader, com um pulsante de convite que morre na primeira abertura, e o bottom sheet de onboarding de quatro passos
+- Escopo acordado: o botão completo, o bottom sheet e os quatro cards. O onboarding está completo
+- Critérios de aceite: botão fiel ao nó `564:5840` e sobrevivendo ao estado compacto do subheader; pulsante visível até o primeiro clique e nunca mais; bottom sheet fiel aos nós `564:6369`, `564:6929`, `564:7019` e `564:7078`, com os quatro `cardAnimado` animados em loop infinito
+- Branch: `feature/onboarding`, criada a partir da `main` em `4bf23ff`, no checkout principal. Sem commits ainda
+
+### Acesso ao Figma
+
+- O conector `plugin:figma:figma` (`https://mcp.figma.com/mcp`) exige OAuth e não pode ser autorizado em sessão não interativa.
+- A pessoa usuária definiu o MCP do Figma desktop como o caminho padrão: `http://127.0.0.1:3845/mcp`. Registrado com `claude mcp add --scope local`, então foi para o `~/.claude.json` deste projeto e **não** para arquivo versionado.
+- Ferramentas de MCP só carregam no início da sessão. Nesta, os nós foram lidos falando JSON-RPC direto com o endpoint. Em sessões novas as ferramentas nativas aparecem sozinhas.
+
+### Leitura do Figma
+
+- O nó `564:5840` é o subheader inteiro. O botão é o `innerHelp` / `iconOnboarding` (`564:6628` e `564:6621`): 20px, `padding: 4px 8px 0`, irmão do bloco de título dentro de `produto`.
+- Nenhum token novo. Todos os valores do design já existiam com o mesmo valor: `#191919→#0f0f0f`, `#34d399`, `#f87171`, `rgba(251,251,251,0.5)`, `rgba(251,251,251,0.12)`, `#000` e o gradiente `#4b20ff→#9730ff`.
+- O `close` exportado do Figma é byte-idêntico ao `iconClose.svg` do projeto, e o `chevronsUp` tem os mesmos paths do `iconDoubleChevronsUp.svg`. Ambos reutilizados, e o DOWN usa o `iconDoubleChevronsDown.svg` real em vez do truque de espelhar o de cima.
+- `get_motion_context` no `cardAnimado` retornou `{"nodes":[]}`: **não existe animação no Figma**. A coreografia foi desenhada nesta tarefa e aprovada pela pessoa usuária.
+- O Code Connect do CTA aponta para `draftea_foundation/.../df_button.dart`, o design system em Dart. Não se aplica aqui; o CTA seguiu o padrão dos modais do projeto.
+
+### Decisões
+
+- O botão ficou fora de `.sub-header__details` de propósito. No estado compacto o título colapsa para `max-height: 0`, e dentro de `__details` o botão desapareceria junto com o pulsante que existe para ser achado. A estrutura do próprio Figma confirma: o `innerHelp` é irmão do título, não filho.
+- No estado compacto o `padding-top` do botão vai de 4px para 2px, centralizando na linha de 24px da moeda. O Figma não tem essa variante; foi decisão registrada.
+- O pulsante pulsa em rajadas de três e descansa, em vez de contínuo: o subheader já tem a moeda girando, o relógio correndo e o `LiveIndicator`. Sob `prefers-reduced-motion` o anel fica **parado e visível** em vez de `animation: none`, porque apagá-lo removeria a única pista de que o onboarding existe.
+- O ícone usa o export de glifo da pessoa usuária (`iconOnboading.svg`, com typo no nome) e o círculo vem do token, na mesma declaração `75.115deg` que o ícone de saldo já usa. Assim o gradiente segue o token em vez de ficar congelado dentro do SVG.
+- `Seguiente` no Figma foi corrigido para `Siguiente`, autorizado pela pessoa usuária.
+- Entrada só pelo botão, sem abertura automática na primeira sessão: decisão de produto da pessoa usuária, para não criar fricção no primeiro contato. A flag fica isolada, então trocar para auto-open é uma linha se a descoberta se mostrar baixa no teste.
+- Reabrir sempre recomeça no card 1. São quatro cards e a entrada é um botão de ajuda; retomar no meio confundiria.
+- O estado base do CSS do `cardAnimado` é exatamente o quadro estático do Figma, e as animações só sobrescrevem esse estado. É isso que mantém a geometria reservada, sem salto de layout, e faz `prefers-reduced-motion` cair no desenho aprovado.
+- As posições horizontais do card viraram frações do vão de 279px do Figma, porque o design é fixo em 375px e o protótipo vai até 499px.
+- As linhas tracejadas viraram `repeating-linear-gradient` em vez do SVG exportado: o export sai com `preserveAspectRatio="none"` e esticaria o passo de 3.66px junto com a largura.
+- O `blur` do brilho do topo ficou nos 50px que o design especifica. Houve uma tentativa de reduzir para 25px, por analogia com o `stdDeviation="28"` do export de `light`; comparado com o render do Figma, 25px concentra a cor numa faixa dura e 50px reproduz o brilho largo. Revertido.
+
+### Defeitos do card animado, reportados pela pessoa usuária e corrigidos
+
+- **A curva não esticava.** O `<svg>` é elemento substituído: com `left` e `right` absolutos e `width: auto`, o CSS usa a largura intrínseca dele — a proporção do viewBox contra os 92px de altura, ~273px — e ignora o `right`, em vez de esticar como uma `div` faria. Em 375px o vão é 279 e passava desapercebido; em qualquer largura maior a curva parava em ~72% do card e a ponta ficava 79px atrás da bolinha. A bolinha sempre esteve na posição correta do design. Corrigido declarando `width: var(--onboarding-chart-span)`.
+- **Um ponto piscando no canto superior direito.** Parada em `stroke-dashoffset: 1` a curva não desenha nada, mas o padrão de tracejado faz o traço seguinte começar exatamente na posição final do caminho, e o `stroke-linecap: round` do design pinta a tampa redonda dele ali. Ficava visível nos 0,42s de espera de cada volta. Corrigido deixando a curva transparente enquanto está parada, com a opacidade entrando em 9%, quando o traço já tem comprimento.
+- **O desenho passou de `ease-in-out` para `linear`.** Com easing o começo era tão lento que o traço ficava sub-pixel por um instante e a tampa redonda parecia um ponto parado, agora na origem da linha. `linear` também lê melhor: a série representa o tempo da rodada avançando, e velocidade constante é o certo para isso.
+- **A pílula `Terminó arriba` derivava em relação à bolinha.** A largura dela é de texto, ~95px fixos em qualquer tela, e o lado esquerdo estava preso a uma fração do vão. A folga até a bolinha é `vão × 0,369 − 95`: sobrava vazio em telas largas e, abaixo de 257px de vão (~353px de tela), ficava negativa e a pílula passava por cima da bolinha, escondendo-a. A pílula passou a ser ancorada pela borda direita, 8px antes da bolinha, que é a distância do Figma — a largura do texto sobra para a esquerda, onde há espaço. A linha verde foi ancorada do mesmo jeito, terminando rente à borda direita da pílula, que a cobre.
+
+### Card 1 redesenhado no Figma (`564:6653`) e o marcador do gráfico real
+
+A pessoa usuária refez a ilustração do card 1. O que mudou no nó:
+
+- A curva lisa antiga (`564:6902`) está `hidden="true"` no Figma. Entraram `line` (`603:7451`, 279x106 em 32,1, traço de 3px) e `degrade` (`603:7449`, 279x115 em 32,1), uma série irregular com área em degradê branco a 16% por baixo.
+- A série agora termina **plana no topo**, e a linha verde do nível final desceu de `top: 10.06` para `14.06`. A pílula desceu de `top: 1` para `5`, e o ponto de `top: 6` para `10`.
+- O ponto exportado virou branco (`#FBFBFB`), era verde.
+
+Além disso a pessoa usuária pediu duas coisas: usar **o mesmo marcador do gráfico real** e que a série só precisa parecer real, sem ser o desenho exato do Figma.
+
+#### Como a animação foi refeita
+
+- `stroke-dashoffset` não serve mais: com área preenchida, traçar só a linha deixaria o degradê aparecendo de uma vez. A revelação passou a ser um **recorte que varre da esquerda para a direita** (`clip-path: inset()`), que revela linha e área juntas e lê como o tempo da rodada avançando. De brinde, morreu o problema da tampa redonda degenerada que existia no `dashoffset`.
+- O marcador é o do `PriceChart`: halo de r=10 com o preenchimento e o traço de lá, anel de r=6.5 com miolo `#111`, e o ponto branco de r=3. Feito em camadas de CSS, e não em SVG, porque precisa manter 20px fixos enquanto viaja sobre uma série que estica com a largura da tela.
+- O pulso ambiente do halo do gráfico real ficou de fora de propósito: seria um terceiro loop fora de fase com o do card, e aqui o marcador já está em movimento, o que comunica `ao vivo` por si.
+- **O marcador viaja na ponta da varredura.** O `left` avança na mesma janela (8% a 48%) e no mesmo `linear` do recorte; o `top` segue a série, amostrada em **41 pontos igualmente espaçados em x** — densidade escolhida por causa da subida quase vertical entre 80% e 85% do eixo, que 20 pontos cortariam em diagonal. A amostragem foi feita avaliando as dez cúbicas do caminho em Python (`scratchpad/sample.py`), não a olho.
+- A viagem é o único movimento que **não** sai por multiplicação do `--onboarding-motion`: são 41 paradas em lugares diferentes, sem expressão que as colapse. Então card 1 tem um `@media (prefers-reduced-motion: reduce)` só para trocar a animação do marcador pela versão sem viagem, deixando-o parado no fim da série — que é onde ele descansa de todo jeito.
+- `onboardingChartDot.svg` deixou de ser usado e foi removido; entraram `onboardingChartLine.svg` e `onboardingChartArea.svg`.
+
+#### Dois defeitos reportados na revisão e corrigidos
+
+- **O topo do gráfico saía cortado.** `clip-path: inset()` corta nas quatro bordas da caixa, e a imagem da série passa 1,5px acima dela por causa do traço de 3px — então o pico da série era raspado pela varredura. Corrigido com `--onboarding-chart-plot-slack: 8px`: a caixa do plot cresce 8px em cima e embaixo e os filhos são deslocados pela mesma folga, mantendo a área em `top: 1px`. A varredura é só horizontal, então crescer na vertical não muda a conta do recorte. Medido depois: a imagem passou a sobrar 6,5px dentro do plot.
+- **O marcador tinha preto.** O anel do gráfico real usa miolo `#111`, que existe lá para furar a linha que passa atrás dele. Sobre o card isso lê como um disco preto. Trocado pelo mesmo branco translúcido do halo (`rgb(251 251 251 / 0.08)`) — valor que já vem do próprio gráfico, não inventado. Somado ao halo por baixo, o miolo levanta do fundo. Conferido nas três camadas: nenhuma tem preto.
+- Conferido em imagem no quadro do pico, que é onde o corte aparecia: a série sobe inteira e o marcador pousa nela.
+
+#### Revisão do gráfico animado, a pedido da pessoa usuária
+
+Três mudanças, todas medidas antes de decidir.
+
+- **O marcador descolava até 5,92px da série.** As 41 paradas eram igualmente espaçadas em x, e entre elas o marcador interpola em reta — no trecho mais íngreme (x=80,8%) a reta cortava por dentro da curva. Pior: esse é exatamente o trecho que mais importa. Reamostrado **por curvatura**, com subdivisão adaptativa até o erro cair abaixo de 0,8px: ficaram **36 paradas** (menos que antes) e o erro máximo em **0,78px**.
+- **A travessia do objetivo não era marcada.** A série cruza a linha do `PRECIO OBJETIVO` em x=81% do vão, aos 39,5% do ciclo — o instante que transforma `precio objetivo` em `terminó arriba`, e nada o reconhecia. Agora a linha do objetivo pisca em branco cheio (um `::after` com o mesmo tracejado em `--color-fill-primary`) e o marcador dá um ping de escala, os dois no mesmo instante.
+- **O ritmo era invertido:** 1,68s nos primeiros 80% do vão, onde nada decide, e 0,4s nos últimos 20%, que carregam tudo. A primeira tentativa foi uma pausa de 5% do ciclo na travessia; a pessoa usuária pediu para tirar, e ela saiu. **O ritmo passou a vir do desenho da série** (ver abaixo): com a travessia em 54% do vão em vez de 81%, sobra quase um segundo depois dela sem nenhum truque de tempo. Foi a melhor solução das três — corrigir o conteúdo em vez do relógio.
+
+#### A série foi refeita em código
+
+A pessoa usuária não gostou de como o gráfico estava desenhado e liberou não seguir o Figma. O que estava errado no desenho anterior: a primeira metade era uma curva lisa e arredondada, que lê como traço à mão e não como preço, e havia um pico quase vertical implausível, seguido de uma cauda horizontal artificial.
+
+- A série agora é **gerada em código** e vive em `src/assets/onboardingChartSeries.svg`, com **linha e área no mesmo SVG** — como arquivos separados eram dois mapeamentos de coordenada que podiam divergir.
+- A primeira tentativa foi uma polilinha crua de 141 pontos com ruído em três escalas. **Ficou irregular demais** e a pessoa usuária pediu algo mais suave. A versão final são **26 pontos de âncora suavizados com a mesma fórmula do gráfico real**: Béziers cúbicas com alças horizontais em `0,45 × dx`, exatamente o `getSmoothPath` do `PriceChart`. Uma onda branda mais um tremor pequeno por ponto; a suavização transforma isso em ondulação em vez de bico.
+- Métrica usada para julgar a suavidade: **4 reversões de inclinação em 25 segmentos**, contra dezenas na versão crua.
+- O marcador foi reamostrado por **redução Douglas-Peucker** com tolerância de 0,8px: **30 paradas, erro máximo de 0,76px**. A curva suave precisou de menos da metade das paradas da versão irregular (que dava 68 a 1,19px) e ainda rastreia melhor.
+- Restrições verificadas na geração: uma única travessia entre 50% e 62% do vão, folga de pelo menos 1,5 ao objetivo **medida a partir de 5% depois da travessia** (medir logo após ela não diz nada: por continuidade y ainda vale ~48 ali, e essa foi uma verificação que eu escrevi errado na primeira vez e que rejeitou 600 sementes até eu perceber), caber no viewBox e terminar exatamente no nível da linha verde.
+- Se você quiser levar essa série de volta para o Figma, o caminho está no `d` do SVG e o gerador em `scratchpad/serie.py`.
+- Cuidado registrado: ao reescrever o CSS eu apaguei a regra do `.onboarding-chart__plot` sem perceber, porque ela estava no meio do trecho substituído. O sintoma foi a varredura sumir (recorte sempre em 100%) e a geometria sair 8px fora. Só apareceu porque a medição compara contra os números do Figma.
+
+Duas recomendações minhas foram **descartadas depois de pensar melhor**, e ficam registradas para não voltarem por engano:
+
+- **Fazer o `67%` e o `33%` se mexerem durante a animação.** Eu propus, argumentando que plantaria a lição do card 3. Mas o card 1 tem uma mensagem só — `você escolhe uma direção` — e trazer preço para dentro dele dilui isso, além de competir com o gráfico pela atenção na mesma janela. O card 3 ensina preço no lugar certo.
+- **Uniformizar as durações dos três cards.** Cada duração segue o que o conteúdo do card pede: forçar um valor comum ou apressaria a conta do card 3 ou encheria o card 1 de espera.
+
+### Card 4 — `onboarding-04` (564:7078) e a série extraída
+
+- Conteúdo: `Puedes vender antes` / `Si cambias de idea, vendes tu entrada al valor del momento sin esperar a que termine la ronda.` O CTA do último passo é `Entendido, empezar`, como o Figma nomeia.
+- A ilustração tem a pílula vermelha `DOWN - 67%`, `Participaciones: 200`, a série numa caixa mais baixa (279x74 em `top: 30`) e um rodapé com `Ganancia potencial:` e o botão `Vender` de 120x32.
+- A pessoa usuária pediu **o mesmo gráfico do card 1**, então a série virou o componente compartilhado `OnboardingSeries`: varredura, série e marcador, com a caixa entrando por `--onboarding-series-top` e `-height`. As paradas do marcador são **frações da caixa**, e é isso que permite as mesmas keyframes servirem ao card 1 (115px em `top: 1px`) e ao card 4 (74px em `top: 30px`).
+- Card 1 foi refatorado para usar o componente e conferido contra os números que já estavam medidos: os `y` do marcador batem exatamente (93, 85,1, 48,8, 14,1) e as porcentagens reveladas também (0, 30, 56,5, 100).
+- O ping de escala do marcador na travessia saiu nessa extração: o marcador agora é compartilhado, e somar uma terceira animação nele do card 1 exigiria repetir a lista inteira. O flash na linha do objetivo continua, e marca no elemento certo.
+- A linha `Participaciones:` é ancorada pela **direita**, não pela esquerda: largura de texto presa a uma fração do vão derivaria da borda — a mesma lição da pílula do card 2.
+
+#### A interação do botão `Vender`
+
+A pessoa usuária pediu que algo acontecesse no clique, sem dizer o quê. O que foi feito faz o texto do card virar gesto:
+
+- Antes da venda, a **ganancia corre junto com a varredura**: o número sobe enquanto a rodada avança, escravizado ao relógio da animação CSS pelo mesmo mecanismo do card 3.
+- **Depois da varredura o número segue oscilando de leve** em torno do valor, porque a rodada continua viva. Sem isso, metade do ciclo é pausa e um toque ali congelaria um valor já imóvel — a demonstração falharia em metade das vezes. Verificado: 14 amostras distintas ao longo de um ciclo inteiro, sem nenhuma repetição.
+- No clique, tudo congela **no instante do toque**: a série para de ser traçada, o marcador para onde estava, o valor trava, o rótulo deixa de ser `potencial` e vira `Ganancia:`, o botão fica verde com `Vendido`, e uma linha tracejada vertical marca em que ponto do tempo aquilo aconteceu — a posição vem do `left` do marcador, escrita em `--onboarding-sell-at` no clique.
+- O congelamento é `animation-play-state: paused`, então a animação retoma exatamente de onde parou. Depois de 2,2s o card volta a rodar, para o loop seguir ensinando.
+- O botão é um `button` de verdade, alcançável por teclado, com as camadas decorativas em `aria-hidden` individualmente — o card 4 é o único que não pode ser inteiramente `aria-hidden`.
+
+#### O gráfico invertido e o valor da venda
+
+Houve três passos aqui, e vale registrar o raciocínio porque as duas primeiras versões estavam erradas.
+
+**Primeira versão:** valor fixo de `$588.24`, como o Figma. Registrei que era impossível com 200 participações a 67¢ — o ganho máximo é ~$66.
+
+**Segunda versão:** a pessoa usuária pediu que o valor caísse conforme o preço passa do objetivo, porque a posição é DOWN, e que considerasse as participações. Implementei lucro/prejuízo saindo da altura da linha. A aritmética ficou certa e **a narrativa ficou errada**: o card passou a ensinar um prejuízo, com `Pérdida potencial` na maior parte do ciclo. O card existe para apresentar a saída como vantagem, não para assustar no primeiro contato. E o sinal estava na cara desde o começo — o Figma tem rótulo `Ganancia potencial` com número positivo, ou seja o desenho previa uma posição **ganhando**; só o gráfico contradizia, porque foi copiado do card 1.
+
+**Versão final**, decidida com a pessoa usuária:
+
+- **A série do card 4 é invertida**: começa acima do preço objetivo e termina abaixo. Com a posição em DOWN, é a queda do preço que faz a entrada valer mais. Gerada pelo mesmo gerador e suavizada com a mesma fórmula do gráfico real; travessia em 57,7% do vão, 2 reversões de inclinação em 25 segmentos.
+- `OnboardingSeries` ganhou uma prop `direction`: `rising` para o card 1 e `falling` para o card 4, com uma tabela de paradas do marcador para cada uma. Mesmo método de redução, tolerância de 0,8px, erro máximo de 0,77px.
+- **O número passou a ser o valor da venda**, não lucro nem prejuízo: `participações × preço do DOWN`, que sobe de **$24 a $180** ao longo da rodada. Rótulo `Valor de venta:` antes e `Vendido por:` depois. Sem sinal, sem vermelho, sem `Pérdida` em lugar nenhum.
+- Dois motivos para não mostrar resultado aqui. Um: apareceria `Pérdida potencial` na maior parte do ciclo. Dois, mais sutil: **com a posição ganhando, segurar até o fim pagaria $200 e vender antes paga $180** — o resultado ensinaria que vender custa dinheiro. O texto do card já diz qual é o benefício, `vendes tu entrada al valor del momento sin esperar`: é não esperar, não otimizar. E valor de venda é o que uma tela de venda real mostra primeiro.
+- O preço de entrada de 67¢ não entra na conta do valor da venda, mas ficou como constante ligada ao texto da pílula, para os dois números não divergirem.
+- **A venda automática passou para o fim da varredura** (48% do ciclo), a pedido da pessoa usuária: vende quando a barra chega ao fim do gráfico, que é onde o valor está no máximo. O botão continua clicável.
+- Defeito encontrado e corrigido no caminho: `armed` e a fase anterior eram variáveis locais do efeito, e o efeito remonta quando `isSold` volta a `false` — então rearmava com a fase ainda dentro da janela do gatilho e vendia de novo na hora, num laço que nunca terminava a volta. Passaram para refs.
+
+### Refinamentos de movimento pedidos na revisão
+
+- **Depois de vender, a série é remontada em vez de retomada.** Retomar deixava o gráfico voltar a ser traçado depois da venda, como se a posição ainda estivesse aberta, e a volta demorava a fechar. Agora cada volta é uma rodada completa: corre, vende, segura dois segundos, recomeça do zero. Feito trocando a `key` do `OnboardingSeries`, o que remonta o elemento e reinicia as animações. Medido: o valor sobe de `$24` a `$177` conforme a varredura vai de 15% a 100%, vende, segura, e reinicia em `rev=0` com `$27`.
+- **A troca de passo deixou de ser seca.** Palco de transição no mesmo vocabulário das rotas do `ProfileBottomSheet`: 300ms `ease-out` em `transform` e `opacity`, deslizando no sentido da navegação. Uma diferença: lá as rotas são todas absolutas num palco de altura fixa; aqui o conteúdo tem altura automática, então só a camada que **sai** fica absoluta e a que entra permanece no fluxo, definindo a altura. Só o passo atual fica montado em repouso, para não deixar quatro ilustrações animando ao mesmo tempo. O deslocamento é multiplicado por `--onboarding-motion`, então com a preferência ligada a troca vira dissolvência.
+- Cuidado registrado: os efeitos colaterais da transição estavam **dentro do updater do `setStepIndex`**. O React pode invocar um updater mais de uma vez, e agendar temporizador ali dispararia a limpeza antes da hora. Passaram para fora.
+- **O botão `Vender` gira para `Vendido`.** Duas faces no mesmo botão com `preserve-3d` e `backface-visibility: hidden`, girando 460ms. O nome acessível vem de um `aria-label`, senão o leitor de tela anunciaria as duas faces. Com `prefers-reduced-motion` as faces trocam por dissolvência em vez de girar, porque girar é movimento.
+- **A barra de progresso do card 2 entra por dissolvência.** Ela nascia em `opacity: 1` e aparecia seca na virada do loop, enquanto o resto do card entrava suave. Agora usa os mesmos 6% de entrada do `onboarding-clock-transient`. Medido: 0,5% → 0,01; 3% → 0,50; 6% → 1,00.
+
+### Textos em espanhol escritos por mim, para revisão de um nativo
+
+O Figma trouxe a maior parte das strings. Estas eu escrevi, e valem uma conferida por quem fala espanhol antes do teste no México: `Terminó abajo`, `Valor de venta:`, `Vendido por:`, `Vendido`, `Volver`, `Cerrar` e `Paso X de 4`. Também corrigi `Seguiente` para `Siguiente`, que era erro de digitação no Figma.
+
+### Desvio proposital do Figma no card 1: `DOWN 33%`
+
+O nó do Figma traz `UP 67%` e `DOWN 34%`, somando 101. Por decisão da pessoa usuária o card passou a mostrar `33%`, para o par somar 100 e não virar um enigma no meio da onboarding.
+
+**Isso não é correção de um erro do design.** Na tela real os dois percentuais saem de livros de ordens independentes: `useOutcomeMarket` chama `getDisplayedOutcomePrice()` separadamente para `books.up` e `books.down`, e essa função devolve o ponto médio de cada livro. Dois pontos médios apurados em livros distintos ficam próximos de 100, não exatamente 100 — a diferença é o spread do mercado, e passar de 100 não é defeito. A contingência local é o único lugar onde o par é complementar (`marketFallback.ts` faz `down: 1 - up`), e mesmo lá o arredondamento independente de cada lado devolve 67/34 quando `up` vale 0,665.
+
+Consequência aceita: a onboarding ensina um par que soma 100, enquanto a tela ao vivo pode mostrar 101. Está registrado em comentário no `OnboardingChart.tsx` para ninguém "alinhar de volta" com o Figma sem saber. Nada foi mudado no cálculo do mercado.
+
+### Card 2 — `onboarding-02` (564:6929) e o botão de voltar
+
+- Conteúdo: `Cada ronda dura 15 minutos` / `Cuando el reloj llega a cero, el precio final define el resultado. No hay nada más que hacer: se resuelve solo.`
+- A ilustração é o subheader da rodada em miniatura (logo, `BTC / 15 Min` a 20px em vez de 24px, faixa de horário sem data), uma barra de progresso e os dois cards de preço.
+- Reúso: `logoBTC.png`, `arrowUpGreen.svg`, `arrowDownRed.svg` e `onboardingChartGlow.svg` já existiam. O ícone do chip exportado do Figma é idêntico ao `arrowUpGreen.svg` do projeto.
+- Botão de voltar: 48x48 com ícone de 16px, no footer de 343 (48 + 8 de gap + 287). No Figma o rótulo dele está `hidden="true"` — o `label="Seguiente"` que aparece no Code Connect é resto do componente do design system, não um rótulo visível. Só aparece a partir do passo 2.
+- O `iconVoltar.svg` do projeto tem a seta recuada numa caixa de 40x40, ocupando 45% dela, então é renderizado a 32px para o glifo dar os ~14px do design.
+
+#### A decisão do 00:00
+
+A pessoa usuária propôs tirar os dois preços e pôr uma mensagem. A contraproposta aceita foi outra: os dois preços **ficam**, porque a comparação entre objetivo e final é a própria lição do card — apagá-la no instante em que ela acontece removeria a evidência. Em vez disso:
+
+- O card da direita troca `Precio actual` por `Precio final` e o preço congela.
+- A barra é que cede lugar: chega a 100%, sai de cena inteira (trilha incluída) e a pílula `Terminó arriba` aparece no lugar dela. O que estava contando passa a anunciar, e não precisa de espaço novo.
+- A pílula repete o visual da do card 1 de propósito, para os quatro cards lerem como um sistema.
+- O preço atual cruza o objetivo três vezes antes de fechar, com o chip trocando de seta e cor. Se o preço só subisse, a rodada pareceria decidida desde o começo, e é isso que faria `se resuelve solo` soar falso.
+- A contagem é comprimida para ~2,7s, não 5s literais: cinco segundos olhando um relógio é lento num card em loop, e assim cada volta fica nos mesmos 5,2s do card 1.
+
+#### Duas voltas alternadas
+
+Pedido da pessoa usuária, e pelo mesmo motivo do cruzamento de preço: a primeira volta fecha **acima** do objetivo e a segunda **abaixo**, e aí o ciclo recomeça. Uma volta só, sempre terminando acima, faria o resultado parecer combinado.
+
+- Ciclo completo de 10,4s, duas voltas de 5,2s. `--onboarding-clock-cycle` é derivada de `--onboarding-clock-duration`, então mexer numa mexe na outra.
+- A volta 2 fecha em `$80,189.64`, `↓ $6`, com a pílula `Terminó abajo` no vermelho de baixa (`--color-fill-error`) — a mesma linguagem do DOWN no resto do app.
+- Implementação: em vez de tiras de doze fatias com duas janelas de `steps()`, cada volta tem a própria tira de seis e um invólucro `.onboarding-clock__run--a/b` alterna qual está em cena, num ciclo de 10,4s. As duas ocupam a mesma célula de um grid, então a caixa mede a maior e a troca não empurra nada.
+- A troca acontece exatamente na virada de cada volta, quando `onboarding-clock-transient` já levou o conteúdo a `opacity: 0` — verificado: em 5,19s as duas pílulas estão em 0.
+- A pílula perdeu o posicionamento para um `__outcome-slot`: o slot cuida da posição e de qual volta está em cena, a pílula cuida da própria entrada. Sem isso, duas animações disputariam `opacity` no mesmo elemento.
+
+#### Como a contagem é feita
+
+- Três odômetros — segundos, diferença e preço — são tiras verticais de seis fatias com `overflow: hidden`, movidas por `steps(6, jump-none)`. Compartilham keyframes e duração, então ficam sincronizados por construção, sem nenhum temporizador em JavaScript e sem re-render do React a cada segundo.
+- Os valores terminam todos em `.64`, como o objetivo, para a diferença fechar em dólares inteiros e o último passo cair exatamente no par do Figma: `$80,202.64` e `$7`.
+- O relógio mostra `00` cerca de 0,45s antes de a barra fechar. Isso é correto: `00` é o que um relógio exibe durante o último segundo, e a barra completa no zero de verdade.
+
+### Card 3 — `onboarding-03` (564:7019)
+
+- Conteúdo: `El % indica el precio` / `Con $10 a 67¢ recibes 14.93 participaciones. Si aciertas, cada una paga $1.`
+- A ilustração é a decomposição de uma compra: duas pílulas verdes no topo (`COMPRA UP` e `67%`) e um grid de duas colunas por três linhas com `Monto a invertir $10`, `Precio por participación 67¢`, `Si aciertas, recibes $14.93`, `Ganancia +$4.93` e a conta `$10 ÷ 67¢ = 14.93 participaciones`.
+- Nenhum asset novo: só o glow, que já existia.
+- A pílula `67%` está em x=173 no Figma, que é exatamente onde começa a segunda coluna do grid (32 + 140.5) — ela fica alinhada sobre a coluna `Precio por participación` de propósito, porque é o que o título do card diz. Por isso está ancorada nessa coluna, `calc(inset + (span + 2px) / 2)`, e não numa fração solta do vão.
+- O texto da conta na última linha tem 177px e a coluna mede 138.5, então ele transborda por cima da segunda coluna. É assim no design; `minmax(0, 1fr)` nas colunas é o que impede o grid de esticar para acomodá-lo.
+
+#### A animação
+
+O conteúdo é uma conta, então a animação é a **derivação** dela, em ordem de leitura: a compra, o preço, o valor investido, o preço por participação, o retorno com os números crescendo, e **por último** a linha `$10 ÷ 67¢ = 14.93 participaciones`, que fecha o raciocínio. Cada bloco sobe 4px ao entrar; as duas células do retorno entram juntas, porque são um só beat.
+
+A pílula `67%` recebe uma ênfase de escala em 25% do ciclo, exatamente quando o `67¢` aparece. É a ligação que o título do card afirma — o percentual é o preço — e é o único momento de destaque da animação.
+
+- Ciclo de **7,8s**, mais longo que os 5,2s dos outros cards: são seis beats em sequência e o conteúdo é uma conta, que precisa de tempo de leitura. A pausa no quadro cheio vai de 58% a 92%, uns 2,6s.
+- Os números de `Si aciertas, recibes` e `Ganancia` crescem de zero até o valor, no mesmo `ease-out` quártico (`1 - (1 - t) ** 4`) do contador de métricas do `ProfileBottomSheet`.
+- **A contagem é escrava do relógio da animação CSS**, lido por `getAnimations()` e não por `performance.now()`. O motivo é a armadilha registrada abaixo: o Chrome congela animações de página não renderizada, então um relógio próprio dessincronizaria da ilustração toda vez que a aba fosse para o fundo. O `requestAnimationFrame` também para junto, então a contagem custa nada com a aba oculta.
+- O texto é escrito direto no DOM por `ref`, sem estado do React, para não re-renderizar o sheet a cada quadro.
+- A duração e a janela da contagem (`--onboarding-shares-count-from` e `-to`, 35% a 50%) vivem no CSS junto das keyframes, e o componente as lê. Um só lugar para ajustar o tempo.
+- Sem a animação-relógio, o contador cai no **valor final**, não em zero: é o estado base do card. Só acontece se as animações forem desligadas por fora; sob `prefers-reduced-motion` o efeito não inicia e o valor final do JSX permanece.
+
+### Correção de fidelidade nos dois cards
+
+- No Figma a borda dos cards é desenhada **por dentro** da medida, então com `box-sizing: border-box` o `padding: 16px` empurrava tudo 1px e deixava a área da ilustração com 154px em vez de 156. Passou para `padding: 15px 0` nos dois cards de 188px, e `7px 11px` nos cards de preço de 58px. Card 1 ficou mais fiel também: área interna 156 a 16px da borda.
+
+### `prefers-reduced-motion`: as ilustrações continuam em loop, sem movimento
+
+A pessoa usuária reportou duas vezes que a ilustração não animava — primeiro o card 2, depois o card 1 —, com capturas que eram exatamente o quadro base de `prefers-reduced-motion`. Nas duas vezes a animação foi verificada rodando aqui (cinco animações avançando 900ms em 900ms, `dashoffset` mudando, a preferência em `false`), então a causa mais provável é a preferência ligada no sistema dela.
+
+O tratamento anterior desligava a animação inteira, e isso estava errado de origem: **a preferência pede menos movimento — deslocar, escalar, girar —, não menos mudança.** E aqui a ilustração é o conteúdo do card, não enfeite: desligá-la tirava a explicação de quem tem a preferência ligada.
+
+A correção é uma variável só, `--onboarding-motion`, definida em `.onboarding-sheet` como `1` e zerada dentro do `@media (prefers-reduced-motion: reduce)`. As keyframes dos três cards multiplicam deslocamento e escala por ela, então zerá-la remove o movimento e mantém o loop:
+
+- Card 1: a série aparece por opacidade em vez de se desenhar; pílula, ponto e linha do resultado perdem a escala. `stroke-dashoffset: calc(1px * var(--onboarding-motion))` — **com unidade**, porque `calc()` com número puro não vale em contexto de comprimento e a keyframe inteira cairia em silêncio.
+- Card 2: a pílula do resultado perde a escala. Os odômetros continuam rodando: `steps()` troca os dígitos de uma vez, é texto mudando e não deslocamento. A barra de progresso também fica, pelo mesmo critério de qualquer carregamento.
+- Card 3: os blocos entram sem subir os 4px e a ênfase da pílula `67%` perde a escala. A contagem crescente continua, e o `OnboardingSharePrice` deixou de sair cedo quando a preferência está ligada.
+- O deslizar do próprio bottom sheet segue reduzido a 1ms com a preferência ligada: aquilo é movimento de verdade.
+
+Verificado nos dois estados, simulando a preferência ao zerar a variável — que é o mesmo que o `@media` faz. Com movimento: `dashoffset` 0,7 → 0,45 → 0, ponto em escala 0,3, pílula em 0,85, bloco do card 3 deslocado 2,49px, ênfase em 1,12. Sem movimento: `dashoffset` sempre 0, todas as escalas em 1, deslocamento em 0 — e a mesma contagem de animações declaradas nos dois casos, ou seja o loop não para.
+
+### Duas armadilhas do ambiente, para a próxima sessão não perder tempo
+
+- **O painel do browser fica `hidden` com frequência**, e página não renderizada tem a timeline do documento congelada no Chrome. Sintomas: `Animation.currentTime` parado em 0 com `playState: "running"`, e `screenshot` devolvendo quadros idênticos ou desatualizados. Confirmar com `document.visibilityState` e medir `document.timeline.currentTime` antes de concluir que alguma animação quebrou. Com `tabs_select` a aba avança normalmente — verificado, 800ms em 800ms.
+- **`pause()` via Web Animations API é desfeito** quando o painel troca de visibilidade. Para travar uma fase de forma estável, injetar `animation-play-state: paused` e `animation-delay` negativo por CSS, ou `animation: none` para obter o estado base.
+
+### Bug encontrado e corrigido
+
+- A devolução de foco ao fechar o sheet não funcionava: o foco ia para o `body` em vez de voltar ao botão que abriu.
+- Causa: `onClose` derruba o `inert` do conteúdo principal num commit do React sem ordem garantida em relação ao próximo quadro. Enquanto o `inert` está no DOM, `focus()` é ignorado em silêncio.
+- Correção: `restoreFocus` insiste por até seis quadros, até o foco pousar. O `ProfileBottomSheet` tem o mesmo `requestAnimationFrame` único e provavelmente a mesma corrida — não verificado, e fora do escopo desta tarefa.
+
+## Arquivos alterados
+
+- `src/components/SubHeader/SubHeader.tsx` e `.css` — o botão, a geometria do Figma, o halo em rajadas, o estado compacto
+- `src/hooks/useOnboardingInvite.ts` — flag do convite em `localStorage` e `?resetOnboarding=1`
+- `src/components/OnboardingBottomSheet/` — `OnboardingBottomSheet.tsx`/`.css`, `OnboardingChart.tsx`/`.css`, `onboardingSteps.ts`, `index.ts`
+- `src/assets/onboardingChartGlow.svg` e `onboardingChartDot.svg` — exports do Figma
+- `src/App.tsx` — estado, handlers, `inert` e render do sheet
+- `src/assets/iconOnboading.svg` é export da pessoa usuária, não versionado ainda, com typo no nome. Renomear depende de autorização
+
+## Validações
+
+- `pnpm lint` limpo e `pnpm build` sem erros.
+- Suíte completa passando, 87 testes: `test:chart` 26, `test:market` 25, `test:wallet` 19, `test:entries` 8, `test:fallback` 6, `test:assets` 3.
+- Navegador em `localhost:5176`, viewport 375x812: botão fiel ao Figma (36x48, ícone 20x20 a 4px do topo); halo rodando `8s infinite`; clique derruba a classe, zera as animações e grava a flag; após reload o pulsante não volta; no estado compacto o título colapsa e o botão continua visível.
+- Bottom sheet: `role="dialog"`, `aria-modal`, 4 bullets, CTA `Siguiente`, título e corpo corretos em cada passo.
+- Navegação entre os passos: passo 1 mostra o gráfico e nenhum botão de voltar; avançar leva ao passo 2 com o relógio, o botão de voltar e o segundo bullet ativo; voltar retorna ao passo 1 e o botão de voltar desaparece.
+- Card 2 conferido contra o Figma com a animação parada: card 188 e área interna 156 a 16px da borda, `tempo` em 32,0 com 48 de altura, título do mercado em x=52, relógio com 77 de largura encostado à direita, barra em 32,71, cards de preço em 32,98 com 58 de altura e o rótulo em 12,8 dentro deles.
+- Fases do card 2, medidas: 3% parado em 00:05 com a barra em 0 e os valores entrando; 10% barra em 8%; 25% em 00:03 com 37%; 40% em 00:02 com 65%; 55% em 00:00 com 94%; 58% barra em 100%; 62% rótulo já em `Precio final`, barra saindo e pílula entrando; 70% barra fora e pílula inteira; 88% segurado; 98% tudo desaparecido para a virada do loop.
+- Card 1 com `UP 67%` e `DOWN 33%`, somando 100.
+- Card 4 conferido contra o Figma, em vão de 374: pílula em 32,0 com 20 de altura; `Participaciones` terminando na borda direita do vão; série em 32,30 com 74 de altura; linha do objetivo em y=75; rótulo em 32,57; rodapé em 32,110; botão de 120x32 encostado à direita.
+- Interação do `Vender` medida: o valor acompanha a altura da linha — `$22` quando o preço está bem acima do objetivo, `$55`, `$95` no objetivo, `$175` a `$180` quando fecha abaixo. A venda automática dispara no fim da varredura, em torno de `$180`, com o rótulo virando `Vendido por:`, o botão verde `Vendido`, as animações em `paused` e a linha do momento na posição do marcador. **Nenhuma amostra trouxe `Pérdida` ou número negativo.** Depois de 2,6s tudo retoma; uma venda por volta.
+- Não validado em imagem: o estado vendido. A captura do painel fica sempre um estado atrás nas mudanças do React, e a janela de 2,6s não dá margem — está verificado por medição (`Vendido por: $183,65`, botão `Vendido`, desabilitado). As capturas que saíram mostram bem as duas mudanças visíveis: a série invertida e o rótulo `Valor de venta`.
+- Card 1 redesenhado conferido contra o Figma com a animação parada, em vão de 374: área e linha em 32,1 com 115 e 106 de altura, linha verde em y=14,1, pílula em y=5, escolhas em y=124, marcador de 20px.
+- Varredura medida: 4% recorte em 100% e nada visível; 15% em 82,5%; 30% em 45%; 48% em 0% e completa; 95% desaparecendo. Com `--onboarding-motion` em zero o recorte nasce em 0% e o gráfico aparece por opacidade, mantendo o loop.
+- **O marcador acompanha a ponta da varredura**, conferido em imagem no meio dela: pousa exatamente na ponta do traço. Erro máximo contra a série medido em 0,78px depois da reamostragem por curvatura.
+- Coreografia da série final, medida fase por fase: 8% varredura em 0 e marcador na base (y=93); 20% revelado 30% e y=85,1; **30,6% revelado 56,5% com o marcador em y=48,8 — a linha do objetivo está em y=49, então ele pousa sobre ela — flash em 0,63 e ping em 1,245**; 31,6% flash no pico de 0,89 e ping em 1,346, com a varredura já em 59% (contínua, sem pausa); 37% flash de volta a 0 e revelado 72,5%; 48% revelado 100% e marcador em y=14,1, o mesmo nível da linha verde; 62% linha verde e pílula em 1; 88% quadro cheio.
+- Série em `top: 1px` da área de animação com 115px de altura, e a caixa da varredura em `-7px` por causa da folga — conferido.
+- Caminho de `prefers-reduced-motion` do marcador conferido: sem viagem, parado em x=309, que é o fim da série.
+- Os seis passos do chip da volta 1 conferidos um a um: setas vermelhas para baixo em 00:05 e 00:03, verdes para cima nos outros quatro, com as cores dos tokens `--color-fill-error` e `--color-fill-success` e os preços coerentes com o objetivo. Volta 2 conferida do mesmo jeito: verde em 00:05 e 00:03, vermelho nos outros quatro, fechando abaixo.
+- Card 3 conferido contra o Figma com a animação parada, em vão de 374: grid em 32,37 com 118 de altura, colunas de 186 (metade do vão menos os 2px de gap), linhas em 37, 87 e 137, célula da conta com 18 de altura, e a pílula `67%` em x=220 — o mesmo x do início da coluna 2, portanto alinhada a ela.
+- Fases do card 3 no ciclo de 7,8s, medidas: 20% o retorno ainda fora e os números em `$0.00`; 30% o retorno entrando (0,43); 35% o retorno dentro e a contagem começando; 40% em `$11.98` e `+$3.96`; 45% em `$14.75` e `+$4.87`; 50% fechando em `$14.93` e `+$4.93`; 55% a conta entrando (0,81) — **depois** do retorno, como pedido; 62% a conta dentro; 85% tudo ainda no quadro cheio, a pausa longa; 92% em diante desaparecendo junto para a virada.
+- Fallback do contador conferido: com as animações desligadas por fora, `getAnimations()` devolve zero e os valores ficam em `$14.93` e `+$4.93`, não em zero.
+- Navegação até o passo 3: bullet 3 ativo, título e corpo corretos, botão de voltar presente.
+- Ciclo de duas voltas medido ao longo dos 10,4s: volta A em cena de 0 a 5,2s com `Terminó arriba` a 0,994 em 4,6s; em 5,19s as duas pílulas em 0, que é a janela invisível da troca; volta B de 5,2 a 10,4s com `Terminó abajo` a 0,994 em 9,8s; em 10,3s as duas em 0 de novo para voltar à A.
+- Quadro base (o que fica com `prefers-reduced-motion`): volta A resolvida, com a volta B em `opacity: 0` — só uma das duas aparece.
+- Coreografia medida por fase, com a animação travada por CSS: 6% a escolha acende com a série intacta; 30% desenhando com o resultado escondido; 55% série pronta e o ponto entrando; 88% o quadro segurado, idêntico ao Figma. No limite do loop tudo volta a transparente e o UP a 0.4, então reinicia sem salto.
+- `prefers-reduced-motion` simulado com `animation: none`: cai exatamente no quadro do Figma.
+- Fechamento por X, Escape, overlay e CTA, todos devolvendo o foco ao botão e liberando o `inert`.
+- Geometria responsiva varrida em 320, 360, 375, 430 e 499px de tela, depois das correções: a folga entre a pílula e a bolinha dá 7,99px em todas — o valor do Figma —, a curva mede exatamente o vão em todas, a linha verde termina sempre sob a pílula e a pílula nunca sai do card. A ponta pintada da curva cai sobre o centro da bolinha com ~1px de diferença, dentro da meia-espessura do traço.
+- Fases do desenho remedidas depois das correções: 0 a 8% parada e transparente, sem nada pintado; 8,5% com 4,3px de traço a 50% de opacidade; 9% com 8,5px já opaco; 15% com 59,6px; 30% com 187px; 48% completa em 340,3px; 88% segurada; 99% desaparecida.
+- A animação foi verificada rodando: com a aba fronteada, as cinco animações avançam 800ms em 800ms, `playState: "running"` e `prefers-reduced-motion` em `false`.
+- Não validado: quadro intermediário por captura de tela. O `screenshot` do painel do browser vem com pintura defasada nesses elementos animados, e a troca de visibilidade do painel desfaz `pause()` via JS. A validação da coreografia foi por estilo computado, não por imagem.
+- Não validado: clique real de ponteiro. O `computer` do painel dá timeout nesta sessão, então os cliques foram despachados por DOM, que passa pelo `onClick` do React.
+
+## Pendências e próximo passo
+
+- Os quatro cards estão implementados. Não há próximo passo pendente de design. Os bullets já mostram o total de quatro e a navegação alcança os passos sozinha conforme a lista cresce.
+- A pílula `Terminó arriba` está duplicada entre `OnboardingChart.css` e `OnboardingRoundClock.css`. Com dois usos, duplicar custou menos que mexer no card 1 já validado; se um terceiro card reusar, vale extrair numa classe compartilhada.
+- Arrastar entre os cards ficou de fora de propósito: com um passo só não há como verificar. Entra junto com os cards 2 a 4. Bullets seguem como indicador, não como controle — alvo de 6px é pequeno demais.
+- As durações dos cards divergiram de propósito: 5,2s no card 1, ciclo de 10,4s no card 2 (duas voltas de 5,2s) e 7,8s no card 3. Cada uma segue o que o conteúdo do card precisa; o valor fica em `--onboarding-*-duration` de cada arquivo.
+- O ciclo do card 2 leva 10,4s para mostrar as duas saídas. Quem olhar por 5s vê uma delas, o que já está completo; quem ficar vê as duas. Se ficar longo demais na sua leitura, o corte natural é encurtar a pausa do quadro final de cada volta, de ~1,3s para ~0,9s, o que levaria o ciclo para 9,6s.
+- O brilho roxo do topo do sheet merece o olho da pessoa usuária contra o Figma real. O valor é o do design, mas no navegador ele lê um pouco mais forte que no render do Figma.
+- A pílula `Terminó arriba` e o rótulo `PRECIO OBJETIVO` têm largura de texto, então não acompanham a largura da tela como o resto do card. Isso está resolvido para a linha verde, que agora se ancora na pílula, mas vale conferir o conjunto se algum card novo colocar mais coisas nessa faixa.
+- Renomear `iconOnboading.svg` para `iconOnboarding.svg` depende de autorização, por ser arquivo da pessoa usuária.
+- Sem commit, PR, merge ou publicação. Nada foi autorizado.
+
+
+## Histórico: medição do rótulo de preço (PRs #50 e #51)
+
+
+- Atualizado em: 2026-09-03
+- Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
 - Status: concluído — mesclado pelo PR #50 e publicado no GitHub Pages, com a publicação verificada no artefato real. A pessoa usuária autorizou explicitamente push, merge e publicação depois da entrega técnica
 - Objetivo: corrigir a medição frágil de `priceLabelWidth` no `PriceChart`, irmã do defeito que o PR #49 corrigiu na etiqueta do preço objetivo. Ela estava registrada como pendência conhecida e fora do escopo daquele PR
@@ -23,7 +319,7 @@
 - Sobre o `ref` condicional: a função passada é o próprio setter de `useState`, cuja identidade o React garante estável, então ela não é reinvocada a cada quadro — e o componente re-renderiza por `requestAnimationFrame`, então uma função inline ali causaria `null` e reanexação em todo quadro. As chaves da grade são por índice e `GRID_LINE_COUNT` é a constante `7`, de modo que o `<text>` do índice `0` nunca troca de posição nem remonta ao mudar os valores; o `null` só chega quando o componente inteiro sai pelo retorno antecipado, e aí a remontagem remede.
 - Decisão de forma: a medição ficou dentro de uma função nomeada `measure`, como nas duas medições irmãs do arquivo. Com o `setPriceLabelWidth` direto no corpo do efeito, o `react(set-state-in-effect)` do oxlint passou a acusar cascata de renderização, porque o efeito agora depende de estado próprio. A regra só enxerga chamadas diretas no corpo, e é por isso que a medição do objetivo e a de `usePriceChartWidth`, que fazem exatamente o mesmo, nunca avisaram. O aviso é falso-positivo — medir o DOM depois da pintura é o caso de uso de um efeito de layout, e a cascata é finita e converge pelo limiar de `0,5px` —, mas a alternativa era deixar o primeiro aviso de lint do repositório ou introduzir a primeira diretiva de `oxlint-disable`. O motivo está em comentário no código.
 
-## Validações
+### Validações
 
 - `pnpm lint` limpo, `pnpm build` sem erros e a suíte completa passando: `test:chart` 26, `test:market` 25, `test:wallet` 19, `test:entries` 8, `test:fallback` 6, `test:proxy` 6, `test:assets` 3.
 - Sem teste de regressão, pelo mesmo motivo registrado no PR #49: o defeito vive num efeito de layout que depende de `getBBox`, e a suíte roda em `node --test` sem DOM.
@@ -35,7 +331,7 @@
 - Conferida a remedição por comprimento: encurtando o rótulo de `$1,180,600.00` para `$80,600.00`, a variável passou de `6,3125px` para `23,71875px` e o alinhamento continuou exato.
 - Não validado com dados reais de mercado: o ambiente do agente não tem saída de rede e os feeds são WebSocket abertos pelo navegador.
 
-## Pendências e próximo passo
+### Pendências e próximo passo
 
 - Publicação verificada em `https://design-draftea.github.io/pulse/`, baixando o bundle e conferindo o código minificado: o nó em `useState`, o `ref` condicional do `<text>` recebendo a função de estado, o nó na lista de dependências do efeito e a publicação da variável CSS condicionada à largura medida.
 - Detalhe para as próximas verificações: comparar o hash do bundle local com o publicado não funciona aqui. O workflow injeta `VITE_BASE_PATH` e `VITE_POLYMARKET_PROXY_ORIGIN`, então o conteúdo difere legitimamente. A conferência tem de ser por marcador no código minificado.

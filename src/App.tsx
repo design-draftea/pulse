@@ -22,6 +22,7 @@ import {
 } from './components/MarketChoice/MarketChoice'
 import { MobileOnly } from './components/MobileOnly/MobileOnly'
 import { Movements } from './components/Movements/Movements'
+import { OnboardingBottomSheet } from './components/OnboardingBottomSheet'
 import { OpenEntries } from './components/OpenEntries/OpenEntries'
 import {
   Navbar,
@@ -48,6 +49,7 @@ import { useAnimatedMarketPrice } from './hooks/useAnimatedMarketPrice'
 import { useDeferredAssetWarmup } from './hooks/useDeferredAssetWarmup'
 import { useResilientBtcMarketRound } from './hooks/useResilientBtcMarketRound'
 import { useMockChartEntries } from './hooks/useMockChartEntries'
+import { useOnboardingInvite } from './hooks/useOnboardingInvite'
 import { useOutcomeMarket } from './hooks/useOutcomeMarket'
 import { usePrototypeWallet } from './hooks/usePrototypeWallet'
 import {
@@ -134,6 +136,11 @@ function App() {
   const [isMarketHeaderCompact, setIsMarketHeaderCompact] = useState(false)
   const [isMarketHeaderPinned, setIsMarketHeaderPinned] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
+  const {
+    isInviting: isOnboardingInviting,
+    dismissInvite: dismissOnboardingInvite,
+  } = useOnboardingInvite()
   const [profileSheetMode, setProfileSheetMode] = useState<ProfileBottomSheetMode>('profile')
   const [selectedSide, setSelectedSide] = useState<MarketSide | null>(
     LOCKED_BETSLIP_PREVIEW_MODE ? 'up' : null,
@@ -599,6 +606,11 @@ function App() {
     setIsProfileOpen(true)
   }, [])
 
+  const handleOnboardingOpen = useCallback(() => {
+    dismissOnboardingInvite()
+    setIsOnboardingOpen(true)
+  }, [dismissOnboardingInvite])
+
   const handleHelpOpen = useCallback(() => {
     setProfileSheetMode('help')
     setIsProfileOpen(true)
@@ -606,6 +618,10 @@ function App() {
 
   const handleProfileClose = useCallback(() => {
     setIsProfileOpen(false)
+  }, [])
+
+  const handleOnboardingClose = useCallback(() => {
+    setIsOnboardingOpen(false)
   }, [])
 
   const handlePurchaseExecute = useCallback((details: PurchaseSuccessDetails) => {
@@ -770,6 +786,9 @@ function App() {
             endTime={marketRound.endTime}
             minutes={displayedMinutes}
             seconds={displayedSeconds}
+            isOnboardingOpen={isOnboardingOpen}
+            isOnboardingInviting={isOnboardingInviting}
+            onOnboardingOpen={handleOnboardingOpen}
           />
           <PriceComparison
             isCompact={isMarketHeaderCompact}
@@ -850,7 +869,7 @@ function App() {
         className={`pulse-app pulse-app--${activeSection}${pageTransition ? ` pulse-app--page-transition-${pageTransition.direction} pulse-app--page-transition-${pageTransition.phase}` : ''}${isPurchaseLoading ? ' pulse-app--purchase-loading' : ''}`}
         style={appStyle}
         aria-busy={isPurchaseLoading}
-        inert={isPurchaseLoading || isProfileOpen ? true : undefined}
+        inert={isPurchaseLoading || isProfileOpen || isOnboardingOpen ? true : undefined}
       >
         <div className="pulse-app__background" aria-hidden="true" />
 
@@ -941,6 +960,11 @@ function App() {
         isOpen={isProfileOpen}
         metrics={profileMetrics}
         onClose={handleProfileClose}
+      />
+
+      <OnboardingBottomSheet
+        isOpen={isOnboardingOpen}
+        onClose={handleOnboardingClose}
       />
     </>
   )

@@ -169,6 +169,65 @@
     line-height 240ms ease-in-out;
 }
 
+/* `innerHelp` do Figma: irmão do bloco de título dentro de `produto`, esticado
+   na altura da linha e alinhado ao topo. Ficar fora de `__details` é o que
+   mantém o botão visível quando o título colapsa no estado compacto. */
+.sub-header__help {
+  appearance: none;
+  display: flex;
+  align-self: stretch;
+  align-items: flex-start;
+  padding: 4px 8px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: padding-top 240ms ease-in-out;
+}
+
+.sub-header__help:focus-visible {
+  outline: 2px solid var(--color-fill-primary);
+  outline-offset: 2px;
+}
+
+.sub-header__help-icon {
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+
+  /* O SVG traz só o glifo. O círculo vem do token, na mesma declaração que o
+     ícone de saldo já usa em `Header.css` — o gradiente do Figma é 75.115deg. */
+  background-image: linear-gradient(
+    75.115deg,
+    var(--color-action-primary-default-start) 0%,
+    var(--color-action-primary-default-end) 100%
+  );
+}
+
+.sub-header__help-icon img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* O convite só existe até a primeira abertura do onboarding. O subheader já tem
+   a moeda girando e o relógio correndo, então o halo pulsa em rajadas de três e
+   descansa, em vez de disputar atenção sem parar. */
+.sub-header__help-icon--inviting::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--color-action-primary-default-end);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgb(151 48 255 / 0.45);
+  animation: sub-header-help-invite 8s ease-out infinite;
+}
+
 .sub-header--sticky .sub-header__coin {
   width: 24px;
   height: 24px;
@@ -183,6 +242,10 @@
   max-height: 0;
   opacity: 0;
   transform: translateY(-4px);
+}
+
+.sub-header--sticky .sub-header__help {
+  padding-top: 2px;
 }
 
 .sub-header--sticky .sub-header__time-label {
@@ -221,6 +284,44 @@
   }
 }
 
+@keyframes sub-header-help-invite {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.75);
+  }
+
+  12% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+
+  12.001% {
+    opacity: 0.85;
+    transform: scale(0.75);
+  }
+
+  24% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+
+  24.001% {
+    opacity: 0.85;
+    transform: scale(0.75);
+  }
+
+  36% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+
+  36.001%,
+  100% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sub-header-slot,
   .sub-header,
@@ -230,11 +331,18 @@
   .sub-header__time-unit,
   .sub-header__time-value,
   .sub-header__time-label,
-  .sub-header__time-colon {
+  .sub-header__time-colon,
+  .sub-header__help {
     transition: none;
   }
 
   .sub-header__coin {
     animation: none;
+  }
+
+  .sub-header__help-icon--inviting::before {
+    animation: none;
+    opacity: 0.6;
+    transform: scale(1.1);
   }
 }

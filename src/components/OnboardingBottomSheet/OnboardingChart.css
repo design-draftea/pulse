@@ -1,0 +1,305 @@
+/* `cardAnimado` (564:6653). Todos os valores abaixo são o quadro estático do
+   Figma; as animações no fim do arquivo só sobrescrevem esse estado. É isso que
+   mantém a geometria reservada, sem salto de layout.
+
+   `prefers-reduced-motion` não para a animação: ela perde o movimento pelo
+   `--onboarding-motion` e segue em loop. Ver o comentário no fim do arquivo.
+
+   O Figma posiciona em px sobre uma tela de 375, onde o vão útil do card mede
+   279px. Como o protótipo vai até 499px, as posições horizontais viram frações
+   desse vão para acompanharem a largura. */
+.onboarding-chart {
+  --onboarding-chart-inset: 32px;
+
+  --onboarding-chart-span: calc(100% - (var(--onboarding-chart-inset) * 2));
+  --onboarding-chart-duration: 5.2s;
+
+  /* Geometria da série compartilhada (`OnboardingSeries`): o card 1 desenha
+     numa caixa de 115px a partir de `top: 1px`. */
+  --onboarding-series-inset: var(--onboarding-chart-inset);
+  --onboarding-series-span: var(--onboarding-chart-span);
+  --onboarding-series-top: 1px;
+  --onboarding-series-height: 115px;
+  --onboarding-series-duration: var(--onboarding-chart-duration);
+
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 188px;
+  flex: 0 0 188px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+
+  /* 15px, não 16: a borda do Figma é desenhada por dentro dos 188px, então com
+     `box-sizing: border-box` ela já consome 1px do recuo de 16px do design.
+     Sem isso a área da ilustração fica com 154px em vez de 156. */
+  padding: 15px 0;
+  overflow: hidden;
+  border: 1px solid var(--color-fill-opacity-quaternary);
+  border-radius: 16px;
+  color: var(--color-fill-primary);
+}
+
+.onboarding-chart__anima {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* `lineDash` (564:6904): a referência do preço objetivo. Feito em CSS para o
+   tracejado de 3.66px manter o passo em qualquer largura — o SVG exportado sai
+   com `preserveAspectRatio="none"` e esticaria os traços. */
+.onboarding-chart__target-line {
+  position: absolute;
+  top: 49px;
+  right: var(--onboarding-chart-inset);
+  left: var(--onboarding-chart-inset);
+  height: 1px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--color-fill-tertiary) 0 3.66px,
+    transparent 3.66px 7.32px
+  );
+}
+
+/* No instante em que a série cruza o objetivo, a linha pisca em branco cheio.
+   É o beat que o card inteiro argumenta — é a travessia que transforma
+   `precio objetivo` em `terminó arriba` — e antes disso nada a reconhecia.
+
+   O marcador tinha um ping de escala no mesmo instante, e ele saiu junto com a
+   extração da série: o marcador agora é compartilhado com o card 4, e somar uma
+   terceira animação nele daqui exigiria repetir a lista inteira, que é frágil.
+   O flash sozinho já marca a travessia, e marca no elemento certo — a linha. */
+.onboarding-chart__target-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--color-fill-primary) 0 3.66px,
+    transparent 3.66px 7.32px
+  );
+  opacity: 0;
+  animation: onboarding-chart-crossing var(--onboarding-chart-duration)
+    ease-out infinite;
+}
+
+.onboarding-chart__target-label {
+  position: absolute;
+  top: 31px;
+  left: var(--onboarding-chart-inset);
+  margin: 0;
+  color: var(--color-fill-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 16.464px;
+  white-space: nowrap;
+}
+
+/* `lineDash1` (564:6911): o nível em que a rodada terminou.
+
+   Termina rente à borda direita da pílula, que é opaca e a cobre. Ancorar na
+   bolinha, como a pílula, é o que impede traços soltos aparecerem entre as
+   duas em qualquer largura. */
+.onboarding-chart__final-line {
+  position: absolute;
+  top: 14.06px;
+  left: var(--onboarding-chart-inset);
+  width: calc(var(--onboarding-chart-span) * 0.98208 - 8px);
+  height: 2px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--color-fill-success) 0 3.66px,
+    transparent 3.66px 7.32px
+  );
+  transform-origin: right center;
+  animation: onboarding-chart-final-line var(--onboarding-chart-duration)
+    ease-in-out infinite;
+}
+
+/* `valor` (564:6909): ancorada pela borda direita, 8px antes da bolinha, que é
+   a distância do Figma.
+
+   A largura é de texto e não acompanha a tela. Prender o lado esquerdo a uma
+   fração do vão fazia a relação com a bolinha derivar nas duas direções: em
+   telas largas sobrava um vazio entre as duas, e em telas estreitas — a folga é
+   `vão × 0,369 − 95`, negativa abaixo de 257px de vão — a pílula passava por
+   cima da bolinha e a escondia. Ancorada à direita, a distância é sempre a
+   mesma e é a largura do texto que sobra para a esquerda, onde há espaço. */
+.onboarding-chart__pill {
+  position: absolute;
+  top: 5px;
+  right: calc(
+    100% - var(--onboarding-chart-inset) - var(--onboarding-chart-span) *
+      0.98208 + 8px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 1000px;
+  background: var(--color-fill-success);
+  color: var(--color-fill-dark);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 16.464px;
+  white-space: nowrap;
+  animation: onboarding-chart-pill var(--onboarding-chart-duration)
+    ease-in-out infinite;
+}
+
+/* `btn` (564:6915) */
+.onboarding-chart__choices {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: flex;
+  width: var(--onboarding-chart-span);
+  height: 32px;
+  align-items: stretch;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.onboarding-chart__choice {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: 1000px;
+  color: var(--color-fill-dark);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 21px;
+  white-space: nowrap;
+}
+
+.onboarding-chart__choice img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+.onboarding-chart__choice--up {
+  background: var(--color-fill-success);
+  animation: onboarding-chart-choice-up var(--onboarding-chart-duration)
+    ease-in-out infinite;
+}
+
+.onboarding-chart__choice--down {
+  background: var(--color-fill-error);
+  opacity: 0.4;
+}
+
+/* `light` (564:6667): o brilho nasce acima do card e o corte do card deixa
+   visível só a borda superior iluminada. O SVG é bem maior que a caixa do
+   Figma — é o desfoque dele que precisa de espaço. */
+.onboarding-chart__glow {
+  position: absolute;
+  top: -92px;
+  left: 50%;
+  display: block;
+  width: 116.6%;
+  height: 156px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* A escolha acende primeiro, porque é o que o texto do card promete; só depois
+   o preço se desenha e o resultado aparece. O quadro final é segurado por
+   ~1,3s antes do loop — o olho precisa de um quadro parado para ler o
+   conceito. */
+@keyframes onboarding-chart-choice-up {
+  0% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+
+  4% {
+    opacity: 1;
+    transform: scale(calc(1 + 0.04 * var(--onboarding-motion)));
+  }
+
+  8%,
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  97%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+}
+
+@keyframes onboarding-chart-crossing {
+  0%,
+  29.57% {
+    opacity: 0;
+  }
+
+  31.57% {
+    opacity: 0.9;
+  }
+
+  36.57%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes onboarding-chart-final-line {
+  0%,
+  50% {
+    opacity: 0;
+    transform: scaleX(calc(1 - var(--onboarding-motion)));
+  }
+
+  62%,
+  88% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  97%,
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes onboarding-chart-pill {
+  0%,
+  52% {
+    opacity: 0;
+    transform: scale(calc(1 - 0.15 * var(--onboarding-motion)));
+  }
+
+  60%,
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  97%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Sem bloco de `prefers-reduced-motion` para o resto, de propósito: o movimento sai pelo
+   `--onboarding-motion`, definido no sheet, e o loop continua. Com a variável
+   em zero o recorte da série nasce aberto e ela aparece inteira em vez de ser
+   varrida, e a pílula, o ponto e a linha do resultado entram só por opacidade,
+   sem escala. */

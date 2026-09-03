@@ -1,0 +1,318 @@
+/* `cardAnimado` do passo 3 (564:7030). Mesma arquitetura dos anteriores: o
+   estado base é o quadro parado do Figma — a conta inteira visível — e as
+   animações só o sobrescrevem, o que reserva a geometria.
+
+   `prefers-reduced-motion` não para a animação: ela perde o movimento pelo
+   `--onboarding-motion` e segue em loop. Ver o comentário no fim do arquivo.
+
+   O Figma posiciona em px sobre uma tela de 375, onde o vão do card mede 279px;
+   as medidas horizontais viram frações desse vão para acompanhar a largura. */
+.onboarding-shares {
+  --onboarding-shares-inset: 32px;
+  --onboarding-shares-span: calc(100% - (var(--onboarding-shares-inset) * 2));
+  /* Mais longo que os outros cards de propósito: aqui são seis beats em
+     sequência e o conteúdo é uma conta, que precisa de tempo de leitura. A
+     pausa no quadro cheio vai de 58% a 92%, uns 2,6s. */
+  --onboarding-shares-duration: 7.8s;
+
+  /* A janela da contagem crescente, em porcento do ciclo. Vive aqui, junto das
+     keyframes, porque é o `OnboardingSharePrice` que a lê para escravizar o
+     contador ao relógio da animação. */
+  --onboarding-shares-count-from: 35;
+  --onboarding-shares-count-to: 50;
+
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 188px;
+  flex: 0 0 188px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+
+  /* 15px, não 16: a borda do Figma é desenhada por dentro dos 188px, então com
+     `box-sizing: border-box` ela já consome 1px do recuo de 16px do design. */
+  padding: 15px 0;
+  overflow: hidden;
+  border: 1px solid var(--color-fill-opacity-quaternary);
+  border-radius: 16px;
+  color: var(--color-fill-primary);
+}
+
+.onboarding-shares__anima {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* `valor` (564:7157 e 564:7160): as duas pílulas do topo. */
+.onboarding-shares__tag {
+  position: absolute;
+  top: 1px;
+  display: flex;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 200px;
+  background: var(--color-fill-success);
+  color: var(--color-fill-dark);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 16.464px;
+  white-space: nowrap;
+}
+
+.onboarding-shares__tag--buy {
+  left: var(--onboarding-shares-inset);
+  animation: onboarding-shares-buy var(--onboarding-shares-duration) ease-out
+    infinite;
+}
+
+/* No Figma esta pílula está em x=173, que é exatamente onde começa a segunda
+   coluna do grid (32 + 140.5). Ela fica alinhada sobre a coluna `Precio por
+   participación` de propósito — é o que o título do card diz, que o percentual
+   é o preço. Por isso ela é ancorada na coluna, não numa fração solta do vão. */
+.onboarding-shares__tag--price {
+  left: calc(
+    var(--onboarding-shares-inset) + (var(--onboarding-shares-span) + 2px) / 2
+  );
+  animation: onboarding-shares-price var(--onboarding-shares-duration) ease-out
+    infinite;
+}
+
+/* `line` (564:7168): duas colunas de largura igual com 2px entre elas, três
+   linhas com 8px. `minmax(0, 1fr)` é o que impede a conta da última linha, que
+   é mais larga que a coluna, de esticar o grid — ela transborda por cima da
+   segunda coluna, como no design. */
+.onboarding-shares__grid {
+  position: absolute;
+  top: 37px;
+  left: var(--onboarding-shares-inset);
+  display: grid;
+  width: var(--onboarding-shares-span);
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2px;
+  row-gap: 8px;
+}
+
+.onboarding-shares__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.onboarding-shares__label,
+.onboarding-shares__value {
+  display: flex;
+  height: 20px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.onboarding-shares__label {
+  color: var(--color-fill-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.onboarding-shares__value {
+  color: var(--color-fill-primary);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 16.464px;
+}
+
+.onboarding-shares__value--gain {
+  color: var(--color-fill-success);
+}
+
+/* A última linha não tem par de rótulo e valor: é só a conta, com 18px. */
+.onboarding-shares__cell--formula .onboarding-shares__label {
+  height: 18px;
+}
+
+.onboarding-shares__cell--amount {
+  animation: onboarding-shares-amount var(--onboarding-shares-duration) ease-out
+    infinite;
+}
+
+.onboarding-shares__cell--unit {
+  animation: onboarding-shares-unit var(--onboarding-shares-duration) ease-out
+    infinite;
+}
+
+/* As duas células do retorno entram juntas: é um só beat, o que você recebe. Os
+   números dentro delas crescem de zero até o valor, no mesmo `ease-out`
+   quártico do contador de métricas do perfil. */
+.onboarding-shares__cell--payoff {
+  animation: onboarding-shares-payoff var(--onboarding-shares-duration) ease-out
+    infinite;
+}
+
+.onboarding-shares__cell--formula {
+  animation: onboarding-shares-formula var(--onboarding-shares-duration)
+    ease-out infinite;
+}
+
+/* `light` (564:7052): igual aos outros cards. */
+.onboarding-shares__glow {
+  position: absolute;
+  top: -92px;
+  left: 50%;
+  display: block;
+  width: 116.6%;
+  height: 156px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* A conta se monta em ordem de leitura: a compra, o preço, o valor investido, o
+   preço por participação, o retorno, e por último a linha que resume a conta —
+   ela fecha o raciocínio, então vem depois de tudo. Cada bloco sobe 4px ao
+   entrar, todos seguram o quadro cheio de 58% a 92% e desaparecem juntos para a
+   virada do loop, então o reinício não tem salto. */
+@keyframes onboarding-shares-buy {
+  0%,
+  3% {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--onboarding-motion)));
+  }
+
+  9%,
+  92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+/* A ênfase em 25% cai junto com a entrada do `67¢`, para ligar o percentual ao
+   preço por participação. */
+@keyframes onboarding-shares-price {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--onboarding-motion))) scale(1);
+  }
+
+  14%,
+  22% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  25% {
+    opacity: 1;
+    transform: translateY(0) scale(calc(1 + 0.12 * var(--onboarding-motion)));
+  }
+
+  28%,
+  92% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes onboarding-shares-amount {
+  0%,
+  14% {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--onboarding-motion)));
+  }
+
+  21%,
+  92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboarding-shares-unit {
+  0%,
+  21% {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--onboarding-motion)));
+  }
+
+  28%,
+  92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboarding-shares-formula {
+  0%,
+  50% {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--onboarding-motion)));
+  }
+
+  58%,
+  92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+@keyframes onboarding-shares-payoff {
+  0%,
+  28% {
+    opacity: 0;
+    transform: translateY(calc(4px * var(--onboarding-motion)));
+  }
+
+  35%,
+  92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+/* Sem bloco de `prefers-reduced-motion` aqui de propósito: o movimento sai pelo
+   `--onboarding-motion` do sheet e o loop continua. Com a variável em zero os
+   blocos entram só por opacidade, sem subir os 4px, e a ênfase da pílula `67%`
+   perde a escala. Os números seguem crescendo: é texto mudando. */

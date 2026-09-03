@@ -1,0 +1,539 @@
+/* `cardAnimado` do passo 2 (564:6976). Mesma arquitetura do card 1: o estado
+   base do CSS é o quadro parado e as animações só o sobrescrevem, o que reserva
+   a geometria.
+
+   `prefers-reduced-motion` não para a animação: ela perde o movimento pelo
+   `--onboarding-motion` e segue em loop. Ver o comentário no fim do arquivo.
+
+   Aqui o quadro base é o **resolvido** (00:00, barra cheia, `Precio final`,
+   pílula visível), não o do Figma — o do Figma é um instante do meio da
+   contagem, com o relógio em 00:05 e a barra em 48%.
+
+   O Figma posiciona em px sobre uma tela de 375, onde o vão do card mede 279px;
+   as medidas horizontais viram frações desse vão para acompanhar a largura. */
+.onboarding-clock {
+  --onboarding-clock-inset: 32px;
+  --onboarding-clock-span: calc(100% - (var(--onboarding-clock-inset) * 2));
+  --onboarding-clock-duration: 5.2s;
+
+  /* Uma volta dura 5,2s como o card 1; o ciclo completo são duas, porque a
+     primeira fecha acima do objetivo e a segunda abaixo. */
+  --onboarding-clock-cycle: calc(var(--onboarding-clock-duration) * 2);
+
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 188px;
+  flex: 0 0 188px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+
+  /* 15px, não 16: a borda do Figma é desenhada por dentro dos 188px, então com
+     `box-sizing: border-box` ela já consome 1px do recuo de 16px do design.
+     Sem isso a área da ilustração fica com 154px em vez de 156. */
+  padding: 15px 0;
+  overflow: hidden;
+  border: 1px solid var(--color-fill-opacity-quaternary);
+  border-radius: 16px;
+  color: var(--color-fill-primary);
+}
+
+.onboarding-clock__anima {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* `tempo` (570:7200): o subheader da rodada em miniatura. */
+.onboarding-clock__round {
+  position: absolute;
+  top: 0;
+  left: var(--onboarding-clock-inset);
+  display: flex;
+  width: var(--onboarding-clock-span);
+  height: 48px;
+  align-items: center;
+  gap: 4px;
+}
+
+.onboarding-clock__coin {
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.onboarding-clock__coin img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.onboarding-clock__market {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 20px aqui, não os 24px do subheader real: é uma miniatura. */
+.onboarding-clock__market-title {
+  margin: 0;
+  color: var(--color-fill-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.onboarding-clock__market-schedule {
+  margin: 0;
+  color: var(--color-fill-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* `produto` (570:7215): empurrado para a direita pelo `justify-between` do
+   Figma, e alinhado ao topo — o `:` tem 24px e acompanha a linha dos números. */
+.onboarding-clock__timer {
+  display: flex;
+  margin-left: auto;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.onboarding-clock__time-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.onboarding-clock__time-value {
+  display: block;
+  width: 32px;
+  color: var(--color-fill-primary);
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 24px;
+  text-align: center;
+}
+
+.onboarding-clock__time-label {
+  color: var(--color-fill-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.onboarding-clock__time-colon {
+  color: var(--color-fill-secondary);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 24px;
+}
+
+/* Os três odômetros — segundos, diferença e preço — compartilham as mesmas
+   keyframes e a mesma duração, então ficam sincronizados por construção, sem
+   nenhum temporizador em JavaScript. `steps(6, jump-none)` distribui os seis
+   passos incluindo as duas pontas, que é exatamente um passo por segundo. */
+.onboarding-clock__odometer {
+  position: relative;
+  display: block;
+  height: var(--onboarding-clock-slot);
+  overflow: hidden;
+  animation: onboarding-clock-transient var(--onboarding-clock-duration)
+    ease-in-out infinite;
+}
+
+.onboarding-clock__odometer--seconds {
+  --onboarding-clock-slot: 24px;
+
+  width: 32px;
+}
+
+.onboarding-clock__odometer--price {
+  --onboarding-clock-slot: 24px;
+}
+
+.onboarding-clock__odometer--delta {
+  --onboarding-clock-slot: 18px;
+}
+
+.onboarding-clock__strip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  /* Base: o último passo, 00:00. */
+  transform: translateY(calc(var(--onboarding-clock-slot) * -5));
+  animation: onboarding-clock-odometer var(--onboarding-clock-duration)
+    steps(6, jump-none) infinite;
+}
+
+.onboarding-clock__strip > * {
+  height: var(--onboarding-clock-slot);
+  flex: 0 0 var(--onboarding-clock-slot);
+}
+
+/* `barra` (570:7243). A linha inteira sai de cena quando o relógio zera —
+   trilha incluída —, senão a pílula fica em cima de uma barra ainda visível.
+   Base em `opacity: 0` porque o quadro base é o resolvido, já com a pílula. */
+.onboarding-clock__bar {
+  position: absolute;
+  top: 71px;
+  left: var(--onboarding-clock-inset);
+  width: var(--onboarding-clock-span);
+  height: 4px;
+  opacity: 0;
+  animation: onboarding-clock-bar-row var(--onboarding-clock-duration)
+    ease-in-out infinite;
+}
+
+.onboarding-clock__bar-track {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 16px;
+  background: var(--color-fill-opacity-quaternary);
+}
+
+.onboarding-clock__bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: 16px;
+  background-image: linear-gradient(
+    6.314deg,
+    var(--color-action-primary-default-start) 0%,
+    var(--color-action-primary-default-end) 100%
+  );
+  animation: onboarding-clock-bar var(--onboarding-clock-duration) linear
+    infinite;
+}
+
+@keyframes onboarding-clock-bar-row {
+  /* Entra por dissolvência nos mesmos 6% do `onboarding-clock-transient`, que é
+     o que os valores do card já usam. Antes ela nascia em `opacity: 1` e
+     aparecia seca na virada do loop, enquanto o resto entrava suave. */
+  0% {
+    opacity: 0;
+  }
+
+  6%,
+  58% {
+    opacity: 1;
+  }
+
+  66%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* A pílula ocupa o lugar da barra quando o relógio zera: o que estava contando
+   passa a anunciar, e não precisa de espaço novo. Centrada na mesma linha da
+   barra — centro dela em 73px, metade da altura da pílula acima disso.
+
+   O visual repete `.onboarding-chart__pill` do card 1 de propósito, para os
+   cards lerem como um sistema. Quando os cards 3 e 4 chegarem e se algum reusar
+   isto de novo, vale extrair numa classe compartilhada; com dois usos, duplicar
+   custa menos que mexer no card 1 já validado. */
+/* O slot cuida da posição e de qual volta está em cena; a pílula cuida só do
+   próprio visual e da própria entrada. Separar isso evita duas animações
+   disputando `opacity` no mesmo elemento. */
+.onboarding-clock__outcome-slot {
+  position: absolute;
+  top: 64.77px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.onboarding-clock__outcome {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 1000px;
+  background: var(--color-fill-success);
+  color: var(--color-fill-dark);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16.464px;
+  white-space: nowrap;
+  animation: onboarding-clock-outcome var(--onboarding-clock-duration)
+    ease-in-out infinite;
+}
+
+/* Vermelho de baixa, a mesma linguagem do DOWN no resto do app. */
+.onboarding-clock__outcome--down {
+  background: var(--color-fill-error);
+}
+
+/* As duas voltas ocupam a mesma célula do grid, então a caixa mede a maior das
+   duas e a troca não empurra nada de lado. A troca acontece exatamente na
+   virada de cada volta, quando o conteúdo já está invisível pelo desaparecer
+   de `onboarding-clock-transient` — então ela não é vista. */
+.onboarding-clock__runs {
+  display: grid;
+}
+
+.onboarding-clock__runs > * {
+  grid-area: 1 / 1;
+}
+
+.onboarding-clock__run--a {
+  opacity: 1;
+  animation: onboarding-clock-run-a var(--onboarding-clock-cycle) linear infinite;
+}
+
+.onboarding-clock__run--b {
+  opacity: 0;
+  animation: onboarding-clock-run-b var(--onboarding-clock-cycle) linear infinite;
+}
+
+/* `precos` (570:7224) */
+.onboarding-clock__prices {
+  position: absolute;
+  bottom: 0;
+  left: var(--onboarding-clock-inset);
+  display: flex;
+  width: var(--onboarding-clock-span);
+  height: 58px;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding-clock__price {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+
+  /* 7px/11px pelo mesmo motivo do card: com a borda de 1px por dentro, o texto
+     fica a 8px e 12px da borda externa, como no Figma, e a caixa fecha em 58px. */
+  padding: 7px 11px;
+  overflow: hidden;
+  border: 1px solid var(--color-fill-opacity-quaternary);
+  border-radius: 16px;
+  color: var(--color-fill-primary);
+}
+
+.onboarding-clock__price--target {
+  color: var(--color-fill-secondary);
+}
+
+.onboarding-clock__price-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.onboarding-clock__price-value {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.onboarding-clock__price-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Os dois rótulos ocupam a mesma célula do grid: a caixa mede o mais largo dos
+   dois, então a troca de `Precio actual` para `Precio final` não empurra o
+   chip da diferença para o lado. */
+.onboarding-clock__price-label-swap {
+  display: grid;
+  animation: onboarding-clock-transient var(--onboarding-clock-duration)
+    ease-in-out infinite;
+}
+
+.onboarding-clock__price-label-swap > * {
+  grid-area: 1 / 1;
+}
+
+.onboarding-clock__price-label--now {
+  opacity: 0;
+  animation: onboarding-clock-label-now var(--onboarding-clock-duration)
+    ease-in-out infinite;
+}
+
+.onboarding-clock__price-label--final {
+  opacity: 1;
+  animation: onboarding-clock-label-final var(--onboarding-clock-duration)
+    ease-in-out infinite;
+}
+
+.onboarding-clock__delta {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-fill-success);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.onboarding-clock__delta--down {
+  color: var(--color-fill-error);
+}
+
+.onboarding-clock__delta img {
+  display: block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+}
+
+/* `light` (564:6998): igual ao card 1. */
+.onboarding-clock__glow {
+  position: absolute;
+  top: -92px;
+  left: 50%;
+  display: block;
+  width: 116.6%;
+  height: 156px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+@keyframes onboarding-clock-odometer {
+  0%,
+  6% {
+    transform: translateY(0);
+  }
+
+  58%,
+  100% {
+    transform: translateY(calc(var(--onboarding-clock-slot) * -5));
+  }
+}
+
+/* Os valores que mudam desaparecem antes da virada do loop e voltam depois: é
+   enquanto estão invisíveis que o odômetro salta de 00 de volta para 05. */
+@keyframes onboarding-clock-transient {
+  0% {
+    opacity: 0;
+  }
+
+  6%,
+  88% {
+    opacity: 1;
+  }
+
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes onboarding-clock-bar {
+  0%,
+  6% {
+    width: 0%;
+  }
+
+  58%,
+  100% {
+    width: 100%;
+  }
+}
+
+@keyframes onboarding-clock-outcome {
+  0%,
+  60% {
+    opacity: 0;
+    transform: scale(calc(1 - 0.15 * var(--onboarding-motion)));
+  }
+
+  68%,
+  88% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  96%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes onboarding-clock-run-a {
+  0%,
+  49.999% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes onboarding-clock-run-b {
+  0%,
+  49.999% {
+    opacity: 0;
+  }
+
+  50%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes onboarding-clock-label-now {
+  0%,
+  58% {
+    opacity: 1;
+  }
+
+  64%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes onboarding-clock-label-final {
+  0%,
+  58% {
+    opacity: 0;
+  }
+
+  64%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Sem bloco de `prefers-reduced-motion` aqui de propósito: o movimento sai pelo
+   `--onboarding-motion` do sheet e o loop continua. Os odômetros seguem rodando
+   mesmo com a variável em zero, porque `steps()` troca os dígitos de uma vez —
+   é texto mudando, não deslocamento. A barra de progresso também fica: barra
+   enchendo é o mesmo padrão de qualquer carregamento. */
