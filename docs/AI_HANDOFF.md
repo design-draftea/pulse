@@ -5,6 +5,49 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
+- Status: implementado, validado localmente e commitado na branch. Sem Pull Request, sem merge e sem publicação — não houve autorização para nenhum dos três
+- Objetivo: corrigir a medição frágil de `priceLabelWidth` no `PriceChart`, irmã do defeito que o PR #49 corrigiu na etiqueta do preço objetivo. Ela estava registrada como pendência conhecida e fora do escopo daquele PR
+- Escopo acordado: apenas essa medição. A geometria, a escala, o arrasto, o desenho da série, a camada do objetivo e o CSS permanecem intocados
+- Critérios de aceite: com a série chegando depois do primeiro quadro, `--price-chart-value-right` é publicada e a borda direita da pílula `LIVE` alinha com a dos rótulos de preço
+- Branch: `fix/medicao-rotulo-preco`, criada a partir da `main` em `cd5bdca`, commit `233cba2`
+
+### O defeito
+
+- O `useLayoutEffect` lia o nó por `useRef` e dependia de `[priceLabelSample.length, chartWidth]`. Na primeira renderização a série está vazia, o componente sai pelo retorno antecipado do `Esperando datos del mercado` e o `<text>` da grade não existe, então a medição encontrava `null` e desistia.
+- O `containerRef` está preso nessa `div` do estado vazio, então `chartWidth` já é medido ali e não muda quando a série chega. Se o comprimento de `priceLabelSample` também não mudar, nenhuma das duas dependências muda depois de o nó entrar no DOM, o efeito nunca roda de novo e `priceLabelWidth` fica em `0`.
+- Consequência: `--price-chart-value-right` não é publicada e a pílula `LIVE` cai no retorno `right: 24px` do CSS. Afeta só o alinhamento horizontal dessa pílula, que aparece durante o arrasto.
+
+### A correção
+
+- O nó passou a ser guardado em `useState`, com `ref={index === 0 ? setPriceLabelNode : undefined}` no `<text>`, e entrou nas dependências do efeito. Mesmo padrão da etiqueta do objetivo e de `usePriceChartWidth`.
+- Sobre o `ref` condicional: a função passada é o próprio setter de `useState`, cuja identidade o React garante estável, então ela não é reinvocada a cada quadro — e o componente re-renderiza por `requestAnimationFrame`, então uma função inline ali causaria `null` e reanexação em todo quadro. As chaves da grade são por índice e `GRID_LINE_COUNT` é a constante `7`, de modo que o `<text>` do índice `0` nunca troca de posição nem remonta ao mudar os valores; o `null` só chega quando o componente inteiro sai pelo retorno antecipado, e aí a remontagem remede.
+- Decisão de forma: a medição ficou dentro de uma função nomeada `measure`, como nas duas medições irmãs do arquivo. Com o `setPriceLabelWidth` direto no corpo do efeito, o `react(set-state-in-effect)` do oxlint passou a acusar cascata de renderização, porque o efeito agora depende de estado próprio. A regra só enxerga chamadas diretas no corpo, e é por isso que a medição do objetivo e a de `usePriceChartWidth`, que fazem exatamente o mesmo, nunca avisaram. O aviso é falso-positivo — medir o DOM depois da pintura é o caso de uso de um efeito de layout, e a cascata é finita e converge pelo limiar de `0,5px` —, mas a alternativa era deixar o primeiro aviso de lint do repositório ou introduzir a primeira diretiva de `oxlint-disable`. O motivo está em comentário no código.
+
+## Validações
+
+- `pnpm lint` limpo, `pnpm build` sem erros e a suíte completa passando: `test:chart` 26, `test:market` 25, `test:wallet` 19, `test:entries` 8, `test:fallback` 6, `test:proxy` 6, `test:assets` 3.
+- Sem teste de regressão, pelo mesmo motivo registrado no PR #49: o defeito vive num efeito de layout que depende de `getBBox`, e a suíte roda em `node --test` sem DOM.
+- Validado no navegador com um harness temporário, já removido, que renderiza o `PriceChart` com `points: []` e alimenta a série 400ms depois, com `viewAnchorTimestamp` diferente de `null` para a pílula `LIVE` existir.
+- Defeito reproduzido antes de corrigir, com o arquivo da `main` no mesmo harness: `--price-chart-value-right` ausente, `right` computado em `24px` e a borda direita da pílula 17,7px à esquerda da dos rótulos, com o domínio em `$1,180,600.00`.
+- Com a correção, no mesmo caso: variável publicada em `6,3125px` e as bordas direitas coincidindo exatamente — as sete linhas da grade e a pílula todas em `821,188px`.
+- O domínio largo foi escolhido de propósito. Com `$80,600.00` a medição dá `23,72px`, quase igual ao retorno de `24px` do CSS, e o desalinhamento do defeito seria de 0,28px — invisível e insuficiente como prova.
+- Conferido também o caminho de remontagem: ao voltar ao estado vazio o `<text>` sai do DOM e a função de `ref` recebe `null`; ao religar a série a medição volta e a variável é republicada com o mesmo valor. Nenhum erro de profundidade de atualização no console, o que descarta laço de renderização pela troca de `ref`.
+- Conferida a remedição por comprimento: encurtando o rótulo de `$1,180,600.00` para `$80,600.00`, a variável passou de `6,3125px` para `23,71875px` e o alinhamento continuou exato.
+- Não validado com dados reais de mercado: o ambiente do agente não tem saída de rede e os feeds são WebSocket abertos pelo navegador.
+
+## Pendências e próximo passo
+
+- Próximo passo, dependente de autorização da pessoa usuária: Pull Request, merge e publicação. Nada disso foi feito.
+- Pendência pré-existente, mantida fora do escopo: essa mesma medição tem a corrida de fonte que o PR #49 resolveu na etiqueta do objetivo. A Red Hat Display vem do Google Fonts com `display=swap`, então a primeira medição acontece na fonte de retorno e a largura fica um pouco errada até a página recarregar. A etiqueta do objetivo remede em `document.fonts.ready`; esta não. O efeito é um desalinhamento pequeno da pílula `LIVE`, e a função `measure` já está no lugar certo para receber o mesmo tratamento.
+- Continua sem observação em movimento a transição de travamento da linha do objetivo, registrada na tarefa anterior. Nada nesta mudança mexe nisso.
+
+## Histórico: linha do preço objetivo (PRs #48 e #49)
+
+### Estado no encerramento
+
+- Atualizado em: 2026-09-03
+- Agente que entrega: Claude
+- Agente esperado a seguir: nenhum
 - Status: concluído — mesclado pelos PRs #48 e #49 e publicado no GitHub Pages, com a publicação verificada no artefato real. O PR #48 subiu com um defeito, encontrado pela pessoa usuária em produção, e o PR #49 é a correção. Todas as autorizações vieram dela
 - Objetivo: acrescentar a linha do preço objetivo ao gráfico, com três estados — dentro da faixa de preços, travada acima e travada abaixo — a partir do nó `17:13176` do Figma
 - Escopo acordado: apenas a camada da linha do objetivo. A geometria do gráfico, o domínio, a escala, o arrasto, o desenho da série, o indicador de direção e a pílula do preço atual permanecem como estavam
@@ -20,7 +63,7 @@
 - A pílula usa `Background/backgroundApp`, altura de 16px, raio total, `padding` de `8/8` sem seta e `8/4` com `gap` de 2 quando tem seta, e a borda esquerda fixa em `x = 66`
 - O texto é `$80,195.64 - objetivo`, com hífen simples (`0x2D`, conferido no byte) e minúsculo, em 10px peso 500 e `lnum`/`tnum`, que o gráfico já herda
 
-## Alterações realizadas
+### Alterações realizadas
 
 - `src/components/priceChartModel.ts`: `projectPriceToY` extraída como definição única da conversão de preço em `y`, e `resolvePriceChartTarget` nova, devolvendo `{ y, clamp }` ou `null`.
 - `src/components/PriceChart.tsx`: prop `targetPrice`, a camada da linha do objetivo, constantes nomeadas no lugar de `y` repetidos, e a reordenação do eixo temporal.
@@ -56,7 +99,7 @@
 - Sem preço objetivo definido, nada é desenhado. Nos primeiros segundos da rodada o alvo pode ser nulo, e nesse intervalo a linha simplesmente não existe, em vez de segurar o alvo da rodada anterior.
 - Acessibilidade: o grupo é `aria-hidden`, porque o valor já é anunciado pelo card `Precio objetivo`. `data-target-price`, `data-target-clamp` e `data-target-y` foram acrescentados ao `figure`, seguindo os atributos de validação que já existiam ali.
 
-## Validações
+### Validações
 
 - `pnpm lint` e `pnpm build` limpos.
 - `pnpm test:chart` com 26 testes passando, sendo sete novos.
@@ -66,7 +109,7 @@
 - Medido nos três estados: travamento em `y = 16` acima e `y = 220` abaixo, linha e texto a 50% dentro da faixa e em opacidade cheia travados, chevron com traço de 1px, `animation: none`, e `matrix(1, 0, 0, -1, 0, 0)` no estado de baixo.
 - A largura da pílula bate com `padding` mais texto medido em todos os rótulos testados, incluindo um de 24 caracteres.
 
-## Pendências e próximo passo
+### Pendências e próximo passo
 
 - Não validado: o comportamento com dados reais de mercado, por falta de rede no ambiente do agente. Em especial a troca de estado quando o preço se afasta do objetivo até tirá-lo do domínio.
 - O `gh pr merge` foi barrado pelo classificador de permissões do agente nas duas primeiras tentativas, com e sem `--delete-branch`, como já tinha acontecido no PR #45. Não foi contornado. Passou depois que a pessoa usuária autorizou explicitamente o agente a operar o Git. Vale registrar o padrão para as próximas tarefas.
@@ -82,9 +125,9 @@
 - O defeito foi reproduzido localmente antes da correção, com um harness que atrasa a série em 400ms, e a correção foi confirmada no mesmo harness: `opacity` de `0` para `1` e pílula de `0` para `8 + texto + 8`.
 - Sem teste de regressão: o defeito vive num efeito de layout que depende de `getBBox`, e a suíte roda em `node --test` sem DOM. `renderToString` não executa efeitos nem mede texto, então cobrir isso exigiria trazer jsdom, uma dependência nova. Ficou registrado em comentário no código, junto do motivo.
 
-## Pendências
+### Pendências
 
-- Defeito irmão, pré-existente e fora do escopo: a medição de `priceLabelWidth`, no mesmo arquivo, tem a mesma fragilidade. Ela depende de `[priceLabelSample.length, chartWidth]`, e o contêiner é medido já no estado vazio, então se o comprimento do rótulo de preço não mudar entre o estado vazio e a série cheia, a largura fica zero e a pílula `LIVE` cai no retorno `right: 24px` em vez do alinhamento medido. Afeta só o alinhamento horizontal da pílula `LIVE` durante o arrasto. Não foi alterada para manter a correção restrita ao defeito relatado.
+- Defeito irmão, pré-existente e fora do escopo: a medição de `priceLabelWidth`, no mesmo arquivo, tem a mesma fragilidade. Ela depende de `[priceLabelSample.length, chartWidth]`, e o contêiner é medido já no estado vazio, então se o comprimento do rótulo de preço não mudar entre o estado vazio e a série cheia, a largura fica zero e a pílula `LIVE` cai no retorno `right: 24px` em vez do alinhamento medido. Afeta só o alinhamento horizontal da pílula `LIVE` durante o arrasto. Não foi alterada para manter a correção restrita ao defeito relatado. Corrigida depois, na branch `fix/medicao-rotulo-preco`, registrada no `Estado atual`.
 - A troca de estado nunca foi observada em movimento. O harness usou série e objetivo fixos, então validou os desenhos parados e a geometria, e nada que dependa do tempo. Como o veredito de travamento vem do domínio estabilizado e a posição vem do interpolado, no instante em que o objetivo sai do domínio a linha salta para a borda e a pílula cresce cerca de 22px de uma vez, enquanto os rótulos da grade ainda animam os `280ms`. Pode ler como encaixe ou como tranco; não se sabe. A lógica tem teste unitário fixando o comportamento, o visual da transição não.
 - Registro de rigor: a falta de rede no ambiente do agente impediu a validação com dados reais de mercado, mas não impedia simular movimento animando a série. Não observar a transição foi lacuna de verificação, não limitação do ambiente.
 - A branch `docs/registrar-linha-objetivo` foi criada nesta sessão e empurrada com um commit de handoff que este PR substitui. Ela não foi mesclada e pode ser removida.
