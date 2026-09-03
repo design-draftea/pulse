@@ -5,11 +5,11 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado, validado localmente, commitado e publicado no remoto, com o PR #48 aberto e `MERGEABLE`. **Não mesclado e não publicado.** O commit, o push, o PR, o merge e o deploy foram autorizados pela pessoa usuária, mas o comando de merge foi barrado pelo classificador de permissões do agente, com e sem `--delete-branch`
+- Status: concluído — mesclado pelos PRs #48 e #49 e publicado no GitHub Pages, com a publicação verificada no artefato real. O PR #48 subiu com um defeito, encontrado pela pessoa usuária em produção, e o PR #49 é a correção. Todas as autorizações vieram dela
 - Objetivo: acrescentar a linha do preço objetivo ao gráfico, com três estados — dentro da faixa de preços, travada acima e travada abaixo — a partir do nó `17:13176` do Figma
 - Escopo acordado: apenas a camada da linha do objetivo. A geometria do gráfico, o domínio, a escala, o arrasto, o desenho da série, o indicador de direção e a pílula do preço atual permanecem como estavam
 - Critérios de aceite: objetivo dentro do domínio desenha a linha a 50% sem seta; fora dele, a linha trava na borda da faixa, em opacidade cheia, com a seta parada apontando para fora
-- Branch: `feature/linha-preco-objetivo`, criada da `main` em `ea7667a`. Commit `f3c7a7b`, PR #48
+- Branches: `feature/linha-preco-objetivo`, commits `f3c7a7b` e `c0687d9`, PR #48, mesclada em `683d1dd` e removida do remoto. Depois `fix/linha-objetivo-sem-preco`, PR #49, com a correção
 - Decisão de nome da branch: já existia uma `feature/linha-objetivo-grafico` local, sem commits além da `main` e sem trabalho dentro. Foi preservada em vez de removida, porque apagar branch da pessoa usuária exige autorização, e a tarefa ganhou um nome novo
 
 ### Leitura do Figma
@@ -69,11 +69,25 @@
 ## Pendências e próximo passo
 
 - Não validado: o comportamento com dados reais de mercado, por falta de rede no ambiente do agente. Em especial a troca de estado quando o preço se afasta do objetivo até tirá-lo do domínio.
-- Merge pendente: o `gh pr merge 48` foi barrado pelo classificador, tanto com `--delete-branch` quanto sem. O mesmo aconteceu no PR #45. Não foi contornado: fazer o merge local e dar push na `main` violaria a regra do `AGENTS.md` sobre a `main` e a intenção do bloqueio. A pessoa usuária pode mesclar pela interface do GitHub ou liberar uma regra de permissão para o `gh pr merge`.
-- Deploy: não requer passo manual. O workflow `deploy-pages.yml` dispara em `push` para a `main`, então o merge publica sozinho. Depois dele, vale conferir a execução do workflow e a página publicada antes de declarar o deploy concluído.
-- A branch `feature/linha-preco-objetivo` continua no remoto e precisará ser removida depois do merge.
-- Próximo passo: mesclar o PR #48 e verificar a publicação.
+- O `gh pr merge` foi barrado pelo classificador de permissões do agente nas duas primeiras tentativas, com e sem `--delete-branch`, como já tinha acontecido no PR #45. Não foi contornado. Passou depois que a pessoa usuária autorizou explicitamente o agente a operar o Git. Vale registrar o padrão para as próximas tarefas.
+- Deploy: o workflow `deploy-pages.yml` dispara em `push` para a `main`, então o merge publica sozinho. Não há passo manual.
+- Publicação do PR #48 verificada em `https://design-draftea.github.io/pulse/`, baixando os assets e conferindo marcadores no JS e no CSS, incluindo a ausência de `293px`, o que confirmou que a reversão da geometria entrou.
 
+### Defeito do PR #48: linha sem o preço, e a correção do PR #49
+
+- Sintoma, notado pela pessoa usuária em produção: a linha do objetivo aparecia, mas sem a pílula e sem o texto. Só o traço.
+- Causa: o `useLayoutEffect` que mede o texto dependia apenas de `targetLabel?.length` e lia o nó por `useRef`. Na primeira renderização a série está vazia, o componente sai pelo retorno antecipado do `Esperando datos del mercado` e o `<text>` não existe, então a medição encontrava `null` e desistia. Quando os pontos chegavam e o `<text>` entrava no DOM, o comprimento do rótulo não havia mudado, porque o objetivo é travado na rodada, então o efeito nunca rodava de novo. A largura ficava zero e o grupo da etiqueta renderizava com `opacity: 0`.
+- Correção: o nó passou a ser guardado em estado, com `ref={setTargetLabelNode}`, e entrou na lista de dependências. É o mesmo padrão que `usePriceChartWidth` já usa no arquivo. Assim a medição reage à entrada do nó no DOM.
+- Por que a validação original não pegou: o harness passava a série já preenchida desde o primeiro quadro, então o `<text>` existia de imediato e a primeira medição funcionava. O caminho real, em que o objetivo existe antes da série, nunca foi exercitado. A lição prática é que qualquer harness deste componente precisa começar com `points: []` e só depois alimentar a série.
+- O defeito foi reproduzido localmente antes da correção, com um harness que atrasa a série em 400ms, e a correção foi confirmada no mesmo harness: `opacity` de `0` para `1` e pílula de `0` para `8 + texto + 8`.
+- Sem teste de regressão: o defeito vive num efeito de layout que depende de `getBBox`, e a suíte roda em `node --test` sem DOM. `renderToString` não executa efeitos nem mede texto, então cobrir isso exigiria trazer jsdom, uma dependência nova. Ficou registrado em comentário no código, junto do motivo.
+
+## Pendências
+
+- Defeito irmão, pré-existente e fora do escopo: a medição de `priceLabelWidth`, no mesmo arquivo, tem a mesma fragilidade. Ela depende de `[priceLabelSample.length, chartWidth]`, e o contêiner é medido já no estado vazio, então se o comprimento do rótulo de preço não mudar entre o estado vazio e a série cheia, a largura fica zero e a pílula `LIVE` cai no retorno `right: 24px` em vez do alinhamento medido. Afeta só o alinhamento horizontal da pílula `LIVE` durante o arrasto. Não foi alterada para manter a correção restrita ao defeito relatado.
+- A troca de estado nunca foi observada em movimento. O harness usou série e objetivo fixos, então validou os desenhos parados e a geometria, e nada que dependa do tempo. Como o veredito de travamento vem do domínio estabilizado e a posição vem do interpolado, no instante em que o objetivo sai do domínio a linha salta para a borda e a pílula cresce cerca de 22px de uma vez, enquanto os rótulos da grade ainda animam os `280ms`. Pode ler como encaixe ou como tranco; não se sabe. A lógica tem teste unitário fixando o comportamento, o visual da transição não.
+- Registro de rigor: a falta de rede no ambiente do agente impediu a validação com dados reais de mercado, mas não impedia simular movimento animando a série. Não observar a transição foi lacuna de verificação, não limitação do ambiente.
+- A branch `docs/registrar-linha-objetivo` foi criada nesta sessão e empurrada com um commit de handoff que este PR substitui. Ela não foi mesclada e pode ser removida.
 
 ## Histórico: Centro de ayuda e navegação do bottom sheet (PRs #45 e #46)
 
