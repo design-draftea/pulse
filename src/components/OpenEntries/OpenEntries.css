@@ -28,6 +28,7 @@
 }
 
 .open-entries__tabs::before {
+  box-sizing: border-box;
   position: absolute;
   z-index: 0;
   top: 8px;
