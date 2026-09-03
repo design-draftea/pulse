@@ -11,6 +11,8 @@ import {
   getPriceChartWindowPoints,
   interpolatePriceAt,
   interpolatePriceChartDomain,
+  projectPriceToY,
+  resolvePriceChartTarget,
   stabilizePriceChartDomain,
   type PriceChartDomain,
 } from '../src/components/priceChartModel.ts'
@@ -326,4 +328,149 @@ test('a série ao vivo termina no ponto atual e não cria guarda à direita', ()
   assert.equal(visible.points.length, points.length)
   assert.equal(visible.points[5].x, 236)
   assert.equal(visible.continuityApplied, false)
+})
+
+// A faixa da grade do PriceChart: sete linhas de 16 a 220, passo de 34.
+const PLOT_TOP = 16
+const PLOT_BOTTOM = 220
+const TARGET_DOMAIN = { bottom: 80_190, top: 80_220 }
+
+test('preço objetivo dentro do domínio não trava e segue a projeção da faixa', () => {
+  const placement = resolvePriceChartTarget(
+    80_205,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+
+  assert.equal(placement?.clamp, 'none')
+  assert.equal(
+    placement?.y,
+    projectPriceToY(80_205, TARGET_DOMAIN, PLOT_TOP, PLOT_BOTTOM),
+  )
+  // Meio exato do domínio cai no meio exato da faixa.
+  assert.equal(placement?.y, 118)
+})
+
+test('preço objetivo acima do domínio trava no topo e abaixo trava na base', () => {
+  const above = resolvePriceChartTarget(
+    80_400,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+  const below = resolvePriceChartTarget(
+    80_000,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+
+  assert.deepEqual(above, { y: 16, clamp: 'above' })
+  assert.deepEqual(below, { y: 220, clamp: 'below' })
+})
+
+test('as bordas do domínio ainda contam como dentro da faixa', () => {
+  const atTop = resolvePriceChartTarget(
+    TARGET_DOMAIN.top,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+  const atBottom = resolvePriceChartTarget(
+    TARGET_DOMAIN.bottom,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+
+  assert.deepEqual(atTop, { y: 16, clamp: 'none' })
+  assert.deepEqual(atBottom, { y: 220, clamp: 'none' })
+})
+
+test('o travamento vem do domínio estabilizado e a posição do interpolado', () => {
+  // O domínio estabilizado exclui o objetivo, então ele continua travado
+  // mesmo que o domínio interpolado já o tenha alcançado no meio da animação.
+  const placement = resolvePriceChartTarget(
+    80_230,
+    TARGET_DOMAIN,
+    { bottom: 80_200, top: 80_240 },
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+
+  assert.deepEqual(placement, { y: 16, clamp: 'above' })
+})
+
+test('objetivo dentro do domínio estabilizado nunca escapa da faixa', () => {
+  // Durante a interpolação o domínio de render pode ser mais estreito que o
+  // estabilizado; a posição é contida na faixa em vez de vazar para fora dela.
+  const placement = resolvePriceChartTarget(
+    80_219,
+    TARGET_DOMAIN,
+    { bottom: 80_205, top: 80_215 },
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+
+  assert.equal(placement?.clamp, 'none')
+  assert.equal(placement?.y, PLOT_TOP)
+})
+
+test('sem preço objetivo ou com domínio degenerado não há linha', () => {
+  assert.equal(
+    resolvePriceChartTarget(
+      null,
+      TARGET_DOMAIN,
+      TARGET_DOMAIN,
+      PLOT_TOP,
+      PLOT_BOTTOM,
+    ),
+    null,
+  )
+  assert.equal(
+    resolvePriceChartTarget(
+      Number.NaN,
+      TARGET_DOMAIN,
+      TARGET_DOMAIN,
+      PLOT_TOP,
+      PLOT_BOTTOM,
+    ),
+    null,
+  )
+  assert.equal(
+    resolvePriceChartTarget(
+      80_205,
+      { bottom: 80_205, top: 80_205 },
+      { bottom: 80_205, top: 80_205 },
+      PLOT_TOP,
+      PLOT_BOTTOM,
+    ),
+    null,
+  )
+})
+
+test('travado e no topo do domínio caem no mesmo y, e só o clamp os separa', () => {
+  const atTop = resolvePriceChartTarget(
+    TARGET_DOMAIN.top,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+  const above = resolvePriceChartTarget(
+    TARGET_DOMAIN.top + 1,
+    TARGET_DOMAIN,
+    TARGET_DOMAIN,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+
+  assert.equal(atTop?.y, above?.y)
+  assert.notEqual(atTop?.clamp, above?.clamp)
 })

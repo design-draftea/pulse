@@ -134,6 +134,62 @@
   stroke: var(--color-fill-error);
 }
 
+.price-chart__target-line {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Travada, a linha usa fillPrimary; dentro da faixa recua para fillTertiary.
+   A diferença vem dos assets do Figma, que exportam a mesma linha com e sem
+   opacidade de 50%. */
+.price-chart__target--none .price-chart__target-line {
+  stroke: var(--color-fill-tertiary);
+}
+
+.price-chart__target--above .price-chart__target-line,
+.price-chart__target--below .price-chart__target-line {
+  stroke: var(--color-fill-primary);
+}
+
+.price-chart__target-pill {
+  fill: var(--color-background-app);
+}
+
+.price-chart__target-label text {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.price-chart__target--none .price-chart__target-label text {
+  fill: var(--color-fill-tertiary);
+}
+
+.price-chart__target--above .price-chart__target-label text,
+.price-chart__target--below .price-chart__target-label text {
+  fill: var(--color-fill-primary);
+}
+
+.price-chart__target-chevron {
+  fill: none;
+  stroke: var(--color-fill-primary);
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.price-chart__target-chevron--trailing {
+  stroke: var(--color-fill-tertiary);
+}
+
+/* Os dois chevrons são simétricos em torno do centro da própria caixa, então
+   espelhar em fill-box troca exatamente o cheio pelo de 50% e aponta o glifo
+   para baixo, como o `-scale-y-100` do nó `535:13548`. */
+.price-chart__target-chevron-box--flipped {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(-1);
+}
+
 .price-chart__current-label text {
   fill: #fbfbfb;
   font-size: 12px;

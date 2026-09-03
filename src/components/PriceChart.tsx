@@ -22,6 +22,8 @@ import {
   countPricePointGaps,
   getContinuousVisiblePricePoints,
   interpolatePriceAt,
+  projectPriceToY,
+  resolvePriceChartTarget,
   type PriceChartDomain,
   type PricePoint,
 } from './priceChartModel'
@@ -39,6 +41,7 @@ type PriceChartProps = {
   domain: PriceChartDomain
   renderDomain?: PriceChartDomain
   currentPrice: number | null
+  targetPrice: number | null
   priceDirection: PriceDirection | null
   directionAnimationSequence: number
   entries?: PriceChartEntry[]
@@ -64,6 +67,18 @@ type ChartPoint = PricePoint & {
 const PLOT_LEFT = 16
 const PLOT_TOP = 16
 const PLOT_BOTTOM = 220
+// Os 11px acima da faixa e o 1px abaixo dela são a folga que impede o traço de
+// 3px da linha e o halo do ponto de serem cortados pelo recorte.
+const PLOT_CLIP_TOP = PLOT_TOP - 11
+const PLOT_CLIP_HEIGHT = PLOT_BOTTOM + 1 - PLOT_CLIP_TOP
+// O tracinho do eixo temporal nasce colado na última linha da grade. É essa
+// emenda que faz o eixo ler como eixo, então a linha do objetivo trava na
+// própria borda da faixa em vez de empurrar o eixo para baixo. O nó `17:13176`
+// do Figma reserva 25px de respiro aí, mas naquele frame o eixo desce junto; no
+// gráfico real o respiro sobraria como um vão sempre que nada estivesse travado.
+const TIME_AXIS_TICK_TOP = PLOT_BOTTOM
+const TIME_AXIS_TICK_BOTTOM = TIME_AXIS_TICK_TOP + 5
+const TIME_AXIS_LABEL_BASELINE = TIME_AXIS_TICK_BOTTOM + 21
 const CURRENT_LABEL_WIDTH = 85
 const GRID_LINE_COUNT = 7
 const PIXELS_PER_SECOND = 24
@@ -74,6 +89,16 @@ const PLOT_FADE_WIDTH = 96
 const DIRECTION_CLEAR_SIZE = 30
 const DIRECTION_ANIMATION_FALLBACK_MS = 800
 const RENDER_FRAME_INTERVAL = 1000 / 30
+// Pílula do preço objetivo, do nó `536:13573`. A borda esquerda é fixa: a linha
+// acompanha a largura do gráfico, mas a etiqueta permanece ancorada.
+const TARGET_LABEL_X = 66
+const TARGET_PILL_HEIGHT = 16
+const TARGET_PILL_PADDING_LEFT = 8
+const TARGET_PILL_PADDING_RIGHT = 8
+const TARGET_PILL_PADDING_RIGHT_WITH_CHEVRON = 4
+const TARGET_CHEVRON_GAP = 2
+const TARGET_CHEVRON_SIZE = 16
+const TARGET_LABEL_BASELINE = 3.5
 
 const getSmoothPath = (points: ChartPoint[]) => {
   if (points.length === 0) return ''
@@ -174,11 +199,29 @@ const DirectionChevrons = ({
   </g>
 )
 
+// `tabler-icon-chevrons-up` de 16px, do nó `536:13556`. É uma variante distinta
+// da usada pelo indicador de direção: ali o glifo tem 24px, traço de 1.5 e os
+// dois chevrons animados; aqui tem 16px, traço de 1, o da frente cheio, o de
+// trás a 50% e nenhuma animação.
+const TargetChevrons = () => (
+  <g className="price-chart__target-chevrons" aria-hidden="true">
+    <path
+      className="price-chart__target-chevron price-chart__target-chevron--leading"
+      d="M4.66667 7.33333L8 4L11.3333 7.33333"
+    />
+    <path
+      className="price-chart__target-chevron price-chart__target-chevron--trailing"
+      d="M4.66667 11.3333L8 8L11.3333 11.3333"
+    />
+  </g>
+)
+
 export function PriceChart({
   points,
   domain,
   renderDomain = domain,
   currentPrice,
+  targetPrice,
   priceDirection,
   directionAnimationSequence,
   entries = [],
@@ -282,6 +325,46 @@ export function PriceChart({
     )
   }, [priceLabelSample.length, chartWidth])
 
+  const targetLabel = targetPrice === null || !Number.isFinite(targetPrice)
+    ? null
+    : `${priceFormatter.format(targetPrice)} - objetivo`
+  const targetLabelRef = useRef<SVGTextElement | null>(null)
+  const [targetLabelWidth, setTargetLabelWidth] = useState(0)
+
+  // A pílula é desenhada a partir da largura real do texto. Os numerais são
+  // tabulares, então remedir só quando o número de caracteres muda basta.
+  useLayoutEffect(() => {
+    const node = targetLabelRef.current
+    if (node === null) return
+
+    const measure = () => {
+      const measuredWidth = node.getBBox().width
+      if (!Number.isFinite(measuredWidth) || measuredWidth <= 0) return
+
+      setTargetLabelWidth((currentWidth) =>
+        Math.abs(currentWidth - measuredWidth) < 0.5
+          ? currentWidth
+          : measuredWidth,
+      )
+    }
+
+    measure()
+
+    // A Red Hat Display vem do Google Fonts com `display=swap`, então na
+    // primeira pintura o texto ainda está na fonte de retorno. Sem remedir
+    // quando ela chega, a pílula ficaria dimensionada para a fonte errada.
+    if (typeof document.fonts === 'undefined') return
+
+    let isCancelled = false
+    document.fonts.ready.then(() => {
+      if (!isCancelled) measure()
+    })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [targetLabel?.length])
+
   const renderTime = useRenderTime()
   const displayTime = Math.max(renderTime, latestPoint?.timestamp ?? renderTime)
   const windowSpanMs = (seriesRight / PIXELS_PER_SECOND) * 1000
@@ -320,10 +403,28 @@ export function PriceChart({
     )
   }
 
-  const { bottom, top } = renderDomain
+  const { top } = renderDomain
   const { step } = domain
   const priceToY = (value: number) =>
-    PLOT_TOP + ((top - value) / (top - bottom)) * (PLOT_BOTTOM - PLOT_TOP)
+    projectPriceToY(value, renderDomain, PLOT_TOP, PLOT_BOTTOM)
+  const targetPlacement = resolvePriceChartTarget(
+    targetPrice,
+    domain,
+    renderDomain,
+    PLOT_TOP,
+    PLOT_BOTTOM,
+  )
+  const isTargetClamped = targetPlacement !== null
+    && targetPlacement.clamp !== 'none'
+  const targetPillWidth = targetLabelWidth === 0
+    ? 0
+    : TARGET_PILL_PADDING_LEFT
+      + targetLabelWidth
+      + (isTargetClamped
+        ? TARGET_CHEVRON_GAP
+          + TARGET_CHEVRON_SIZE
+          + TARGET_PILL_PADDING_RIGHT_WITH_CHEVRON
+        : TARGET_PILL_PADDING_RIGHT)
   const animatedSafePoints = safePoints.map((point, index) => (
     index === safePoints.length - 1
       ? { ...point, value: latestPrice }
@@ -408,6 +509,9 @@ export function PriceChart({
       {...panHandlers}
       data-point-count={safePoints.length}
       data-displayed-price={latestPrice}
+      data-target-price={targetPrice ?? ''}
+      data-target-clamp={targetPlacement?.clamp ?? ''}
+      data-target-y={targetPlacement?.y ?? ''}
       data-domain-bottom={domain.bottom}
       data-domain-top={domain.top}
       data-domain-step={domain.step}
@@ -477,15 +581,15 @@ export function PriceChart({
             id={`plot-fade-mask-${id}`}
             maskUnits="userSpaceOnUse"
             x="0"
-            y="5"
+            y={PLOT_CLIP_TOP}
             width={plotRight}
-            height="216"
+            height={PLOT_CLIP_HEIGHT}
           >
             <rect
               x="0"
-              y="5"
+              y={PLOT_CLIP_TOP}
               width={plotRight}
-              height="216"
+              height={PLOT_CLIP_HEIGHT}
               fill={`url(#plot-fade-${id})`}
             />
             <rect
@@ -540,7 +644,12 @@ export function PriceChart({
             />
           </mask>
           <clipPath id={`plot-clip-${id}`}>
-            <rect x="0" y="5" width={plotRight} height="216" />
+            <rect
+              x="0"
+              y={PLOT_CLIP_TOP}
+              width={plotRight}
+              height={PLOT_CLIP_HEIGHT}
+            />
           </clipPath>
           <filter
             id={`point-glow-${id}`}
@@ -599,8 +708,44 @@ export function PriceChart({
           <path className="price-chart__line" d={linePath} pathLength="1" />
         </g>
 
+        {/* O eixo temporal vem antes da linha do objetivo porque a pílula
+            travada embaixo pousa exatamente sobre os tracinhos e precisa
+            ocultá-los, como no Figma, onde `preco-objetivo-down` está acima
+            de `tempo`. */}
+        <g className="price-chart__time-axis" aria-hidden="true">
+          {timeTicks.map(({ timestamp, x }) => (
+            <g
+              key={timestamp}
+              className="price-chart__time-tick"
+              data-time-tick={timestamp}
+              style={{
+                opacity: getTimeTickOpacity(
+                  x,
+                  PLOT_LEFT,
+                  seriesRight,
+                  TIME_TICK_FADE_DISTANCE,
+                ),
+              }}
+            >
+              <line
+                x1={x}
+                x2={x}
+                y1={TIME_AXIS_TICK_TOP}
+                y2={TIME_AXIS_TICK_BOTTOM}
+              />
+              <text x={x} y={TIME_AXIS_LABEL_BASELINE} textAnchor="middle">
+                {timeFormatter.format(timestamp)}
+              </text>
+            </g>
+          ))}
+        </g>
+
+        {/* O tracejado do preço atual é desenhado antes da linha do objetivo:
+            quando os dois coincidem, é o objetivo que deve ficar por cima. O
+            ponto, os chevrons e a pílula do preço atual seguem depois dela, no
+            grupo `price-chart__current-level`. */}
         <g
-          className="price-chart__current-level"
+          className="price-chart__current-line-level"
           style={{ transform: `translateY(${currentPoint.y}px)` }}
           aria-hidden="true"
         >
@@ -612,6 +757,75 @@ export function PriceChart({
             y1="0"
             y2="0"
           />
+        </g>
+
+        {targetPlacement !== null && targetLabel !== null ? (
+          <g
+            className={`price-chart__target price-chart__target--${targetPlacement.clamp}`}
+            style={{ transform: `translateY(${targetPlacement.y}px)` }}
+            aria-hidden="true"
+          >
+            {/* O nó do Figma desenha a linha até `largura - 16`, passando
+                por cima dos rótulos de preço. Naquele frame ela nunca cai sobre
+                uma linha da grade, então a colisão não aparece; travada na
+                borda da faixa, ela riscaria o rótulo mais externo. Aqui ela
+                para em `plotRight`, como a grade e a linha do preço atual, que
+                já respeitam a coluna dos rótulos. */}
+            <line
+              className="price-chart__target-line"
+              x1={PLOT_LEFT}
+              x2={plotRight}
+              y1="0"
+              y2="0"
+            />
+            {/* A pílula é opaca, então oclui a linha e a série atrás dela: não
+                há vão a abrir na linha nem máscara a manter. */}
+            <g
+              className="price-chart__target-label"
+              transform={`translate(${TARGET_LABEL_X} 0)`}
+              opacity={targetPillWidth > 0 ? 1 : 0}
+            >
+              <rect
+                className="price-chart__target-pill"
+                x="0"
+                y={-TARGET_PILL_HEIGHT / 2}
+                width={targetPillWidth}
+                height={TARGET_PILL_HEIGHT}
+                rx={TARGET_PILL_HEIGHT / 2}
+              />
+              <text
+                ref={targetLabelRef}
+                x={TARGET_PILL_PADDING_LEFT}
+                y={TARGET_LABEL_BASELINE}
+              >
+                {targetLabel}
+              </text>
+              {isTargetClamped ? (
+                <g
+                  transform={`translate(${
+                    TARGET_PILL_PADDING_LEFT + targetLabelWidth + TARGET_CHEVRON_GAP
+                  } ${-TARGET_CHEVRON_SIZE / 2})`}
+                >
+                  <g
+                    className={`price-chart__target-chevron-box ${
+                      targetPlacement.clamp === 'below'
+                        ? 'price-chart__target-chevron-box--flipped'
+                        : ''
+                    }`}
+                  >
+                    <TargetChevrons />
+                  </g>
+                </g>
+              ) : null}
+            </g>
+          </g>
+        ) : null}
+
+        <g
+          className="price-chart__current-level"
+          style={{ transform: `translateY(${currentPoint.y}px)` }}
+          aria-hidden="true"
+        >
           <circle
             className="price-chart__point-halo"
             cx={seriesRight}
@@ -698,33 +912,6 @@ export function PriceChart({
           ))}
         </g>
 
-        <g className="price-chart__time-axis" aria-hidden="true">
-          {timeTicks.map(({ timestamp, x }) => (
-            <g
-              key={timestamp}
-              className="price-chart__time-tick"
-              data-time-tick={timestamp}
-              style={{
-                opacity: getTimeTickOpacity(
-                  x,
-                  PLOT_LEFT,
-                  seriesRight,
-                  TIME_TICK_FADE_DISTANCE,
-                ),
-              }}
-            >
-              <line
-                x1={x}
-                x2={x}
-                y1="220"
-                y2="225"
-              />
-              <text x={x} y="246" textAnchor="middle">
-                {timeFormatter.format(timestamp)}
-              </text>
-            </g>
-          ))}
-        </g>
       </svg>
 
       {isPanned ? (
