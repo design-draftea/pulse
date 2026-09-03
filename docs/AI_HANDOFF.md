@@ -5,11 +5,11 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: Claude, na mesma branch, quando os cards 2, 3 e 4 do onboarding chegarem
-- Status: implementado e validado localmente. Sem commit, sem Pull Request, sem merge e sem publicação — a pessoa usuária pediu para revisar antes
+- Status: concluído — mesclado pelo PR #52 e publicado no GitHub Pages, com a publicação verificada no artefato real. A pessoa usuária autorizou explicitamente push, merge e deploy depois da entrega técnica
 - Objetivo: nova feature de onboarding. Um botão de ajuda no subheader, com um pulsante de convite que morre na primeira abertura, e o bottom sheet de onboarding de quatro passos
 - Escopo acordado: o botão completo, o bottom sheet e os quatro cards. O onboarding está completo
 - Critérios de aceite: botão fiel ao nó `564:5840` e sobrevivendo ao estado compacto do subheader; pulsante visível até o primeiro clique e nunca mais; bottom sheet fiel aos nós `564:6369`, `564:6929`, `564:7019` e `564:7078`, com os quatro `cardAnimado` animados em loop infinito
-- Branch: `feature/onboarding`, criada a partir da `main` em `4bf23ff`, no checkout principal. Sem commits ainda
+- Branch: `feature/onboarding`, criada a partir da `main` em `4bf23ff`, commit `2ed956e`, PR #52, mesclada em `00967a6` e removida do remoto
 
 ### Acesso ao Figma
 
@@ -250,7 +250,7 @@ Verificado nos dois estados, simulando a preferência ao zerar a variável — q
 ## Validações
 
 - `pnpm lint` limpo e `pnpm build` sem erros.
-- Suíte completa passando, 87 testes: `test:chart` 26, `test:market` 25, `test:wallet` 19, `test:entries` 8, `test:fallback` 6, `test:assets` 3.
+- Suíte completa passando, 93 testes: `test:chart` 26, `test:market` 25, `test:wallet` 19, `test:entries` 8, `test:fallback` 6, `test:assets` 3.
 - Navegador em `localhost:5176`, viewport 375x812: botão fiel ao Figma (36x48, ícone 20x20 a 4px do topo); halo rodando `8s infinite`; clique derruba a classe, zera as animações e grava a flag; após reload o pulsante não volta; no estado compacto o título colapsa e o botão continua visível.
 - Bottom sheet: `role="dialog"`, `aria-modal`, 4 bullets, CTA `Siguiente`, título e corpo corretos em cada passo.
 - Navegação entre os passos: passo 1 mostra o gráfico e nenhum botão de voltar; avançar leva ao passo 2 com o relógio, o botão de voltar e o segundo bullet ativo; voltar retorna ao passo 1 e o botão de voltar desaparece.
@@ -284,7 +284,9 @@ Verificado nos dois estados, simulando a preferência ao zerar a variável — q
 
 ## Pendências e próximo passo
 
-- Os quatro cards estão implementados. Não há próximo passo pendente de design. Os bullets já mostram o total de quatro e a navegação alcança os passos sozinha conforme a lista cresce.
+- Os quatro cards estão implementados, mesclados e publicados. Não há próximo passo pendente de design.
+- Publicação verificada em `https://design-draftea.github.io/pulse/` por marcador no código minificado, como a tarefa anterior registrou que é o método certo — comparar hash do bundle não funciona porque o workflow injeta `VITE_BASE_PATH` e `VITE_POLYMARKET_PROXY_ORIGIN`. Conferidos no JS: `onboarding-sheet`, `Cómo funciona Draftea Pulse`, `pulse.onboarding.invite.dismissed`, `Valor de venta`, `Vendido por`, `resetOnboarding`, `Puedes vender antes` e `Entendido, empezar`. No CSS: `onboarding-series-marker`, `onboarding-chart-crossing`, `sub-header-help-invite`, `onboarding-motion` e `onboarding-step-enter-forward`.
+- O deploy do Pages é automático no push para `main` (`.github/workflows/deploy-pages.yml`); a execução do merge concluiu com sucesso. Os bullets já mostram o total de quatro e a navegação alcança os passos sozinha conforme a lista cresce.
 - A pílula `Terminó arriba` está duplicada entre `OnboardingChart.css` e `OnboardingRoundClock.css`. Com dois usos, duplicar custou menos que mexer no card 1 já validado; se um terceiro card reusar, vale extrair numa classe compartilhada.
 - Arrastar entre os cards ficou de fora de propósito: com um passo só não há como verificar. Entra junto com os cards 2 a 4. Bullets seguem como indicador, não como controle — alvo de 6px é pequeno demais.
 - As durações dos cards divergiram de propósito: 5,2s no card 1, ciclo de 10,4s no card 2 (duas voltas de 5,2s) e 7,8s no card 3. Cada uma segue o que o conteúdo do card precisa; o valor fica em `--onboarding-*-duration` de cada arquivo.
