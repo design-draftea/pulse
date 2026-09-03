@@ -177,6 +177,7 @@ export function MarketPriceChart({
       domain={domain}
       renderDomain={renderDomain}
       currentPrice={currentPrice}
+      targetPrice={targetPrice}
       priceDirection={priceDirection}
       directionAnimationSequence={directionAnimationSequence}
       entries={entries}

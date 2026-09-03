@@ -5,6 +5,83 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
+- Status: implementado, validado localmente, commitado e publicado no remoto, com o PR #48 aberto e `MERGEABLE`. **Não mesclado e não publicado.** O commit, o push, o PR, o merge e o deploy foram autorizados pela pessoa usuária, mas o comando de merge foi barrado pelo classificador de permissões do agente, com e sem `--delete-branch`
+- Objetivo: acrescentar a linha do preço objetivo ao gráfico, com três estados — dentro da faixa de preços, travada acima e travada abaixo — a partir do nó `17:13176` do Figma
+- Escopo acordado: apenas a camada da linha do objetivo. A geometria do gráfico, o domínio, a escala, o arrasto, o desenho da série, o indicador de direção e a pílula do preço atual permanecem como estavam
+- Critérios de aceite: objetivo dentro do domínio desenha a linha a 50% sem seta; fora dele, a linha trava na borda da faixa, em opacidade cheia, com a seta parada apontando para fora
+- Branch: `feature/linha-preco-objetivo`, criada da `main` em `ea7667a`. Commit `f3c7a7b`, PR #48
+- Decisão de nome da branch: já existia uma `feature/linha-objetivo-grafico` local, sem commits além da `main` e sem trabalho dentro. Foi preservada em vez de removida, porque apagar branch da pessoa usuária exige autorização, e a tarefa ganhou um nome novo
+
+### Leitura do Figma
+
+- O MCP remoto do Figma respondeu sem autorização nesta sessão. O design foi lido pelo servidor local do Figma Desktop em `127.0.0.1:3845`, que usa a sessão da pessoa usuária, falando JSON-RPC direto por HTTP. Vale registrar que esse caminho continua funcionando, como já tinha acontecido no PR #41
+- Os três estados existem como frames separados: `536:13573` dentro do gráfico, `536:13552` travado acima e `535:13547` travado abaixo
+- A linha é sólida de 1px, em `Fill Colors/fillTertiary` dentro da faixa e `fillPrimary` travada. Os dois assets exportados diferem só pelo `stroke-opacity` de 50%
+- A pílula usa `Background/backgroundApp`, altura de 16px, raio total, `padding` de `8/8` sem seta e `8/4` com `gap` de 2 quando tem seta, e a borda esquerda fixa em `x = 66`
+- O texto é `$80,195.64 - objetivo`, com hífen simples (`0x2D`, conferido no byte) e minúsculo, em 10px peso 500 e `lnum`/`tnum`, que o gráfico já herda
+
+## Alterações realizadas
+
+- `src/components/priceChartModel.ts`: `projectPriceToY` extraída como definição única da conversão de preço em `y`, e `resolvePriceChartTarget` nova, devolvendo `{ y, clamp }` ou `null`.
+- `src/components/PriceChart.tsx`: prop `targetPrice`, a camada da linha do objetivo, constantes nomeadas no lugar de `y` repetidos, e a reordenação do eixo temporal.
+- `src/components/PriceChart.css`: os estilos da linha, da pílula e dos chevrons do objetivo. Só adições.
+- `src/components/MarketPriceChart/MarketPriceChart.tsx`: repasse do `targetPrice` que ele já recebia e usava apenas como reserva do domínio.
+- `tests/priceChartModel.test.ts`: sete testes novos, cobrindo os três estados, as bordas do domínio, a separação entre domínio estabilizado e interpolado, a coincidência de `y` entre travado e borda, e as entradas degeneradas.
+- `src/components/priceChartGeometry.ts` e `src/components/priceChartLayout.ts` foram alterados e depois revertidos por completo; hoje estão idênticos à `main`.
+
+### O caminho até travar na borda da faixa, e por que ele voltou atrás
+
+- O nó do Figma tem 293px de altura e reserva 25px de respiro entre a faixa da grade e a linha travada. O gráfico implementado tem 256px e não reservava nenhum: a última linha da grade e o início do eixo temporal eram o mesmo `y = 220`.
+- A escolha foi levada à pessoa usuária com três opções. Ela decidiu reproduzir os 25px do Figma, crescendo o gráfico. Isso foi implementado: `PLOT_TOP` para `33`, `PLOT_BOTTOM` para `237`, altura para `293`, eixo temporal 42px abaixo e feed de entradas deslocado em `+17`.
+- Vendo o resultado, ela apontou que sem nada travado embaixo sobrava um vão considerável e que o eixo temporal ficava estranho. Estava certa, e as duas queixas eram o mesmo defeito: no Figma a linha travada embaixo e o início do eixo temporal são o mesmo `y = 262`, e eu tratei isso como estrutura, amarrando um ao outro no código. Para dar respiro à linha travada, o eixo desceu junto e perdeu a emenda com a grade — e é essa emenda que faz o eixo ler como eixo.
+- Não existe valor intermediário. A pílula tem 16px, então com respiro menor que 13px ela cobre os tracinhos do eixo, e com respiro maior a linha passa por baixo deles, que é pior. Ou o respiro é zero, ou o eixo desce os 25px.
+- Decisão final, autorizada por ela: respiro zero. A linha trava na própria borda da faixa, `TIME_AXIS_TICK_TOP` voltou a ser `PLOT_BOTTOM` e toda a geometria vertical voltou ao que era. `priceChartGeometry.ts` e `priceChartLayout.ts` saíram do diff, e a Home não desce mais 37px.
+- Efeito colateral que reforça a decisão: com respiro zero, um objetivo exatamente no topo do domínio e um objetivo travado acima caem no mesmo `y`. O que os distingue passa a ser a opacidade da linha e a presença da seta. Aquela diferença de opacidade entre os dois assets do Figma, que parecia decoração, é o que carrega a informação. Há um teste garantindo essa coincidência de `y`.
+
+### Decisões da linha do objetivo
+
+- Extensão da linha: o nó do Figma desenha 343px, de `x = 16` a `x = 359`, passando por cima da coluna dos rótulos de preço. Naquele frame a linha travada nunca cai sobre uma linha da grade, então a colisão não aparece; travada na borda da faixa, ela risca o rótulo mais externo, e isso foi visto no navegador. A linha passou a parar em `plotRight`, como a grade e a linha tracejada do preço atual, que já respeitam essa coluna. As três linhas de nível do gráfico agora têm a mesma extensão, `16` a `280`.
+- O veredito de travamento vem do domínio já estabilizado e a posição vem do domínio interpolado. Decidir os dois pelo interpolado faria a seta e a largura da pílula piscarem durante os 280ms de animação sempre que o objetivo estivesse parado exatamente na borda. Com isso não há transição a animar: o estado troca de uma vez, e é estável.
+- A pílula é opaca, então oclui a linha, a grade e a série atrás dela. Isso dispensou o vão na linha e a máscara que o plano inicial previa, e é o que resolve a legibilidade quando a linha branca do preço passa por trás do texto.
+- A largura da pílula vem da medição real do texto por `getBBox()`, no mesmo padrão que o componente já usava para o rótulo de preço, e não de um valor fixo. O nó do Figma tem 129px para o estado travado, mas isso depende das métricas da fonte; derivar da medição mantém o `padding` correto qualquer que seja o texto.
+- Bug encontrado durante a validação: a Red Hat Display vem do Google Fonts com `display=swap`, então a primeira medição acontece na fonte de retorno e a fonte real chega depois. Sem remedir, a pílula ficaria dimensionada para a fonte errada. A medição passou a repetir em `document.fonts.ready`.
+- Observação, fora do escopo: a medição pré-existente de `priceLabelWidth` tem a mesma corrida de fonte. Ela alimenta só o alinhamento horizontal da pílula `LIVE`, então o efeito é bem menor, e não foi alterada para manter a mudança restrita ao pedido.
+- Os chevrons não reaproveitam o `DirectionChevrons` do indicador de direção: aquele é o glifo de 24px com traço de 1.5, os dois chevrons iguais e animados; o do objetivo é a variante de 16px com traço de 1, o da frente cheio, o de trás a 50% e parado. São variantes distintas do mesmo ícone, então o indicador de direção não foi tocado.
+- Decisão sobre o asset dos chevrons: em vez de commitar o SVG exportado e referenciá-lo, os dois `d` exatos do export foram desenhados inline. O gráfico é um `<svg>` inline que já desenha esse mesmo glifo como `path`, e um `<image>` no meio dele seria inconsistente com o arquivo. O desenho é idêntico, porque os dados vetoriais vieram do próprio export.
+- O estado travado abaixo espelha o ícone com `scaleY(-1)` em `transform-box: fill-box`, como o `-scale-y-100` do nó `535:13548`. Os dois chevrons são simétricos em torno do centro da própria caixa, então o espelho troca exatamente o cheio pelo de 50% e o glifo aponta para baixo.
+- O eixo temporal passou a ser desenhado antes da linha do objetivo. A pílula travada embaixo pousa sobre os tracinhos de 5px do eixo, e com a ordem anterior eles atravessavam o texto. No Figma os nós `preco-objetivo-*` estão acima de `tempo`, então ocultá-los é o comportamento do desenho. A troca de ordem também põe o grupo do preço atual acima do eixo; na prática nada muda, porque os dois só se aproximam quando o preço encosta na base do domínio, e ali o que se sobrepõe é o halo do ponto, com 8% de opacidade.
+- Ordem entre o objetivo e o preço atual, corrigida a pedido da pessoa usuária: o tracejado do preço atual foi separado em `price-chart__current-line-level`, desenhado antes da linha do objetivo, enquanto o ponto, os chevrons de direção e a pílula do preço atual seguem depois, em `price-chart__current-level`. Quando os dois níveis coincidem, o tracejado atravessava a pílula opaca e o rótulo do objetivo. Registro de rigor: a ordem não altera a cor onde as duas linhas se cruzam, porque a composição alpha dá o mesmo resultado nos dois sentidos; o que mudou de fato é a oclusão da pílula e do texto.
+- Isso só passou a ser possível depois de a linha parar em `plotRight`. A objeção anterior era que a linha do objetivo atravessaria a pílula roxa do preço atual; com a linha terminando em `plotRight`, que é exatamente onde a pílula começa, as duas apenas se tocam. O ponto branco e a pílula roxa continuam acima da linha do objetivo.
+- A camada do objetivo fica, no restante, abaixo do grupo do preço atual, e não acima como no Figma. No arquivo os dois nunca se cruzam verticalmente, então o desenho não decide isso; na prática o objetivo é o preço de abertura da rodada e o preço atual orbita em volta dele, de modo que os dois se cruzam com frequência. Com a ordem do Figma, a linha do objetivo atravessaria a pílula roxa do preço atual. As duas pílulas ficam em `x = 66` e `x = 282`, então nunca se sobrepõem.
+- Sem preço objetivo definido, nada é desenhado. Nos primeiros segundos da rodada o alvo pode ser nulo, e nesse intervalo a linha simplesmente não existe, em vez de segurar o alvo da rodada anterior.
+- Acessibilidade: o grupo é `aria-hidden`, porque o valor já é anunciado pelo card `Precio objetivo`. `data-target-price`, `data-target-clamp` e `data-target-y` foram acrescentados ao `figure`, seguindo os atributos de validação que já existiam ali.
+
+## Validações
+
+- `pnpm lint` e `pnpm build` limpos.
+- `pnpm test:chart` com 26 testes passando, sendo sete novos.
+- Ordem de pintura conferida no DOM: `grid`, série, `time-axis`, `current-line-level`, `target`, `current-level`, `entry-feed`, com o tracejado e o objetivo no mesmo `y` no caso em que o objetivo coincide com o preço atual.
+- Validação no navegador: o ambiente do agente não tem saída de rede, e os três feeds de preço são WebSocket abertos direto pelo navegador, então o gráfico não desenha ali com dados reais. Os estados foram validados em uma página temporária com série sintética, já removida, que também cobriu o caso do objetivo coincidindo com o preço atual.
+- Medido no DOM depois da reversão: figura de 256px, `viewBox` de `375x256`, grade em `16, 50, 84, 118, 152, 186, 220`, recorte em `y = 5` com altura `216`, tracinho do eixo de `220` a `225` e rótulo de horário em `246` — todos idênticos à `main`. Grade, linha do preço atual e linha do objetivo com a mesma extensão, de `16` a `280`.
+- Medido nos três estados: travamento em `y = 16` acima e `y = 220` abaixo, linha e texto a 50% dentro da faixa e em opacidade cheia travados, chevron com traço de 1px, `animation: none`, e `matrix(1, 0, 0, -1, 0, 0)` no estado de baixo.
+- A largura da pílula bate com `padding` mais texto medido em todos os rótulos testados, incluindo um de 24 caracteres.
+
+## Pendências e próximo passo
+
+- Não validado: o comportamento com dados reais de mercado, por falta de rede no ambiente do agente. Em especial a troca de estado quando o preço se afasta do objetivo até tirá-lo do domínio.
+- Merge pendente: o `gh pr merge 48` foi barrado pelo classificador, tanto com `--delete-branch` quanto sem. O mesmo aconteceu no PR #45. Não foi contornado: fazer o merge local e dar push na `main` violaria a regra do `AGENTS.md` sobre a `main` e a intenção do bloqueio. A pessoa usuária pode mesclar pela interface do GitHub ou liberar uma regra de permissão para o `gh pr merge`.
+- Deploy: não requer passo manual. O workflow `deploy-pages.yml` dispara em `push` para a `main`, então o merge publica sozinho. Depois dele, vale conferir a execução do workflow e a página publicada antes de declarar o deploy concluído.
+- A branch `feature/linha-preco-objetivo` continua no remoto e precisará ser removida depois do merge.
+- Próximo passo: mesclar o PR #48 e verificar a publicação.
+
+
+## Histórico: Centro de ayuda e navegação do bottom sheet (PRs #45 e #46)
+
+### Estado no encerramento
+
+- Atualizado em: 2026-09-03
+- Agente que entrega: Claude
+- Agente esperado a seguir: nenhum
 - Status: concluído — implementado, validado localmente, mesclado na `main` pelo PR #45 e publicado no GitHub Pages, com a publicação verificada. O commit, o push, o PR, o merge e o deploy foram autorizados pela pessoa usuária
 - Objetivo: alinhar o Centro de ayuda ao Figma em duas frentes — os três atalhos seguem o nó `457:8806` e o glossário segue o nó `467:10540` — e trocar a navegação do bottom sheet pela do `draftaco-v0`, em que as telas deslizam na horizontal
 - Escopo acordado: o bloco `Esencial en Draftea`, a tela de glossário, a navegação entre as telas do bottom sheet e a entrada pelo rodapé da Home. O conteúdo das `Preguntas frecuentes` e o restante do sheet não foram tocados
@@ -12,7 +89,7 @@
 - Branch: `feature/ajuda-hf`, que já continha trabalho não commitado da pessoa usuária nos mesmos arquivos. Commit `2ef501f`, mesclada em `1e41dc6`. A branch continua no remoto, porque a remoção ia junto do comando de merge que foi barrado e o merge acabou sendo feito sem ela
 - Fora do escopo, mesclado em seguida: `src/components/Movements/MovementDetailModal.css` estava alterado no diretório de trabalho desde o começo, sem relação com o Centro de ayuda. Ficou de fora do PR #45 pela regra do `AGENTS.md` sobre mudanças não commitadas de terceiros, e depois, a pedido da pessoa usuária, foi para a branch `fix/movement-modal-sem-repique`, commit `5c18292`, PR #46, mesclado em `b7171d9`. O quadro de 80% da entrada do modal passava do repouso, com `translate3d(0, -2px, 0)` e `scale(1.006)`, e agora assenta em `translate3d(0, 0, 0)` e `scale(1)`
 
-## Alterações realizadas
+### Alterações realizadas
 
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`: `helpQuickActionItems` ganhou o campo `glow` com o token de cada brilho. O bloco passou a ser envolvido por `profile-sheet__help-essentials`, com o título `Esencial en Draftea`, e cada botão recebeu o `span` do brilho e a variável inline `--help-action-glow`.
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.css`: a lista vertical de `55px` deu lugar à linha de três cards, com `gap` de `8px`, borda de `1px`, raio de `16px`, `padding` de `12px`, `gap` interno de `16px`, ícone de `32px` e rótulo de `42px` em `14/16`.
@@ -21,7 +98,7 @@
 - Decisão sobre os ícones: `iconFalar.svg`, `iconPlay.svg` e `iconGlossario.svg`, que a pessoa usuária já tinha posto em `src/assets`, são os mesmos glifos do Figma, só que normalizados para uma `viewBox` de `32x32`. Foram reaproveitados como estão, sem reexportar.
 - Divergência mantida de propósito: no nó do Figma o primeiro card usa `fillOpacityQuinary` na borda e os outros dois usam `fillOpacityQuaternary`. A diferença foi reproduzida como está, com comentário no CSS. Parece deslize do arquivo de design, e não intenção; vale confirmar com quem desenhou.
 
-### Glossário (nó `467:10540`)
+#### Glossário (nó `467:10540`)
 
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`: o `h3` interno com o texto `Glosario` saiu, porque o cabeçalho do sheet já mostra esse título e o nó do Figma não o repete no conteúdo. Com ele fora, os termos subiram de `h4` para `h3`, logo abaixo do `h2` do cabeçalho, sem pular nível. O `div` intermediário `profile-sheet__help-glossary-list` também saiu, já que a própria seção passou a ser a lista.
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.css`: o traço deixou de ser vertical e passou a ser o traço horizontal de `16px` do nó `467:12039`. A coluna do traço estica na altura da caixa e tem `12px` de respiro vertical, que é o que alinha o traço ao centro da primeira linha do termo. A separação entre termos deixou de ser `padding` de `12px` e virou `gap` de `24px`, e o `margin-bottom` de `4px` do termo saiu em favor do `gap` de `2px` do Figma.
@@ -29,7 +106,7 @@
 - Os doze termos e as doze definições já batiam com o Figma palavra por palavra. Nenhum texto foi alterado.
 - O `profile-sheet__help-spacer` foi mantido. Ele tem altura zero e só contribui um `gap`, e é a única folga que sobra abaixo do último termo, já que o sheet não trata `safe-area-inset-bottom`. O nó do Figma termina no último bloco, então isso é uma diferença consciente, a favor do aparelho real.
 
-### Navegação do bottom sheet, portada do `draftaco-v0`
+#### Navegação do bottom sheet, portada do `draftaco-v0`
 
 - Referência: `draftaco-v0/src/components/ProfileBottomSheet/ProfileBottomSheet.tsx` e o CSS ao lado, no caminho em que o perfil abre depósito ou saque. O repositório já estava clonado em `~/Desktop/PITACO/draftaco-v0`. Nada foi copiado de lá para cá; o padrão foi lido e reescrito com os nomes do Pulse.
 - Antes as quatro telas trocavam por um ternário dentro de um único `profile-sheet__content`, sem transição. Agora existe um `profile-sheet__stage` com as quatro rotas montadas ao mesmo tempo, `position: absolute` sobre o palco, deslizando por `transform` e `opacity` em `300ms ease-out`.
@@ -41,7 +118,7 @@
 - Cada rota passou a ter o próprio contêiner de rolagem, e `goToMode` zera a rolagem da rota de destino antes de ela entrar. Como o destino ainda está fora da tela nesse instante, o salto não é visível e a tela entra sempre mostrando o começo do conteúdo. A pendência da tarefa anterior, em que voltar do glossário devolvia o Centro de ayuda rolado no meio, está encerrada.
 - Decisão de escopo: a pessoa usuária pediu isso para o botão de voltar. O mesmo vale para a ida, porque abrir o glossário e cair no meio da lista seria o mesmo defeito na direção oposta. Se um dia só a volta precisar zerar, a condição é uma linha em `goToMode`.
 
-### Entrada pelo rodapé da Home
+#### Entrada pelo rodapé da Home
 
 - `src/components/PulseFooter/PulseFooter.tsx`: `FOOTER_LINKS` deixou de ser uma lista de textos e passou a ter `id` e `label`, para que só a entrada `faq` receba ação. O componente ganhou a prop opcional `onHelpOpen`. `Términos y condiciones`, `Aviso de privacidad` e `Soporte` continuam sem ação, como antes.
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`: nova prop opcional `initialMode`, com `profile` como padrão. O efeito de abertura passou a usá-la no lugar do `profile` fixo. O tipo `ProfileBottomSheetMode` passou a ser exportado, pelo arquivo e pelo `index.ts`.

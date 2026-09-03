@@ -27,6 +27,13 @@ export type VisiblePriceChartPoints = {
   continuityApplied: boolean
 }
 
+export type PriceChartTargetClamp = 'none' | 'above' | 'below'
+
+export type PriceChartTargetPlacement = {
+  y: number
+  clamp: PriceChartTargetClamp
+}
+
 const GRID_INTERVALS = 6
 const MINIMUM_GRID_STEP = 2.5
 const RECENT_DOMAIN_POINT_COUNT = 20
@@ -36,6 +43,43 @@ const TREND_SHIFT_INTERVALS = 2
 const TREND_MINIMUM_STEP_FRACTION = 0.1
 export const DOMAIN_CONTRACTION_DELAY_MS = 5_000
 export const DOMAIN_SHIFT_CONFIRMATION_MS = 750
+
+export const projectPriceToY = (
+  value: number,
+  { bottom, top }: Pick<PriceChartDomain, 'bottom' | 'top'>,
+  plotTop: number,
+  plotBottom: number,
+) => plotTop + ((top - value) / (top - bottom)) * (plotBottom - plotTop)
+
+// O veredito de travamento vem do domínio já estabilizado e a posição vem do
+// domínio interpolado. Decidir os dois pelo interpolado faria a seta e a
+// largura da pílula piscarem durante os 280ms de animação sempre que o
+// objetivo estivesse parado exatamente na borda da faixa.
+//
+// Travado, o objetivo pousa na própria borda da faixa, sem respiro. Um objetivo
+// exatamente no topo do domínio e um objetivo travado acima caem no mesmo `y`,
+// então quem distingue os dois é a opacidade da linha e a presença da seta.
+export const resolvePriceChartTarget = (
+  targetPrice: number | null,
+  domain: Pick<PriceChartDomain, 'bottom' | 'top'>,
+  renderDomain: Pick<PriceChartDomain, 'bottom' | 'top'>,
+  plotTop: number,
+  plotBottom: number,
+): PriceChartTargetPlacement | null => {
+  if (targetPrice === null || !Number.isFinite(targetPrice)) return null
+  if (!Number.isFinite(domain.top - domain.bottom)) return null
+  if (domain.top <= domain.bottom) return null
+
+  if (targetPrice > domain.top) return { y: plotTop, clamp: 'above' }
+  if (targetPrice < domain.bottom) return { y: plotBottom, clamp: 'below' }
+
+  const y = projectPriceToY(targetPrice, renderDomain, plotTop, plotBottom)
+
+  return {
+    y: Math.min(plotBottom, Math.max(plotTop, y)),
+    clamp: 'none',
+  }
+}
 
 const getNiceStep = (minimumStep: number) => {
   const exponent = 10 ** Math.floor(Math.log10(minimumStep))
