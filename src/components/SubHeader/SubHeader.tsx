@@ -1,3 +1,4 @@
+import iconOnboarding from '../../assets/iconOnboading.svg'
 import logoBTC from '../../assets/logoBTC.png'
 import logoBTCBack from '../../assets/logoBTCBack.png'
 import './SubHeader.css'
@@ -9,6 +10,9 @@ interface SubHeaderProps {
   endTime: string
   minutes: string
   seconds: string
+  isOnboardingOpen: boolean
+  isOnboardingInviting: boolean
+  onOnboardingOpen: () => void
 }
 
 export function SubHeader({
@@ -18,6 +22,9 @@ export function SubHeader({
   endTime,
   minutes,
   seconds,
+  isOnboardingOpen,
+  isOnboardingInviting,
+  onOnboardingOpen,
 }: SubHeaderProps) {
   return (
     <div
@@ -58,6 +65,24 @@ export function SubHeader({
               </span>
             </div>
           </div>
+
+          <button
+            className="sub-header__help"
+            type="button"
+            aria-label="Cómo funciona Draftea Pulse"
+            aria-haspopup="dialog"
+            aria-expanded={isOnboardingOpen}
+            onClick={onOnboardingOpen}
+            data-node-id="564:6621"
+          >
+            <span
+              className={`sub-header__help-icon${
+                isOnboardingInviting ? ' sub-header__help-icon--inviting' : ''
+              }`}
+            >
+              <img src={iconOnboarding} alt="" aria-hidden="true" />
+            </span>
+          </button>
         </div>
 
         <div

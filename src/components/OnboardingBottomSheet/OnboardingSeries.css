@@ -1,0 +1,718 @@
+/* A série compartilhada pelos cards 1 e 4. Toda a geometria entra por
+   variáveis, definidas por quem usa:
+
+   - `--onboarding-series-inset` e `-span`: os recuos laterais
+   - `--onboarding-series-top` e `-height`: a caixa vertical
+   - `--onboarding-series-duration`: a duração do ciclo do card
+
+   A série em si é `onboardingChartSeries.svg`: 26 pontos de âncora suavizados
+   com a mesma fórmula do gráfico real do app — Béziers cúbicas com alças
+   horizontais em `0,45 × dx`, como no `getSmoothPath` do `PriceChart`. */
+.onboarding-series {
+  /* Folga vertical: `clip-path: inset()` corta nas quatro bordas, e o traço de
+     3px da série passa da caixa. Sem ela o pico sai raspado. A varredura é só
+     horizontal, então crescer na vertical não muda a conta do recorte. */
+  --onboarding-series-slack: 8px;
+
+  position: absolute;
+  top: calc(var(--onboarding-series-top) - var(--onboarding-series-slack));
+  left: var(--onboarding-series-inset);
+  display: block;
+  width: var(--onboarding-series-span);
+  height: calc(
+    var(--onboarding-series-height) + var(--onboarding-series-slack) * 2
+  );
+  clip-path: inset(0 0% 0 0);
+
+  /* `linear` de propósito: a varredura representa o tempo da rodada avançando,
+     e velocidade constante é o que lê certo. */
+  animation: onboarding-series-sweep var(--onboarding-series-duration) linear
+    infinite;
+}
+
+/* A largura é declarada em vez de deduzida de `left` + `right`: `<img>` é
+   elemento substituído e, com `width: auto`, o CSS usa a largura intrínseca
+   dele e ignora o `right`. */
+.onboarding-series__plot {
+  position: absolute;
+  top: var(--onboarding-series-slack);
+  left: 0;
+  display: block;
+  width: 100%;
+  height: var(--onboarding-series-height);
+}
+
+/* O mesmo marcador do gráfico real (`PriceChart`): halo de r=10, anel de r=6.5
+   e o ponto branco de r=3, com os preenchimentos e traços de lá. Em camadas de
+   CSS, e não em SVG, porque precisa manter 20px fixos enquanto viaja sobre uma
+   série que estica com a largura da tela.
+
+   O miolo do anel usa o branco translúcido do halo em vez do `#111` do gráfico
+   real — lá o preto existe para furar a linha que passa atrás, e aqui leria
+   como um disco preto sobre o card.
+
+   O pulso ambiente do halo fica de fora: seria um loop fora de fase com o do
+   card, e aqui o marcador já está em movimento. */
+.onboarding-series__marker {
+  position: absolute;
+  top: calc(
+    var(--onboarding-series-top) + var(--onboarding-series-height) * 0.11357
+  );
+  left: calc(var(--onboarding-series-inset) + var(--onboarding-series-span));
+  z-index: 1;
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 1px solid rgb(251 251 251 / 0.2);
+  border-radius: 50%;
+  background: rgb(251 251 251 / 0.08);
+  animation:
+    onboarding-series-marker var(--onboarding-series-duration) linear infinite,
+    onboarding-series-marker-fade var(--onboarding-series-duration) ease-in-out
+      infinite;
+}
+
+.onboarding-series__marker::before,
+.onboarding-series__marker::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.onboarding-series__marker::before {
+  width: 13px;
+  height: 13px;
+  border: 1px solid rgb(251 251 251 / 0.55);
+  background: rgb(251 251 251 / 0.08);
+}
+
+.onboarding-series__marker::after {
+  width: 6px;
+  height: 6px;
+  background: var(--color-fill-primary);
+}
+
+@keyframes onboarding-series-sweep {
+  /* Com `--onboarding-motion` em zero o recorte nasce aberto e a varredura
+     desaparece: sobra a opacidade, e a série aparece inteira. */
+  0%,
+  8% {
+    clip-path: inset(0 calc(100% * var(--onboarding-motion)) 0 0);
+    opacity: 0;
+  }
+
+  9% {
+    opacity: 1;
+  }
+
+  48%,
+  88% {
+    clip-path: inset(0 0% 0 0);
+    opacity: 1;
+  }
+
+  97%,
+  100% {
+    clip-path: inset(0 0% 0 0);
+    opacity: 0;
+  }
+}
+
+/* As 30 paradas saem de uma redução Douglas-Peucker da curva suavizada, com
+   tolerância de 0,8px e erro máximo medido em 0,76px. `left` e `top` são
+   frações da caixa, e é isso que permite as mesmas keyframes servirem ao card 1
+   e ao card 4, que têm alturas diferentes. */
+@keyframes onboarding-series-marker {
+  0%,
+  8.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.00000
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.80000
+    );
+  }
+
+  10.83% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.07066
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.77870
+    );
+  }
+
+  12.80% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.12000
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.77692
+    );
+  }
+
+  16.14% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.20342
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.80019
+    );
+  }
+
+  18.88% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.27204
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.74035
+    );
+  }
+
+  21.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.32501
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.72346
+    );
+  }
+
+  22.03% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.35066
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.66748
+    );
+  }
+
+  22.75% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.36866
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.65530
+    );
+  }
+
+  23.60% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.38999
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.60638
+    );
+  }
+
+  24.40% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.41001
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.59336
+    );
+  }
+
+  25.20% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.42999
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.55829
+    );
+  }
+
+  26.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.45001
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.54834
+    );
+  }
+
+  26.88% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.47204
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.51903
+    );
+  }
+
+  29.09% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.52725
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.49142
+    );
+  }
+
+  30.05% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.55134
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.42512
+    );
+  }
+
+  30.80% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.57001
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.41208
+    );
+  }
+
+  31.65% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.59134
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.37174
+    );
+  }
+
+  32.40% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.61001
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.36119
+    );
+  }
+
+  33.31% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.63275
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.32014
+    );
+  }
+
+  35.46% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.68652
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.33756
+    );
+  }
+
+  36.43% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.71066
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.36593
+    );
+  }
+
+  37.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.72501
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.36808
+    );
+  }
+
+  38.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.74999
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.32751
+    );
+  }
+
+  38.83% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.77067
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.31428
+    );
+  }
+
+  39.63% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.79066
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.27313
+    );
+  }
+
+  40.43% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.81067
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.26077
+    );
+  }
+
+  41.28% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.83204
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.22243
+    );
+  }
+
+  44.43% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.91066
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.16082
+    );
+  }
+
+  46.69% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.96725
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.14015
+    );
+  }
+
+  48.00%,
+  100% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 1.00000
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.11357
+    );
+  }
+}
+
+/* A série que desce tem outras alturas, então outra tabela de paradas — mesmo
+   método, mesma tolerância de 0,8px, erro máximo de 0,77px. */
+.onboarding-series__marker--falling {
+  top: calc(
+    var(--onboarding-series-top) + var(--onboarding-series-height) * 0.86957
+  );
+  animation:
+    onboarding-series-marker-falling var(--onboarding-series-duration) linear
+      infinite,
+    onboarding-series-marker-fade var(--onboarding-series-duration) ease-in-out
+      infinite;
+}
+
+@keyframes onboarding-series-marker-falling {
+  0%,
+  8.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.00000
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.17391
+    );
+  }
+
+  9.92% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.04796
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.19697
+    );
+  }
+
+  11.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.07499
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.23623
+    );
+  }
+
+  12.84% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.12089
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.23287
+    );
+  }
+
+  13.25% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.13131
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.22307
+    );
+  }
+
+  14.11% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.15275
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.17372
+    );
+  }
+
+  15.68% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.19204
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.14196
+    );
+  }
+
+  16.23% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.20577
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.14152
+    );
+  }
+
+  17.20% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.22999
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.18162
+    );
+  }
+
+  17.95% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.24866
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.19554
+    );
+  }
+
+  18.70% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.26743
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.26173
+    );
+  }
+
+  19.00% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.27499
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.27720
+    );
+  }
+
+  21.15% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.32866
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.31520
+    );
+  }
+
+  22.11% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.35275
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.35290
+    );
+  }
+
+  24.26% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.40652
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.36607
+    );
+  }
+
+  25.20% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.42999
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.39888
+    );
+  }
+
+  25.83% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.44577
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.40726
+    );
+  }
+
+  26.91% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.47275
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.49387
+    );
+  }
+
+  27.63% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.49067
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.50577
+    );
+  }
+
+  28.45% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.51134
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.53981
+    );
+  }
+
+  29.15% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.52866
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.54885
+    );
+  }
+
+  30.14% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.55348
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.59909
+    );
+  }
+
+  32.26% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.60652
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.62231
+    );
+  }
+
+  33.28% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.63204
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.66511
+    );
+  }
+
+  34.80% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.66999
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.68482
+    );
+  }
+
+  38.57% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.76422
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.69579
+    );
+  }
+
+  39.80% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.79499
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.75382
+    );
+  }
+
+  41.89% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.84725
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.76375
+    );
+  }
+
+  46.05% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 0.95134
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.85870
+    );
+  }
+
+  48.00%,
+  100% {
+    left: calc(
+      var(--onboarding-series-inset) + var(--onboarding-series-span) * 1.00000
+    );
+    top: calc(
+      var(--onboarding-series-top) + var(--onboarding-series-height) * 0.86957
+    );
+  }
+}
+
+@keyframes onboarding-series-marker-fade {
+  0%,
+  8% {
+    opacity: 0;
+  }
+
+  12%,
+  88% {
+    opacity: 1;
+  }
+
+  97%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* A viagem do marcador é o único movimento que não sai por multiplicação do
+   `--onboarding-motion`: são 30 paradas em lugares diferentes, sem expressão
+   que as colapse. Com a preferência ligada ela é trocada por nenhuma, e o
+   marcador fica parado no fim da série — que é onde ele descansa de todo
+   jeito. */
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-series__marker,
+  .onboarding-series__marker--falling {
+    animation: onboarding-series-marker-fade var(--onboarding-series-duration)
+      ease-in-out infinite;
+  }
+}

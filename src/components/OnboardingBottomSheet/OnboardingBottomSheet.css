@@ -1,0 +1,423 @@
+/* Casca do bottom sheet, no mesmo contrato do `ProfileBottomSheet`: portal em
+   `document.body`, overlay com blur, 300ms de entrada e saída. */
+.onboarding-sheet__container {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  height: 100dvh;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.onboarding-sheet__overlay {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgb(0 0 0 / 0.8);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: onboarding-sheet-overlay-enter 200ms ease-out both;
+}
+
+.onboarding-sheet__overlay--closing {
+  animation: onboarding-sheet-overlay-exit 300ms ease-out both;
+}
+
+.onboarding-sheet {
+  /* Interruptor de movimento das ilustrações. As animações dos cards escrevem
+     deslocamento e escala multiplicados por esta variável, então zerá-la remove
+     o movimento e **mantém o loop**: as opacidades seguem rodando.
+
+     `prefers-reduced-motion` pede menos movimento — deslocar, escalar, girar —,
+     não menos mudança. E aqui a ilustração é o conteúdo do card, não enfeite:
+     desligá-la por completo tirava a explicação de quem tem a preferência
+     ligada, que foi exatamente o que aconteceu em teste. */
+  --onboarding-motion: 1;
+
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 499px;
+  max-height: calc(100dvh - 56px);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(
+    180deg,
+    var(--color-background-primary-gradient-start) 0%,
+    var(--color-background-primary-gradient-end) 100%
+  );
+  color: var(--color-fill-primary);
+  font-family: 'Red Hat Display', 'Red Hat Text', system-ui, sans-serif;
+  pointer-events: auto;
+  animation: onboarding-sheet-enter 300ms ease-out both;
+  will-change: transform;
+}
+
+.onboarding-sheet:focus {
+  outline: none;
+}
+
+.onboarding-sheet--closing {
+  animation: onboarding-sheet-exit 300ms ease-out both;
+}
+
+/* `glow` (564:6370): faixa de 50px no topo, desfocada em 50px, como o design
+   especifica. Comparado lado a lado com o render do Figma, 50px reproduz o
+   brilho largo e suave; reduzir o raio concentra a cor numa faixa dura. O corte
+   do sheet transforma isso na borda superior iluminada. */
+.onboarding-sheet__glow {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: 50px;
+  background-image: linear-gradient(
+    26.64deg,
+    var(--color-action-primary-default-start) 0%,
+    var(--color-action-primary-default-end) 100%
+  );
+  filter: blur(50px);
+  pointer-events: none;
+}
+
+.onboarding-sheet__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  height: 56px;
+  flex: 0 0 56px;
+  align-items: center;
+}
+
+.onboarding-sheet__header-spacer {
+  display: block;
+  width: 48px;
+  flex: 0 0 48px;
+}
+
+.onboarding-sheet__title {
+  display: flex;
+  height: 100%;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 0;
+  color: var(--color-fill-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  text-align: center;
+}
+
+.onboarding-sheet__close {
+  appearance: none;
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  margin: 0 8px 2px 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 56px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.onboarding-sheet__close img {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.onboarding-sheet__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 16px;
+  overflow-x: clip;
+  overflow-y: auto;
+}
+
+/* Palco da troca de passo. Mesma linguagem das rotas do `ProfileBottomSheet`:
+   300ms `ease-out` em `transform` e `opacity`, deslizando no sentido da
+   navegação — para a esquerda ao avançar, para a direita ao voltar.
+
+   Uma diferença: lá as rotas são todas absolutas dentro de um palco de altura
+   fixa. Aqui o conteúdo tem altura automática, então **só a camada que sai fica
+   absoluta**; a que entra permanece no fluxo e é ela que define a altura do
+   sheet. Se algum passo futuro tiver corpo com número diferente de linhas, a
+   altura vai saltar no início da transição — hoje os quatro têm duas linhas. */
+.onboarding-sheet__stage {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.onboarding-sheet__step {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.onboarding-sheet__step--leaving-forward,
+.onboarding-sheet__step--leaving-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* O deslocamento é multiplicado por `--onboarding-motion`: com a preferência de
+   movimento ligada sobra a opacidade, e a troca vira uma dissolvência. */
+.onboarding-sheet__step--entering-forward {
+  animation: onboarding-step-enter-forward 300ms ease-out both;
+}
+
+.onboarding-sheet__step--entering-back {
+  animation: onboarding-step-enter-back 300ms ease-out both;
+}
+
+.onboarding-sheet__step--leaving-forward {
+  animation: onboarding-step-leave-forward 300ms ease-out both;
+}
+
+.onboarding-sheet__step--leaving-back {
+  animation: onboarding-step-leave-back 300ms ease-out both;
+}
+
+@keyframes onboarding-step-enter-forward {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(24% * var(--onboarding-motion)), 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes onboarding-step-enter-back {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(-24% * var(--onboarding-motion)), 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes onboarding-step-leave-forward {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(calc(-24% * var(--onboarding-motion)), 0, 0);
+  }
+}
+
+@keyframes onboarding-step-leave-back {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(calc(24% * var(--onboarding-motion)), 0, 0);
+  }
+}
+
+.onboarding-sheet__step-title {
+  width: 100%;
+  margin: 0;
+  color: var(--color-fill-primary);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 33px;
+}
+
+.onboarding-sheet__step-body {
+  width: 100%;
+  margin: 0;
+  color: var(--color-fill-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 21px;
+}
+
+.onboarding-sheet__bullets {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.onboarding-sheet__bullet {
+  display: block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 1000px;
+  background-color: rgb(251 251 251 / 0.24);
+  transition:
+    width 240ms ease-in-out,
+    background-color 240ms ease-in-out;
+}
+
+.onboarding-sheet__bullet--active {
+  width: 20px;
+  background-color: var(--color-fill-primary);
+}
+
+/* `footer` (564:7000): 48px de altura, o botão de voltar fixo em 48x48 e o CTA
+   ocupando o resto — no Figma, 48 + 8 de gap + 287 dentro dos 343. */
+.onboarding-sheet__footer {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Só ícone. No Figma o rótulo deste botão está `hidden`, e o `label` que sobra
+   no Code Connect é resto do componente do design system. */
+.onboarding-sheet__back {
+  appearance: none;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  padding: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 56px;
+  background: var(--color-fill-opacity-quaternary);
+  cursor: pointer;
+}
+
+/* O nó do Figma usa um ícone de 16px. O `iconVoltar.svg` do projeto tem a seta
+   recuada dentro de uma caixa de 40x40 — ela ocupa 45% da caixa —, então
+   renderizar a 32px dá uma seta de ~14px, que é o tamanho do glifo no design. */
+.onboarding-sheet__back img {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+/* O Code Connect do nó aponta para o `DFButton` do design system em Dart, que
+   não existe neste projeto. O CTA segue o padrão já usado nos modais daqui. */
+.onboarding-sheet__advance {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(
+    70deg,
+    var(--color-action-primary-default-start) 0%,
+    var(--color-action-primary-default-end) 100%
+  );
+  color: var(--color-fill-primary);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.onboarding-sheet__close:focus-visible,
+.onboarding-sheet__back:focus-visible,
+.onboarding-sheet__advance:focus-visible {
+  outline: 2px solid var(--color-fill-primary);
+  outline-offset: -2px;
+}
+
+@keyframes onboarding-sheet-enter {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes onboarding-sheet-exit {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
+@keyframes onboarding-sheet-overlay-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes onboarding-sheet-overlay-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-sheet {
+    --onboarding-motion: 0;
+  }
+
+  .onboarding-sheet,
+  .onboarding-sheet--closing,
+  .onboarding-sheet__overlay,
+  .onboarding-sheet__overlay--closing {
+    animation-duration: 1ms;
+  }
+
+  .onboarding-sheet__bullet {
+    transition: none;
+  }
+}
