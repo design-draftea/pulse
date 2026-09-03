@@ -5,11 +5,12 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado e validado localmente. Sem commit, sem PR, sem merge e sem deploy. Aguardando revisão da pessoa usuária
+- Status: concluído — implementado, validado localmente, mesclado na `main` pelo PR #45 e publicado no GitHub Pages, com a publicação verificada. O commit, o push, o PR, o merge e o deploy foram autorizados pela pessoa usuária
 - Objetivo: alinhar o Centro de ayuda ao Figma em duas frentes — os três atalhos seguem o nó `457:8806` e o glossário segue o nó `467:10540` — e trocar a navegação do bottom sheet pela do `draftaco-v0`, em que as telas deslizam na horizontal
 - Escopo acordado: o bloco `Esencial en Draftea`, a tela de glossário, a navegação entre as telas do bottom sheet e a entrada pelo rodapé da Home. O conteúdo das `Preguntas frecuentes` e o restante do sheet não foram tocados
 - Critérios de aceite: três cards lado a lado, cada um com o brilho colorido no topo, o ícone de `32px` e o rótulo centrado; no glossário, cada termo precedido por um traço horizontal de `16px`, sem título repetido dentro do conteúdo; e a troca de tela deslizando, com título em fade cruzado e seta de voltar aparecendo por fade, igual ao `draftaco-v0`
-- Branch: `feature/ajuda-hf`, que já continha trabalho não commitado da pessoa usuária nos mesmos arquivos. Nada foi revertido nem commitado
+- Branch: `feature/ajuda-hf`, que já continha trabalho não commitado da pessoa usuária nos mesmos arquivos. Commit `2ef501f`, mesclada em `1e41dc6`. A branch continua no remoto, porque a remoção ia junto do comando de merge que foi barrado e o merge acabou sendo feito sem ela
+- Fora do escopo, mesclado em seguida: `src/components/Movements/MovementDetailModal.css` estava alterado no diretório de trabalho desde o começo, sem relação com o Centro de ayuda. Ficou de fora do PR #45 pela regra do `AGENTS.md` sobre mudanças não commitadas de terceiros, e depois, a pedido da pessoa usuária, foi para a branch `fix/movement-modal-sem-repique`, commit `5c18292`, PR #46, mesclado em `b7171d9`. O quadro de 80% da entrada do modal passava do repouso, com `translate3d(0, -2px, 0)` e `scale(1.006)`, e agora assenta em `translate3d(0, 0, 0)` e `scale(1)`
 
 ## Alterações realizadas
 
@@ -374,6 +375,12 @@ Numa segunda passagem, pelo PR #35:
 
 ## Validações executadas
 
+### Publicação (PRs #45 e #46)
+
+- `Deploy Pulse to GitHub Pages` concluiu com sucesso nas duas execuções, a de `1e41dc6` e a de `b7171d9`, esta última em `10s` no passo de deploy.
+- `https://design-draftea.github.io/pulse/` respondeu `200`. Os marcadores foram conferidos nos assets publicados: no CSS, `profile-sheet__stage`, `profile-sheet__route--past`, `profile-sheet__title--visible`, `help-action-glow`, `blur(44px)` e `help-glossary-line`; no JS, `Esencial en Draftea`, `Glosario en Draftea`, `initialMode` e `onHelpOpen`.
+- O `scale(1.006)` do repique do modal de movimento não aparece mais no CSS publicado, confirmando que o PR #46 também está no ar.
+
 ### Entrada do Centro de ayuda pelo rodapé (`feature/ajuda-hf`)
 
 - `pnpm lint` sem avisos e `pnpm build` concluído com typecheck.
@@ -622,7 +629,7 @@ Numa segunda passagem, pelo PR #35:
 
 ## Próximo passo
 
-- Revisar os atalhos e o glossário do Centro de ayuda na `feature/ajuda-hf`. A branch tem trabalho não commitado da pessoa usuária além desta mudança; commit, PR, merge e deploy dependem de autorização.
+- Nenhum trabalho em andamento. Os PRs #45 e #46 estão mesclados e publicados. A branch `feature/ajuda-hf` continua no remoto e pode ser removida.
 - Confirmar com quem desenhou se a borda mais fraca do primeiro card no nó `457:8806` é intenção ou deslize.
 - Ver a navegação deslizante num aparelho real. Aqui ela foi medida por estilo computado no meio do trajeto, o que prova o percurso mas não o quanto ele parece fluido ao dedo.
 - Vale olhar as setas coloridas num aparelho real, em movimento de preço, para confirmar que o verde e o vermelho leem bem sobre o fundo do gráfico nos `620ms` em que aparecem.
