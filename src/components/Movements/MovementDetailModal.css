@@ -295,7 +295,7 @@
   }
 
   80% {
-    transform: translate3d(0, -2px, 0) scale(1.006);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 
   100% {
