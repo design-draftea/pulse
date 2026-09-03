@@ -5,11 +5,11 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: nenhum
-- Status: implementado, validado localmente e commitado na branch. Sem Pull Request, sem merge e sem publicação — não houve autorização para nenhum dos três
+- Status: implementado, validado localmente e enviado no PR #50. A pessoa usuária autorizou explicitamente push, merge e publicação depois da entrega técnica
 - Objetivo: corrigir a medição frágil de `priceLabelWidth` no `PriceChart`, irmã do defeito que o PR #49 corrigiu na etiqueta do preço objetivo. Ela estava registrada como pendência conhecida e fora do escopo daquele PR
 - Escopo acordado: apenas essa medição. A geometria, a escala, o arrasto, o desenho da série, a camada do objetivo e o CSS permanecem intocados
 - Critérios de aceite: com a série chegando depois do primeiro quadro, `--price-chart-value-right` é publicada e a borda direita da pílula `LIVE` alinha com a dos rótulos de preço
-- Branch: `fix/medicao-rotulo-preco`, criada a partir da `main` em `cd5bdca`, commit `233cba2`
+- Branch: `fix/medicao-rotulo-preco`, criada a partir da `main` em `cd5bdca`, commits `233cba2` e `020c2e0`, PR #50
 
 ### O defeito
 
@@ -37,7 +37,7 @@
 
 ## Pendências e próximo passo
 
-- Próximo passo, dependente de autorização da pessoa usuária: Pull Request, merge e publicação. Nada disso foi feito.
+- O merge publica sozinho: o workflow `deploy-pages.yml` dispara em `push` para a `main`, sem passo manual.
 - Pendência pré-existente, mantida fora do escopo: essa mesma medição tem a corrida de fonte que o PR #49 resolveu na etiqueta do objetivo. A Red Hat Display vem do Google Fonts com `display=swap`, então a primeira medição acontece na fonte de retorno e a largura fica um pouco errada até a página recarregar. A etiqueta do objetivo remede em `document.fonts.ready`; esta não. O efeito é um desalinhamento pequeno da pílula `LIVE`, e a função `measure` já está no lugar certo para receber o mesmo tratamento.
 - Continua sem observação em movimento a transição de travamento da linha do objetivo, registrada na tarefa anterior. Nada nesta mudança mexe nisso.
 
