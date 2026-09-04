@@ -1,17 +1,16 @@
 .profile-sheet__container {
   position: fixed;
-  top: var(--profile-sheet-viewport-top, 0);
+  top: 0;
   right: 0;
   bottom: auto;
   left: 0;
   z-index: 2000;
   display: flex;
   width: 100%;
-  height: var(--profile-sheet-viewport-height, 100dvh);
+  height: var(--profile-sheet-stable-height, 100dvh);
   align-items: flex-end;
   justify-content: center;
   pointer-events: none;
-  transition: top 180ms ease, height 180ms ease;
 }
 
 .profile-sheet__overlay {
@@ -41,7 +40,7 @@
   display: flex;
   width: 100%;
   max-width: 499px;
-  height: calc(var(--profile-sheet-viewport-height, 100dvh) - 56px);
+  height: calc(var(--profile-sheet-stable-height, 100dvh) - 56px);
   flex-direction: column;
   overflow: hidden;
   border-radius: 28px 28px 0 0;

@@ -5,6 +5,8 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+  padding-bottom: var(--profile-sheet-keyboard-inset, 0px);
+  box-sizing: border-box;
 }
 
 .help-assistant__scroll {

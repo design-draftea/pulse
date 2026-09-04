@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -32,6 +31,8 @@ import {
 } from '../../content/help/es-MX/helpContent'
 import type { HelpAssistantActionId } from '../../services/helpAssistant'
 import type { HelpAssistantLiveSnapshot } from '../../services/helpAssistantSnapshot'
+import { useStableKeyboardViewport } from '../../hooks/useStableKeyboardViewport'
+import { useTouchScrollFence } from '../../hooks/useTouchScrollFence'
 import { HelpAssistant } from '../HelpAssistant'
 import { InfoModal } from '../InfoModal'
 import {
@@ -340,6 +341,15 @@ export function ProfileBottomSheet({
   const overlayRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLElement | null>(null)
 
+  useStableKeyboardViewport({
+    rootRef: containerRef,
+    scrollContainerSelector: '.help-assistant',
+    stableHeightCssVariable: '--profile-sheet-stable-height',
+    keyboardInsetCssVariable: '--profile-sheet-keyboard-inset',
+    enabled: shouldRender,
+  })
+  useTouchScrollFence(containerRef, shouldRender)
+
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return
     window.clearTimeout(closeTimerRef.current)
@@ -437,49 +447,6 @@ export function ProfileBottomSheet({
       window.removeEventListener('keydown', handleEscape)
     }
   }, [activeInfoId, requestClose, shouldRender])
-
-  useLayoutEffect(() => {
-    if (!shouldRender) return undefined
-
-    const container = containerRef.current
-    if (!container) return undefined
-
-    let lastViewportHeight = 0
-    let lastViewportTop = -1
-
-    const updateViewportStyle = () => {
-      const visualViewport = window.visualViewport
-      const viewportHeight = Math.max(1, visualViewport?.height ?? window.innerHeight)
-      const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0)
-
-      // Ignora os pequenos saltos causados pela barra de autofill do iOS.
-      if (
-        Math.abs(viewportHeight - lastViewportHeight) < 2
-        && Math.abs(viewportTop - lastViewportTop) < 2
-      ) return
-
-      lastViewportHeight = viewportHeight
-      lastViewportTop = viewportTop
-      container.style.setProperty('--profile-sheet-viewport-height', `${viewportHeight}px`)
-      container.style.setProperty('--profile-sheet-viewport-top', `${viewportTop}px`)
-    }
-
-    updateViewportStyle()
-
-    window.addEventListener('resize', updateViewportStyle)
-    window.addEventListener('orientationchange', updateViewportStyle)
-    window.visualViewport?.addEventListener('resize', updateViewportStyle)
-    window.visualViewport?.addEventListener('scroll', updateViewportStyle)
-
-    return () => {
-      window.removeEventListener('resize', updateViewportStyle)
-      window.removeEventListener('orientationchange', updateViewportStyle)
-      window.visualViewport?.removeEventListener('resize', updateViewportStyle)
-      window.visualViewport?.removeEventListener('scroll', updateViewportStyle)
-      container.style.removeProperty('--profile-sheet-viewport-height')
-      container.style.removeProperty('--profile-sheet-viewport-top')
-    }
-  }, [shouldRender])
 
   const openInfoModal = useCallback((
     infoId: ProfileInfoId,
