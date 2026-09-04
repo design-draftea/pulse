@@ -4,8 +4,8 @@
 
 - Atualizado em: 2026-09-04
 - Agente que entrega: Codex
-- Agente esperado a seguir: pessoa usuária, para validar o teclado no iPhone usado no teste
-- Status: implementação e validação local concluídas; sem Pull Request, merge ou deploy
+- Agente esperado a seguir: GitHub Actions, para validar e publicar a `main` após o merge autorizado
+- Status: implementação e validação local e no iPhone concluídas; Pull Request e merge autorizados pela pessoa usuária
 - Objetivo: remover zoom/pinça de todo o Pulse e fazer o compositor do `Pregúntale a Pulse` acompanhar o teclado como o bottom sheet de `/criar-conta` do Draftaco
 - Branch: `fix/zoom-teclado-assistente`, criada a partir da `main` limpa
 
@@ -39,11 +39,11 @@
 - Foco protegido conferido no navegador: antes do clique, depois do foco, com o teclado aberto e após fechá-lo, `window.scrollY` permaneceu em `307`, o scroller da conversa e o conteúdo da rota permaneceram em `0`, o topo do sheet em `56px` e o topo da introdução em `132px`. O inset percorreu `0 → 344 → 0px` e o compositor `844 → 500 → 844px`.
 - Meta viewport conferida no documento carregado e console sem erros ou avisos.
 - Regressão do refoco coberta no código pelo estado combinado `input focado + visualViewport sem teclado`; lint, build, `git diff --check` e os 63 testes do assistente continuaram passando depois do ajuste. O controle nativo de recolher teclado só existe no iOS real, por isso a confirmação final dessa sequência permanece com a pessoa usuária.
+- A pessoa usuária repetiu no iPhone a sequência exata `focar → recolher pelo botão nativo → tocar novamente no input` e confirmou que o ajuste funcionou. Depois disso, decidiu manter sem alterações a interface nativa do teclado e autorizou commit, Pull Request e merge.
 
 ### Pendências e próximo passo
 
-- Validar em um iPhone real a sequência exata da segunda captura: abrir `Pregúntale a Pulse`, focar o campo, recolher o teclado pelo botão nativo com o input ainda focado e tocar novamente no input. A simulação local cobre a geometria, mas não reproduz esse controle nem todas as particularidades do teclado do Safari/Chrome no iOS.
-- Não há Pull Request, merge ou deploy para esta branch.
+- Abrir o Pull Request, acompanhar os checks, fazer o merge autorizado e verificar o deploy automático do GitHub Pages.
 
 
 ## Histórico: assistente com dados ao vivo (PR #63)
