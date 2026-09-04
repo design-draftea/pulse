@@ -4,6 +4,8 @@ import {
   helpFaqItems,
   helpGlossaryItems,
   helpProductItems,
+  helpSmallTalkItems,
+  helpTopicItems,
 } from '../src/content/help/es-MX/helpContent.ts'
 import {
   askHelpAssistant,
@@ -230,4 +232,46 @@ test('responde se existem entradas e oferece a navegação correspondente', () =
   assert.match(withoutEntries.answer, /no tienes entradas abiertas/)
   assert.equal(withEntries.action?.id, 'entries')
   assert.equal(withoutEntries.action?.id, 'entries')
+})
+
+test('classifica todos os exemplos e aliases dos tópicos novos', () => {
+  for (const topic of helpTopicItems) {
+    for (const query of [topic.title, ...topic.examples, ...topic.aliases]) {
+      const result = askHelpAssistant(query, context)
+
+      assert.equal(result.confidence, 'high', `${topic.id} · ${query}`)
+      assert.equal(result.source?.id, topic.id, `${topic.id} · ${query}`)
+    }
+  }
+})
+
+test('responde conversa básica em vez de cair no fallback', () => {
+  for (const item of helpSmallTalkItems) {
+    for (const utterance of item.utterances) {
+      const result = askHelpAssistant(utterance, context)
+
+      assert.equal(result.confidence, 'high', utterance)
+      assert.equal(result.answer, item.answer, utterance)
+      assert.equal(
+        result.suggestions.length > 0,
+        item.withMenu,
+        utterance,
+      )
+    }
+  }
+})
+
+test('conversa básica exige o enunciado inteiro, não uma palavra solta', () => {
+  const result = askHelpAssistant('¿Dónde veo mis movimientos?', context)
+
+  assert.equal(result.source?.id, 'movements')
+})
+
+test('o fallback oferece caminhos em vez de encerrar a conversa', () => {
+  const result = askHelpAssistant('¿Cómo preparo una pizza?', context)
+
+  assert.equal(result.confidence, 'low')
+  assert.match(result.answer, /No encontré una respuesta segura/)
+  assert.match(result.answer, /Intenta preguntarlo de otra forma/)
+  assert.equal(result.suggestions.length, 3)
 })

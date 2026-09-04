@@ -65,6 +65,7 @@ import {
   type PrototypeWalletPosition,
 } from './services/prototypeWallet'
 import type { HelpAssistantActionId } from './services/helpAssistant'
+import { buildHelpAssistantSnapshot } from './services/helpAssistantSnapshot'
 import './App.css'
 
 const MARKET_HEADER_COMPACT_SCROLL_Y = 80
@@ -781,6 +782,42 @@ function App() {
       ),
     ].slice(0, 10)
   }, [latestCompletedRound, marketRound.previousRounds])
+  // Retrato do estado real lido pelo assistente no envio de cada pergunta. Fica
+  // num ref para que o getter continue estável enquanto o relógio da rodada
+  // avança, e a resposta use os valores do instante em que a pessoa perguntou.
+  const helpAssistantSnapshot = buildHelpAssistantSnapshot({
+    isRoundClosing,
+    market: {
+      prices: outcomeMarket.displayPrices,
+      status: outcomeMarket.status,
+    },
+    now: marketRound.now,
+    pendingRoundStarts,
+    position: currentPosition,
+    positionCostCents: currentCostBasis,
+    previousRounds: visiblePreviousRounds.map(({ result, roundStart }) => ({
+      result,
+      roundStart,
+    })),
+    quoteBuy: outcomeMarket.quoteBuy,
+    quoteSell: outcomeMarket.quoteSell,
+    round: {
+      currentPrice: marketRound.currentPrice,
+      endTime: marketRound.endTime,
+      remainingSeconds: marketRound.remainingSeconds,
+      targetPrice: marketRound.targetPrice,
+    },
+    wallet: profileMetrics,
+  })
+  const helpAssistantSnapshotRef = useRef(helpAssistantSnapshot)
+  useEffect(() => {
+    helpAssistantSnapshotRef.current = helpAssistantSnapshot
+  })
+  const getHelpAssistantSnapshot = useCallback(
+    () => helpAssistantSnapshotRef.current,
+    [],
+  )
+
   const animatedPreviousRoundStart = latestCompletedRound
     && (
       lastSeenCompletedRoundStart === null
@@ -1002,6 +1039,7 @@ function App() {
       )}
 
       <ProfileBottomSheet
+        getHelpAssistantSnapshot={getHelpAssistantSnapshot}
         initialMode={profileSheetMode}
         isOpen={isProfileOpen}
         metrics={profileMetrics}

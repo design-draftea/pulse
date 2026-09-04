@@ -14,7 +14,7 @@
     "test:proxy": "node --test tests/polymarketProxy.test.mjs",
     "test:wallet": "node --test tests/prototypeWallet.test.ts",
     "test:entries": "node --test tests/openEntries.test.ts tests/wonEntries.test.ts",
-    "test:help": "node --test tests/helpAssistant.test.ts",
+    "test:help": "node --test tests/helpAssistant.test.ts tests/helpAssistantLive.test.ts",
     "test:assets": "node --test tests/assetWarmup.test.ts",
     "preview": "vite preview"
   },

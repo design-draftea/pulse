@@ -30,6 +30,7 @@ import {
   helpGlossaryItems,
 } from '../../content/help/es-MX/helpContent'
 import type { HelpAssistantActionId } from '../../services/helpAssistant'
+import type { HelpAssistantLiveSnapshot } from '../../services/helpAssistantSnapshot'
 import { HelpAssistant } from '../HelpAssistant'
 import { InfoModal } from '../InfoModal'
 import {
@@ -78,6 +79,8 @@ export interface ProfileBottomSheetMetrics {
 }
 
 interface ProfileBottomSheetProps {
+  // Estado real do protótipo, lido pelo assistente no envio de cada pergunta.
+  getHelpAssistantSnapshot?: () => HelpAssistantLiveSnapshot
   // Tela em que o sheet abre. O rodapé da Home entra direto no Centro de ayuda.
   initialMode?: ProfileBottomSheetMode
   isOpen: boolean
@@ -298,6 +301,7 @@ function AnimatedCurrencyValue({
 }
 
 export function ProfileBottomSheet({
+  getHelpAssistantSnapshot,
   initialMode = 'profile',
   isOpen,
   metrics,
@@ -899,6 +903,7 @@ export function ProfileBottomSheet({
         availableBalanceCents: metrics.availableBalanceCents,
         hasOpenEntries: metrics.openEntriesCents > 0,
       }}
+      getLiveSnapshot={getHelpAssistantSnapshot}
       isActive={activeMode === 'help-assistant'}
       onNavigate={navigateFromAssistant}
       onOpenFaq={openHelpQuestion}

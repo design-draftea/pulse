@@ -2,45 +2,31 @@ import {
   helpFaqItems,
   helpGlossaryItems,
   helpProductItems,
+  helpSmallTalkItems,
+  helpTopicItems,
 } from '../content/help/es-MX/helpContent.ts'
+import { describeMarketPrices, resolveLiveAnswer } from './helpAssistantLive.ts'
+import { ACTION_LABELS } from './helpAssistantTypes.ts'
+import type {
+  HelpAssistantActionId,
+  HelpAssistantContext,
+  HelpAssistantConversationContext,
+  HelpAssistantResult,
+  HelpAssistantSuggestion,
+} from './helpAssistantTypes.ts'
 
-export type HelpAssistantActionId = 'entries' | 'movements' | 'previous-rounds'
-export type HelpAssistantConfidence = 'high' | 'medium' | 'low'
-export type HelpAssistantSourceType = 'account' | 'faq' | 'glossary' | 'policy' | 'product'
-
-export interface HelpAssistantAction {
-  id: HelpAssistantActionId
-  label: string
-}
-
-export interface HelpAssistantContext {
-  availableBalanceCents: number
-  hasOpenEntries: boolean
-}
-
-export interface HelpAssistantSource {
-  id: string
-  label: string
-  type: HelpAssistantSourceType
-}
-
-export interface HelpAssistantConversationContext {
-  previousSource?: Pick<HelpAssistantSource, 'id' | 'type'>
-}
-
-export interface HelpAssistantSuggestion {
-  id: string
-  label: string
-  query: string
-}
-
-export interface HelpAssistantResult {
-  action?: HelpAssistantAction
-  answer: string
-  confidence: HelpAssistantConfidence
-  source?: HelpAssistantSource
-  suggestions: HelpAssistantSuggestion[]
-}
+export type {
+  HelpAssistantAction,
+  HelpAssistantActionId,
+  HelpAssistantConfidence,
+  HelpAssistantContext,
+  HelpAssistantConversationContext,
+  HelpAssistantHighlight,
+  HelpAssistantResult,
+  HelpAssistantSource,
+  HelpAssistantSourceType,
+  HelpAssistantSuggestion,
+} from './helpAssistantTypes.ts'
 
 type QueryIntent = 'definition' | 'explanation' | 'navigation' | 'unknown'
 
@@ -102,21 +88,22 @@ const STOP_WORDS = new Set([
 
 const DEFAULT_SUGGESTION_IDS = [
   'faq:how-round-works',
-  'product:previous-rounds',
+  'product:implied-probability',
   'faq:what-is-up-down',
 ]
-
-const ACTION_LABELS: Record<HelpAssistantActionId, string> = {
-  entries: 'Ver mis entradas',
-  movements: 'Ver movimientos',
-  'previous-rounds': 'Ver últimas rondas',
-}
 
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
+})
+const netResultFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  signDisplay: 'exceptZero',
 })
 
 export const normalizeHelpText = (value: string) => value
@@ -162,6 +149,17 @@ const knowledgeItems: HelpKnowledgeItem[] = [
     preferredIntent: 'definition',
     sourceLabel: 'Glosario',
     sourceType: 'glossary',
+    title: item.title,
+  })),
+  ...helpTopicItems.map((item): HelpKnowledgeItem => ({
+    aliases: item.aliases,
+    answer: item.description,
+    examples: item.examples,
+    id: item.id,
+    keywords: item.keywords,
+    preferredIntent: 'explanation',
+    sourceLabel: 'Ayuda de Pulse',
+    sourceType: 'product',
     title: item.title,
   })),
   ...helpProductItems.map((item): HelpKnowledgeItem => ({
@@ -494,6 +492,50 @@ const getKnowledgeItemFromSource = (
   ))
 }
 
+const SMALL_TALK_MENU: HelpAssistantSuggestion[] = [
+  {
+    id: 'small-talk:probability',
+    label: '¿Qué probabilidad tengo de ganar?',
+    query: '¿Cuál es la probabilidad de que yo gane?',
+  },
+  {
+    id: 'small-talk:round',
+    label: '¿Cuánto tiempo queda?',
+    query: '¿Cuánto tiempo queda en la ronda?',
+  },
+  {
+    id: 'small-talk:how-to-start',
+    label: '¿Cómo empiezo?',
+    query: '¿Cómo empiezo?',
+  },
+]
+
+const smallTalkIndex = new Map(
+  helpSmallTalkItems.flatMap((item) => item.utterances.map(
+    (utterance) => [normalizeHelpText(utterance), item] as const,
+  )),
+)
+
+/**
+ * Correspondência exata do enunciado inteiro, de propósito: `ayuda` sozinho é
+ * uma saudação, mas `ayuda` dentro de uma pergunta real não deve sequestrá-la.
+ */
+const resolveSmallTalk = (query: string): HelpAssistantResult | undefined => {
+  const item = smallTalkIndex.get(query)
+  if (!item) return undefined
+
+  return {
+    answer: item.answer,
+    confidence: 'high',
+    source: {
+      id: item.id,
+      label: 'Asistente de Pulse',
+      type: 'policy',
+    },
+    suggestions: item.withMenu ? SMALL_TALK_MENU : [],
+  }
+}
+
 const toKnowledgeResult = (item: HelpKnowledgeItem): HelpAssistantResult => ({
   action: item.actionId
     ? { id: item.actionId, label: ACTION_LABELS[item.actionId] }
@@ -516,9 +558,18 @@ export const askHelpAssistant = (
   const query = normalizeHelpText(rawQuery)
 
   if (asksForRecommendation(query) || asksForPrediction(query)) {
+    // A recusa deixa de ser um beco sem saída: o preço de mercado é o dado
+    // honesto que existe no lugar de uma recomendação ou de uma previsão.
+    const marketPrices = context.live ? describeMarketPrices(context.live) : null
+
     return {
-      answer: 'Puedo explicar cómo funcionan UP y DOWN, pero no puedo recomendar una opción ni predecir el precio de Bitcoin. La decisión depende de ti.',
+      answer: marketPrices
+        ? `Esa decisión es tuya: no puedo recomendarte UP o DOWN ni predecir el precio de Bitcoin. Lo que sí puedo decirte es lo que el mercado está pagando ahora: ${marketPrices}.`
+        : 'Puedo explicar cómo funcionan UP y DOWN, pero no puedo recomendar una opción ni predecir el precio de Bitcoin. La decisión depende de ti.',
       confidence: 'high',
+      details: marketPrices
+        ? ['Ese porcentaje es la probabilidad implícita del mercado, no una predicción de Pulse, y cambia durante la ronda.']
+        : undefined,
       source: {
         id: 'responsible-use',
         label: 'Ayuda de Pulse · Uso responsable',
@@ -532,6 +583,12 @@ export const askHelpAssistant = (
     return {
       answer: `Tu saldo disponible es ${balanceFormatter.format(context.availableBalanceCents / 100)}. También puedes consultarlo en la parte superior de Pulse.`,
       confidence: 'high',
+      details: context.live
+        ? [
+            `Con las entradas abiertas, tu total es ${balanceFormatter.format(context.live.wallet.portfolioTotalCents / 100)}.`,
+            `Resultado acumulado desde el depósito inicial: ${netResultFormatter.format(context.live.wallet.netResultCents / 100)}.`,
+          ]
+        : undefined,
       source: {
         id: 'available-balance',
         label: 'Tu cuenta · Saldo disponible',
@@ -561,7 +618,17 @@ export const askHelpAssistant = (
   const exactMatch = exactUtteranceMatch(query, intent)
     ?? exactConceptMatch(extractConcept(query, intent), intent)
 
+  // O conteúdo curado vem antes dos dados ao vivo: `¿Qué información tiene mi
+  // entrada?` é uma definição do glossário, não uma consulta à posição real.
   if (exactMatch) return toKnowledgeResult(exactMatch)
+
+  if (context.live) {
+    const liveAnswer = resolveLiveAnswer(query, rawQuery, context.live)
+    if (liveAnswer) return liveAnswer
+  }
+
+  const smallTalk = resolveSmallTalk(query)
+  if (smallTalk) return smallTalk
 
   const rankedItems = rankKnowledge(query, intent)
   if (hasHighConfidence(rankedItems)) return toKnowledgeResult(rankedItems[0].item)
@@ -597,7 +664,7 @@ export const askHelpAssistant = (
   }
 
   return {
-    answer: 'No encontré una respuesta segura. Puedes consultar las preguntas frecuentes o el glosario.',
+    answer: 'No encontré una respuesta segura para eso. Puedo ayudarte con la ronda, los precios de UP y DOWN, tus entradas, tus movimientos y tu saldo. Intenta preguntarlo de otra forma.',
     confidence: 'low',
     suggestions: defaultSuggestions(),
   }

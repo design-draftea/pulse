@@ -3,6 +3,76 @@
 ## Estado atual
 
 - Atualizado em: 2026-09-04
+- Agente que entrega: Claude
+- Agente esperado a seguir: pessoa usuária, para revisar a copy nova e autorizar PR
+- Status: implementado e validado localmente. Sem PR, sem merge e sem publicação
+- Objetivo: o assistente respondia `No encontré una respuesta segura` para perguntas centrais do produto, entre elas `¿Cuál es la probabilidad de que yo gane?`. Passa a responder com os dados reais do momento, sem modelo, chave, backend ou custo de IA
+- Branch: `feature/assistente-probabilidade`, criada a partir da `main` em `94599be`
+- Worktree: `.worktrees/feature-assistente-probabilidade`, dentro do repositório, conforme `AGENTS.md`
+
+### O diagnóstico
+
+- `askHelpAssistant` era só um recuperador de texto sobre 27 documentos fixos e recebia apenas `availableBalanceCents` e `hasOpenEntries`. Não conhecia a rodada, o preço, a posição nem o histórico, embora tudo isso já fosse calculado em `src/App.tsx`.
+- Medido no motor real antes da mudança: `¿Cuál es la probabilidad de que yo gane?`, `¿Cuánto cuesta UP ahora?`, `hola`, `gracias` e `no entendí nada` caíam em confiança baixa; `¿Cuánto tiempo queda?` e `¿Cuánto gano si pongo $10 en UP?` só pediam esclarecimento.
+- O conceito que faltava é o do próprio produto: num prediction market o preço da participação **é** a probabilidade implícita. A Home já exibia `62%` no `MarketChoice`; o assistente é que não tinha acesso ao número.
+
+### Escopo e decisões
+
+- O retrato ao vivo é montado em `App.tsx` a partir de estado existente, guardado num ref e entregue como getter estável. `quoteBuy` e `quoteSell` do `outcomeMarket` vão junto, então o simulador e o valor de venda usam a mesma cotação que o betslip usaria, caminhando o livro real, em vez de reimplementar `monto ÷ preço`.
+- A resposta passou a ser calculada no instante em que ela aparece, e não no envio. Com dado ao vivo, os `2s` do indicador de digitação deixavam o número dois segundos velho: medido no navegador, o chat dizia `UP 48%` enquanto a Home mostrava `UP 55%`. Depois da mudança, os dois leram `UP 56% · DOWN 44%` no mesmo instante.
+- O porcentual usa `Math.round(price * 100)`, exatamente como o `MarketChoice`. Os dois lados são apresentados de forma independente e a copy nunca afirma que somam 100%, porque o livro real produz pares como `88%` e `13%`.
+- Nenhuma resposta estima dado ausente. Preço nulo, mercado indisponível, histórico vazio, profundidade insuficiente para o monto ou monto acima do teto do campo de compra têm cada um a sua resposta explícita.
+- A recusa de recomendação e de previsão deixou de ser um beco sem saída: continua recusando e entrega o preço de mercado do momento como o dado honesto que existe no lugar da opinião. Um teste fixa a fronteira: `¿me conviene UP?` é recusa, `¿qué probabilidad tengo de ganar?` é resposta.
+- O histórico das últimas rondas responde a contagem real e sempre fecha com a ressalva de que cada rodada é independente. Decisão da pessoa usuária, tomada durante o planejamento.
+- O conteúdo curado é resolvido **antes** dos dados ao vivo. Sem isso, `¿Qué información tiene mi entrada?`, que é uma definição do glossário, seria sequestrada pela consulta à posição real. Um teste percorre todos os enunciados e exemplos curados com um retrato ao vivo presente e exige a mesma fonte de antes.
+- A copy nova ficou em `helpTopicItems`, fora das duas telas aprovadas. As 12 perguntas frequentes e os 12 termos do glossário não foram tocados. Promover um tópico para essas telas, depois da sua revisão, é mover o objeto de lista.
+- A conversa básica exige o enunciado inteiro, não uma palavra solta: `ayuda` sozinho é uma saudação, mas `ayuda` dentro de uma pergunta real não sequestra a pergunta.
+- Interface: destaque de números acima do texto com os tokens `--color-fill-success` e `--color-fill-error`, selo `Dato en vivo · HH:MM` e linhas de apoio. Não há referência de Figma para esta tela, como já registrado na entrega anterior.
+
+### Arquivos alterados
+
+- `src/services/helpAssistantSnapshot.ts` (novo)
+- `src/services/helpAssistantTypes.ts` (novo)
+- `src/services/helpAssistantLive.ts` (novo)
+- `src/services/helpAssistant.ts`
+- `src/content/help/es-MX/helpContent.ts`
+- `src/components/HelpAssistant/HelpAssistant.tsx`
+- `src/components/HelpAssistant/HelpAssistant.css`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`
+- `src/App.tsx`
+- `tests/helpAssistantLive.test.ts` (novo)
+- `tests/helpAssistant.test.ts`
+- `package.json`
+- `docs/AI_CONTEXT.md`
+- `docs/AI_HANDOFF.md`
+
+### Validações
+
+- `pnpm lint` limpo, `pnpm build` concluído. O aviso existente de chunk acima de 500 kB permanece; nenhuma dependência foi adicionada.
+- 144 testes passando, contra 117 antes. As 17 asserções anteriores do assistente continuam no arquivo **sem edição** e passam.
+- Navegador local em `127.0.0.1:5187`, a `416×878`. Com uma compra real de `$100` em UP, `¿Cuál es la probabilidad de que yo gane?` devolveu `El 88% que ves en UP es la probabilidad implícita... Tienes 120.48 participaciones en UP`, com `Compraste a $0.83 en promedio` e `Si UP gana, recibes $120.48`.
+- Chat contra Home, lidos no mesmo instante: `UP 56% · DOWN 44%` nos dois.
+- Simulador contra betslip, com `$100` em DOWN: os dois reportaram preço promedio `16¢`. A diferença de participações (`624.65` contra `610.72`) é só o preço se movendo entre as duas leituras; a função de cotação é literalmente a mesma.
+- Contagem do histórico conferida contra os cards reais de `Últimas 10 rondas`: `6` arriba e `4` abajo nos dois.
+- Saldo: `$1,940.00` disponível e `$2,045.69` de total, conferidos contra o cabeçalho e o perfil depois da compra.
+- Ações conferidas: `Ver últimas rondas` fechou o sheet e centralizou a seção real; `Ver mis entradas` abriu `#entradas`.
+- Rede: com `window.fetch` instrumentado, três perguntas seguidas dispararam **zero** requisições. Os erros `400` no console são das chamadas de dados de mercado do próprio app e são anteriores a esta mudança.
+- Layout sem overflow horizontal a `320×568`, `375×812` e `430×832`; a `375×400`, simulando o teclado, o compositor permaneceu inteiro e colado ao fundo.
+- O estado do protótipo foi restaurado ao saldo inicial de `$2,040.00` ao fim da validação.
+
+### Pendências e próximo passo
+
+- Revisar a copy nova em `helpTopicItems` e em `helpSmallTalkItems`. Nada dela aparece hoje nas telas de perguntas frequentes ou do glossário.
+- Decidir se `Probabilidad implícita` deve subir para o glossário visível. Ele é o conceito central da funcionalidade e hoje só existe dentro do assistente.
+- Não validado: o caminho de preço indisponível de forma forçada. Ele foi observado funcionando no app real durante uma troca de rodada, às `13:29`, e está coberto por testes para preço nulo e para mercado indisponível. Não foi possível forçá-lo pelos parâmetros de injeção de falha porque a contingência local repõe os preços, que é justamente o comportamento desejado do protótipo.
+- Não validado: o teclado real no Chrome do iPhone, pendência que já vinha da entrega anterior.
+- Existe uma entrada local `pulse-assistente-5187` em `.claude/launch.json`, que não é versionada, apontando para este worktree. Removê-la depois que a branch sair.
+- Sem autorização para PR, merge ou deploy.
+
+
+## Histórico: assistente conversacional local (PR #60)
+
+- Atualizado em: 2026-09-04
 - Agente que entrega: Codex
 - Agente esperado a seguir: pessoa usuária para novos ajustes de produto
 - Status: concluído — commit `466850e`, PR #60, merge `51d397e`, GitHub Pages publicado e verificado
