@@ -4,6 +4,54 @@
 
 - Atualizado em: 2026-09-04
 - Agente que entrega: Codex
+- Status: implementação e validação local concluídas; sem commit, PR, merge ou deploy nesta tarefa
+- Objetivo: preservar os pontos reais recentes do gráfico após F5 e experimentar escala LIVE com piso de US$ 0,25, sem usar cache como cotação atual.
+- Branch: `fix/chart-history-persistence`, criada da `origin/main` atualizada, checkout inicialmente limpo.
+
+### Escopo e decisões
+
+- Correção do relato posterior de picos após F5: a seleção inicial já aguardava 3s para fixar uma fonte, mas o preço publicado escapava dessa espera. `useBtcPriceFeeds` agora publica somente Chainlink durante a espera; Coinbase/Kraken entram após o prazo se necessário. `selectInitialPriceFeed` foi acrescentado a `marketFallback.ts` com teste de regressão.
+- `mergePricePointSeries` agora usa candles apenas antes da primeira observação válida. Lacunas entre observações restauradas não recebem pontos de outra fonte/resolução; teste cobre histórico tardio e série vazia.
+- Reprodução controlada no navegador a 375px: cache perto de 100, Coinbase chegando primeiro a 110 e Chainlink após 1,6s a 100,03. A lógica anterior publicou 110 e deixou um pico salvo; a corrigida registrou 79 amostras a 100,03, sem picos. Isso reproduz o mecanismo observado; não recupera a sequência exata de pacotes do print original.
+- Contingência controlada sem Chainlink também validada: Coinbase entrou após a espera e permaneceu como fonte. Harnesses e cópias temporárias da lógica antiga removidos.
+- Testes atualizados: 49 em `test:chart`, 7 em `test:fallback`, lint/build passando (aviso conhecido de chunk). Arquivos adicionais: `src/hooks/useBtcPriceFeeds.ts`, `src/services/marketFallback.ts`, `tests/marketFallback.test.ts`.
+- Pontos já salvos pela versão anterior não são apagados ou suavizados automaticamente; saem da janela LIVE em 30 segundos e do histórico conforme a retenção de uma hora.
+
+- Continuação autorizada: escala LIVE, inclusive arraste, com `minimumGridStep: 0.25`; o valor padrão de 2.5 permanece para 5M/15M/1H. As alterações anteriores de persistência permanecem juntas nesta branch para o teste local. Nenhum commit ou publicação foi feito.
+- Complemento validado: 48 testes, lint e build passando. No navegador a 375px, série controlada de menos de US$ 1 usou passo 0.25 e amplitude 1.50; 5M/15M/1H conservaram passo 2.5. Feed real foi observado em live com passo 2.00 e sem overflow. O harness temporário foi removido.
+- Arquivos adicionais: `src/components/priceChartModel.ts`, `src/components/MarketPriceChart/MarketPriceChart.tsx`, `tests/priceChartModel.test.ts`.
+- Servidor de teste também disponível na porta 5187, escutando na rede local; abertura pelo endereço LAN validada no navegador. Acesso no celular requer a mesma rede Wi-Fi.
+
+- Cache versionado `pulse.chart-history.v1`, com uma hora e até 3.601 pontos observados, deduplicados por segundo. Restauração síncrona no estado inicial do hook; valores e timestamps originais preservados, inclusive entre rodadas.
+- Serialização e leitura descartam pontos inválidos, futuros ou expirados. Cache corrompido/incompatível equivale a vazio. Candles continuam perdendo para observações no mesmo segundo.
+- Gravação de alterações agendada a cada segundo após a execução anterior, com flush final em `pagehide`, `visibilitychange` para hidden e unmount. Falhas de armazenamento não interrompem o feed. Proteção equivalente adicionada à leitura/gravação do cache de rodadas, que antes poderia interromper a inicialização.
+- A cotação atual e o status continuam vindo exclusivamente do feed. Primeira visita e períodos sem observações continuam dependendo do histórico disponível; domínio vertical é recalculado.
+- Sem dependências novas, backend ou alteração visual dos controles.
+
+### Arquivos alterados
+
+- `src/services/chartHistoryCache.ts` (novo), `src/hooks/useResilientBtcMarketRound.ts`.
+- `tests/chartHistoryCache.test.ts` (novo), `package.json` (suíte test:chart), `docs/AI_CONTEXT.md`, `docs/AI_HANDOFF.md`.
+
+### Validações
+
+- `pnpm test:chart`: 46 testes passando; seis novos cobrem restauração/continuidade, expiração, dados inválidos/futuros, versão, limite/deduplicação, precedência sobre candles e armazenamento bloqueado.
+- `pnpm lint` e `pnpm build`: passando; permanece aviso conhecido de chunk acima de 500 kB. `git diff --check`: limpo.
+- App real em 375×812: após acumular mais de 30s, F5 conservou os 23 pontos visíveis da janela LIVE imediatamente, ainda em `connecting`. O feed retomou em `live`. Outro F5 na rodada seguinte restaurou 162 pontos observados, 26 visíveis, também antes da conexão.
+- Ranges LIVE/5M/15M/1H publicaram respectivamente 30000/300000/900000/3600000 ms, sem overflow horizontal; gesto real de arraste entrou no histórico.
+- Harness temporário com o hook e o gráfico reais, relógio/feed controlados: 40/40 pontos preservados na virada, preço inicial null e status connecting durante atraso de 15s; novos pontos chegaram após a reconexão. Recarga subsequente preservou 46/46 pontos. Com armazenamento bloqueado, iniciou vazio e acumulou preços em live sem erros. Cache vazio também iniciou sem pontos e evoluiu normalmente.
+- Eventos controlados de pagehide/visibilitychange verificaram flush final. Após ajuste do agendamento, 20 intervalos normais de gravação medidos entre 1000 e 1004 ms. O harness e suas fixtures foram removidos.
+
+### Pendências e próximo passo
+
+- Nenhuma pendência de implementação/validação local deste escopo. Alterações permanecem sem commit para revisão; PR, merge e publicação estão fora da autorização desta etapa.
+- Servidor local de desenvolvimento disponível em `http://127.0.0.1:5186/`.
+
+## Histórico: LIVE de 30 segundos
+
+
+- Atualizado em: 2026-09-04
+- Agente que entrega: Codex
 - Agente esperado a seguir: pessoa usuária, para novos ajustes de produto
 - Status: concluído — commit `7ccfc44`, PR #66, merge `ed623cb` e deploy do GitHub Pages `33927811225` concluídos
 - Objetivo: ampliar o range `LIVE` do gráfico para os últimos 30 segundos em qualquer largura mobile, com marcações de 10 segundos e domínio vertical calculado por toda a janela visível
