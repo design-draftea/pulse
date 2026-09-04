@@ -31,6 +31,8 @@ import {
 } from '../../content/help/es-MX/helpContent'
 import type { HelpAssistantActionId } from '../../services/helpAssistant'
 import type { HelpAssistantLiveSnapshot } from '../../services/helpAssistantSnapshot'
+import { useStableKeyboardViewport } from '../../hooks/useStableKeyboardViewport'
+import { useTouchScrollFence } from '../../hooks/useTouchScrollFence'
 import { HelpAssistant } from '../HelpAssistant'
 import { InfoModal } from '../InfoModal'
 import {
@@ -335,8 +337,18 @@ export function ProfileBottomSheet({
   const infoReturnFocusRef = useRef<HTMLElement | null>(null)
   const dragRef = useRef<HeaderDragState | null>(null)
   const suppressHeaderClickRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const overlayRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLElement | null>(null)
+
+  useStableKeyboardViewport({
+    rootRef: containerRef,
+    scrollContainerSelector: '.help-assistant',
+    stableHeightCssVariable: '--profile-sheet-stable-height',
+    keyboardInsetCssVariable: '--profile-sheet-keyboard-inset',
+    enabled: shouldRender,
+  })
+  useTouchScrollFence(containerRef, shouldRender)
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current === null) return
@@ -920,7 +932,11 @@ export function ProfileBottomSheet({
   ]
 
   return createPortal(
-    <div className="profile-sheet__container" data-node-id="383:18489">
+    <div
+      ref={containerRef}
+      className="profile-sheet__container"
+      data-node-id="383:18489"
+    >
       <button
         ref={overlayRef}
         className={`profile-sheet__overlay${isClosing ? ' profile-sheet__overlay--closing' : ''}`}

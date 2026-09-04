@@ -8,7 +8,23 @@
       sizes="192x192"
       href="/src/assets/logoBTC.png"
     />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <script>
+      // O protótipo é uma interface mobile fechada: bloqueia o zoom por pinça
+      // que o Safari iOS ainda permite mesmo com user-scalable=no.
+      document.addEventListener('gesturestart', function (event) {
+        event.preventDefault()
+      }, { passive: false })
+      document.addEventListener('gesturechange', function (event) {
+        event.preventDefault()
+      }, { passive: false })
+      document.addEventListener('gestureend', function (event) {
+        event.preventDefault()
+      }, { passive: false })
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

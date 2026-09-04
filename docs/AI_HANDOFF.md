@@ -3,6 +3,52 @@
 ## Estado atual
 
 - Atualizado em: 2026-09-04
+- Agente que entrega: Codex
+- Agente esperado a seguir: GitHub Actions, para validar e publicar a `main` após o merge autorizado
+- Status: implementação e validação local e no iPhone concluídas; Pull Request e merge autorizados pela pessoa usuária
+- Objetivo: remover zoom/pinça de todo o Pulse e fazer o compositor do `Pregúntale a Pulse` acompanhar o teclado como o bottom sheet de `/criar-conta` do Draftaco
+- Branch: `fix/zoom-teclado-assistente`, criada a partir da `main` limpa
+
+### Escopo e decisões
+
+- A meta viewport agora limita a escala e usa `viewport-fit=cover`. Os eventos `gesturestart`, `gesturechange` e `gestureend` cobrem a exceção do Safari iOS, e o reset global usa `touch-action: pan-x pan-y` para manter scroll/drag sem zoom por pinça ou duplo toque.
+- O `ProfileBottomSheet` continua sendo o componente existente. A implementação final segue o modo estável do cadastro: congela a altura externa em `--profile-sheet-stable-height` e calcula `--profile-sheet-keyboard-inset` pela diferença até o fim visível da `visualViewport`. Header, sheet e introdução permanecem parados; o inset interno sobe somente o compositor.
+- O input do assistente passou de `14px` para `16px`, removendo o zoom automático que o Safari aplica ao focar campos menores que `16px`.
+- Depois do primeiro teste no iPhone, a pessoa usuária confirmou que o zoom sumiu, mas o foco ainda movia o conteúdo do sheet. O input passou a usar o mesmo `useTapFocusScrollGuard` do cadastro do Draftaco: o foco nativo é bloqueado no `pointerdown`, o campo recebe `focus({ preventScroll: true })` no `pointerup` e a posição da página e dos scrollers ancestrais é restaurada imediatamente, em dois frames e após `80ms`, `160ms` e `320ms`.
+- No segundo teste, o problema apareceu apenas depois de recolher o teclado pelo botão nativo do iOS e tocar novamente no input; tocar fora antes fazia funcionar. O diagnóstico confirmou que o botão recolhe o teclado, mas deixa o input como `document.activeElement`, e a exceção para campos já focados deixava o segundo toque escapar do guard. Agora essa exceção vale somente com teclado realmente aberto (ou mouse): com o teclado fechado, o `pointerup` desfoca e refoca sincronamente, dentro do gesto da pessoa usuária, reaplicando `preventScroll` e a restauração de scroll.
+- O conjunto foi completado com `useStableKeyboardViewport` e `useTouchScrollFence`, também portados do Draftaco. Como o Pulse pode abrir o sheet com a Home rolada, a trava da janela preserva a posição capturada na abertura em vez de forçar `scrollY = 0`.
+
+### Arquivos alterados
+
+- `index.html`
+- `src/index.css`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.css`
+- `src/components/HelpAssistant/HelpAssistant.css`
+- `src/hooks/useTapFocusScrollGuard.ts` (novo)
+- `src/hooks/useStableKeyboardViewport.ts` (novo)
+- `src/hooks/useTouchScrollFence.ts` (novo)
+- `docs/AI_CONTEXT.md`
+- `docs/AI_HANDOFF.md`
+
+### Validações
+
+- `git diff --check`, `pnpm lint`, `pnpm build` e `pnpm test:help` concluídos; 63 testes do assistente passando. O aviso existente de chunk acima de 500 kB permanece.
+- Navegador local a `390×844`: assistente aberto sem overflow horizontal e compositor inteiro.
+- Teclado simulado reduzindo a viewport para `390×500`: a altura externa permaneceu em `844px`, o sheet permaneceu de `56px` a `844px` e o inset interno virou `344px`. O compositor terminou em `500px`, exatamente na borda visível, sem mover o topo do sheet ou da introdução.
+- Foco protegido conferido no navegador: antes do clique, depois do foco, com o teclado aberto e após fechá-lo, `window.scrollY` permaneceu em `307`, o scroller da conversa e o conteúdo da rota permaneceram em `0`, o topo do sheet em `56px` e o topo da introdução em `132px`. O inset percorreu `0 → 344 → 0px` e o compositor `844 → 500 → 844px`.
+- Meta viewport conferida no documento carregado e console sem erros ou avisos.
+- Regressão do refoco coberta no código pelo estado combinado `input focado + visualViewport sem teclado`; lint, build, `git diff --check` e os 63 testes do assistente continuaram passando depois do ajuste. O controle nativo de recolher teclado só existe no iOS real, por isso a confirmação final dessa sequência permanece com a pessoa usuária.
+- A pessoa usuária repetiu no iPhone a sequência exata `focar → recolher pelo botão nativo → tocar novamente no input` e confirmou que o ajuste funcionou. Depois disso, decidiu manter sem alterações a interface nativa do teclado e autorizou commit, Pull Request e merge.
+
+### Pendências e próximo passo
+
+- Abrir o Pull Request, acompanhar os checks, fazer o merge autorizado e verificar o deploy automático do GitHub Pages.
+
+
+## Histórico: assistente com dados ao vivo (PR #63)
+
+- Atualizado em: 2026-09-04
 - Agente que entrega: Claude
 - Agente esperado a seguir: pessoa usuária, para revisar a copy dos tópicos exclusivos do assistente
 - Status: concluído — PR #63, merge `7e05f28`, deploy `33899809725` com sucesso e publicação verificada no artefato real. A pessoa usuária autorizou explicitamente commit, PR e merge

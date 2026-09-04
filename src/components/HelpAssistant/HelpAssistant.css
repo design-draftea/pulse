@@ -5,6 +5,8 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+  padding-bottom: var(--profile-sheet-keyboard-inset, 0px);
+  box-sizing: border-box;
 }
 
 .help-assistant__scroll {
@@ -311,8 +313,9 @@
   background: var(--color-action-transparency-default);
   color: var(--color-fill-primary);
   font: inherit;
-  font-size: 14px;
-  line-height: 21px;
+  /* 16px evita o zoom automático do Safari ao focar o campo. */
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .help-assistant__composer input::placeholder {
