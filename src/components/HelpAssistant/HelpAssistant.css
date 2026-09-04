@@ -311,8 +311,9 @@
   background: var(--color-action-transparency-default);
   color: var(--color-fill-primary);
   font: inherit;
-  font-size: 14px;
-  line-height: 21px;
+  /* 16px evita o zoom automático do Safari ao focar o campo. */
+  font-size: 16px;
+  line-height: 24px;
 }
 
 .help-assistant__composer input::placeholder {

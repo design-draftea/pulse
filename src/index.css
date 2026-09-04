@@ -12,6 +12,8 @@
 
 * {
   box-sizing: border-box;
+  /* Mantém pan horizontal/vertical, mas elimina pinch e double-tap zoom. */
+  touch-action: pan-x pan-y;
 }
 
 html,

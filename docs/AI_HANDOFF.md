@@ -3,6 +3,44 @@
 ## Estado atual
 
 - Atualizado em: 2026-09-04
+- Agente que entrega: Codex
+- Agente esperado a seguir: pessoa usuária, para validar o teclado no iPhone usado no teste
+- Status: implementação e validação local concluídas; sem Pull Request, merge ou deploy
+- Objetivo: remover zoom/pinça de todo o Pulse e fazer o compositor do `Pregúntale a Pulse` acompanhar o teclado como o bottom sheet de `/criar-conta` do Draftaco
+- Branch: `fix/zoom-teclado-assistente`, criada a partir da `main` limpa
+
+### Escopo e decisões
+
+- A meta viewport agora limita a escala e usa `viewport-fit=cover`. Os eventos `gesturestart`, `gesturechange` e `gestureend` cobrem a exceção do Safari iOS, e o reset global usa `touch-action: pan-x pan-y` para manter scroll/drag sem zoom por pinça ou duplo toque.
+- O `ProfileBottomSheet` continua sendo o componente existente. Seu contêiner agora lê `visualViewport.height` e `visualViewport.offsetTop`, com fallback para `window.innerHeight`, e acompanha `resize`, `scroll` e rotação do aparelho.
+- O input do assistente passou de `14px` para `16px`, removendo o zoom automático que o Safari aplica ao focar campos menores que `16px`.
+
+### Arquivos alterados
+
+- `index.html`
+- `src/index.css`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.css`
+- `src/components/HelpAssistant/HelpAssistant.css`
+- `docs/AI_CONTEXT.md`
+- `docs/AI_HANDOFF.md`
+
+### Validações
+
+- `git diff --check`, `pnpm lint`, `pnpm build` e `pnpm test:help` concluídos; 63 testes do assistente passando. O aviso existente de chunk acima de 500 kB permanece.
+- Navegador local a `390×844`: assistente aberto sem overflow horizontal e compositor inteiro.
+- Teclado simulado reduzindo a viewport para `390×500`: sheet em `390×444`, compositor em `390×69`, input em `282×44` e botão em `68×44`; todos ficaram dentro da viewport, com a borda inferior em `500px`. Ao restaurar `390×844`, a geometria também retornou.
+- Meta viewport conferida no documento carregado e console sem erros ou avisos.
+
+### Pendências e próximo passo
+
+- Validar em um iPhone real o mesmo percurso da captura: abrir `Pregúntale a Pulse`, focar o campo, digitar, enviar, fechar o teclado e reabrir. A simulação local cobre a geometria, mas não reproduz integralmente as animações e particularidades do teclado do Safari/Chrome no iOS.
+- Não há Pull Request, merge ou deploy para esta branch.
+
+
+## Histórico: assistente com dados ao vivo (PR #63)
+
+- Atualizado em: 2026-09-04
 - Agente que entrega: Claude
 - Agente esperado a seguir: pessoa usuária, para revisar a copy dos tópicos exclusivos do assistente
 - Status: concluído — PR #63, merge `7e05f28`, deploy `33899809725` com sucesso e publicação verificada no artefato real. A pessoa usuária autorizou explicitamente commit, PR e merge

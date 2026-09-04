@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -335,6 +336,7 @@ export function ProfileBottomSheet({
   const infoReturnFocusRef = useRef<HTMLElement | null>(null)
   const dragRef = useRef<HeaderDragState | null>(null)
   const suppressHeaderClickRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const overlayRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLElement | null>(null)
 
@@ -435,6 +437,49 @@ export function ProfileBottomSheet({
       window.removeEventListener('keydown', handleEscape)
     }
   }, [activeInfoId, requestClose, shouldRender])
+
+  useLayoutEffect(() => {
+    if (!shouldRender) return undefined
+
+    const container = containerRef.current
+    if (!container) return undefined
+
+    let lastViewportHeight = 0
+    let lastViewportTop = -1
+
+    const updateViewportStyle = () => {
+      const visualViewport = window.visualViewport
+      const viewportHeight = Math.max(1, visualViewport?.height ?? window.innerHeight)
+      const viewportTop = Math.max(0, visualViewport?.offsetTop ?? 0)
+
+      // Ignora os pequenos saltos causados pela barra de autofill do iOS.
+      if (
+        Math.abs(viewportHeight - lastViewportHeight) < 2
+        && Math.abs(viewportTop - lastViewportTop) < 2
+      ) return
+
+      lastViewportHeight = viewportHeight
+      lastViewportTop = viewportTop
+      container.style.setProperty('--profile-sheet-viewport-height', `${viewportHeight}px`)
+      container.style.setProperty('--profile-sheet-viewport-top', `${viewportTop}px`)
+    }
+
+    updateViewportStyle()
+
+    window.addEventListener('resize', updateViewportStyle)
+    window.addEventListener('orientationchange', updateViewportStyle)
+    window.visualViewport?.addEventListener('resize', updateViewportStyle)
+    window.visualViewport?.addEventListener('scroll', updateViewportStyle)
+
+    return () => {
+      window.removeEventListener('resize', updateViewportStyle)
+      window.removeEventListener('orientationchange', updateViewportStyle)
+      window.visualViewport?.removeEventListener('resize', updateViewportStyle)
+      window.visualViewport?.removeEventListener('scroll', updateViewportStyle)
+      container.style.removeProperty('--profile-sheet-viewport-height')
+      container.style.removeProperty('--profile-sheet-viewport-top')
+    }
+  }, [shouldRender])
 
   const openInfoModal = useCallback((
     infoId: ProfileInfoId,
@@ -920,7 +965,11 @@ export function ProfileBottomSheet({
   ]
 
   return createPortal(
-    <div className="profile-sheet__container" data-node-id="383:18489">
+    <div
+      ref={containerRef}
+      className="profile-sheet__container"
+      data-node-id="383:18489"
+    >
       <button
         ref={overlayRef}
         className={`profile-sheet__overlay${isClosing ? ' profile-sheet__overlay--closing' : ''}`}
