@@ -5,9 +5,9 @@
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: Claude ou Codex
-- Status: implementado e validado localmente. Sem commit, PR, merge ou publicação — nada foi autorizado
+- Status: concluído — mesclado pelo PR #54 e publicado no GitHub Pages, com a publicação verificada no artefato real. A pessoa usuária autorizou explicitamente PR, merge e deploy depois da entrega técnica
 - Objetivo: corrigir o chip ativo, que ficava mais alto e mais largo que os inativos, no betslip e em `Entradas`
-- Branch: `fix/altura-chip-ativo`, criada a partir da `main` em `f7166ea`
+- Branch: `fix/altura-chip-ativo`, criada a partir da `main` em `f7166ea`, commit `37020bc`, PR #54, mesclada em `883dd49` e removida do remoto
 
 ### O defeito
 
@@ -35,7 +35,8 @@
 
 ### Pendências e próximo passo
 
-- Sem commit, PR, merge ou publicação. Nada foi autorizado.
+- Não há próximo passo pendente. A correção está mesclada e publicada.
+- Publicação verificada em `https://design-draftea.github.io/pulse/`: o bundle `assets/index-BbaUdCmg.css` traz `box-sizing:border-box` em `.open-entries__tabs:before` e em `.buy-betslip__mode-pills:before`, e a medição no artefato real devolve o pseudo-elemento em 104x32 contra o botão `ABIERTAS` em 104x32.
 - `.onboarding-series__marker::before` tem o mesmo problema de `box-sizing`: 13x13 declarado, 15x15 renderizado. Como ele é centralizado por `translate(-50%, -50%)`, não desalinha nada, e a ilustração foi aprovada com o tamanho atual. Fica registrado; corrigir é decisão de design, não de bug.
 
 
