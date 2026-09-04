@@ -14,6 +14,7 @@ import {
   type HelpAssistantSuggestion,
 } from '../../services/helpAssistant'
 import type { HelpAssistantLiveSnapshot } from '../../services/helpAssistantSnapshot'
+import { useTapFocusScrollGuard } from '../../hooks/useTapFocusScrollGuard'
 import './HelpAssistant.css'
 
 const RESPONSE_DELAY_MS = 2_000
@@ -71,8 +72,19 @@ export function HelpAssistant({
   const messageIdRef = useRef(0)
   const responseTimerRef = useRef<number | null>(null)
   const headingRef = useRef<HTMLHeadingElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const previousSourceRef = useRef<Pick<HelpAssistantSource, 'id' | 'type'> | null>(null)
+
+  const {
+    handleFieldPointerCancel,
+    handleFieldPointerDown,
+    handleFieldPointerUp,
+    handleFocus,
+  } = useTapFocusScrollGuard({
+    inputRef,
+    isEnabled: isActive,
+  })
 
   useEffect(() => {
     if (!isActive) return undefined
@@ -306,6 +318,7 @@ export function HelpAssistant({
           Escribe tu pregunta sobre Pulse
         </label>
         <input
+          ref={inputRef}
           id="help-assistant-question"
           type="text"
           value={inputValue}
@@ -314,6 +327,10 @@ export function HelpAssistant({
           autoComplete="off"
           enterKeyHint="send"
           onChange={(event) => setInputValue(event.target.value)}
+          onFocus={handleFocus}
+          onPointerCancel={handleFieldPointerCancel}
+          onPointerDown={handleFieldPointerDown}
+          onPointerUp={handleFieldPointerUp}
         />
         <button type="submit" disabled={!inputValue.trim() || isResponding}>
           Enviar

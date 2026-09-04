@@ -14,6 +14,7 @@
 - A meta viewport agora limita a escala e usa `viewport-fit=cover`. Os eventos `gesturestart`, `gesturechange` e `gestureend` cobrem a exceção do Safari iOS, e o reset global usa `touch-action: pan-x pan-y` para manter scroll/drag sem zoom por pinça ou duplo toque.
 - O `ProfileBottomSheet` continua sendo o componente existente. Seu contêiner agora lê `visualViewport.height` e `visualViewport.offsetTop`, com fallback para `window.innerHeight`, e acompanha `resize`, `scroll` e rotação do aparelho.
 - O input do assistente passou de `14px` para `16px`, removendo o zoom automático que o Safari aplica ao focar campos menores que `16px`.
+- Depois do primeiro teste no iPhone, a pessoa usuária confirmou que o zoom sumiu, mas o foco ainda movia o conteúdo do sheet. O input passou a usar o mesmo `useTapFocusScrollGuard` do cadastro do Draftaco: o foco nativo é bloqueado no `pointerdown`, o campo recebe `focus({ preventScroll: true })` no `pointerup` e a posição da página e dos scrollers ancestrais é restaurada imediatamente, em dois frames e após `80ms`, `160ms` e `320ms`.
 
 ### Arquivos alterados
 
@@ -22,6 +23,7 @@
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`
 - `src/components/ProfileBottomSheet/ProfileBottomSheet.css`
 - `src/components/HelpAssistant/HelpAssistant.css`
+- `src/hooks/useTapFocusScrollGuard.ts` (novo)
 - `docs/AI_CONTEXT.md`
 - `docs/AI_HANDOFF.md`
 
@@ -30,6 +32,7 @@
 - `git diff --check`, `pnpm lint`, `pnpm build` e `pnpm test:help` concluídos; 63 testes do assistente passando. O aviso existente de chunk acima de 500 kB permanece.
 - Navegador local a `390×844`: assistente aberto sem overflow horizontal e compositor inteiro.
 - Teclado simulado reduzindo a viewport para `390×500`: sheet em `390×444`, compositor em `390×69`, input em `282×44` e botão em `68×44`; todos ficaram dentro da viewport, com a borda inferior em `500px`. Ao restaurar `390×844`, a geometria também retornou.
+- Foco protegido conferido no navegador: antes e depois do clique, `window.scrollY` permaneceu em `307`, o scroller da conversa e o conteúdo da rota permaneceram em `0`, o topo do sheet em `56px` e o topo da introdução em `132px`. Depois de reduzir a viewport já com o input focado, os mesmos valores permaneceram; o compositor terminou em `500px`, exatamente na borda visível.
 - Meta viewport conferida no documento carregado e console sem erros ou avisos.
 
 ### Pendências e próximo passo
