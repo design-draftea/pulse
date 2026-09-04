@@ -21,6 +21,7 @@ import {
   countPricePointGaps,
   getContinuousVisiblePricePoints,
   getPriceChartRangeConfig,
+  getPriceChartTimeTicks,
   interpolatePriceAt,
   projectPriceToY,
   resolvePriceChartTarget,
@@ -89,6 +90,7 @@ const TIME_AXIS_LABEL_BASELINE = TIME_AXIS_TICK_BOTTOM + 21
 const CURRENT_LABEL_WIDTH = 85
 const GRID_LINE_COUNT = 7
 const TIME_TICK_FADE_DISTANCE = 48
+const TIME_TICK_LABEL_INSET = 24
 const PLOT_FADE_WIDTH = 96
 const DIRECTION_CLEAR_SIZE = 30
 const DIRECTION_ANIMATION_FALLBACK_MS = 800
@@ -569,20 +571,28 @@ export function PriceChart({
   )
   const latestTimeTick =
     Math.floor(anchorTime / timeTickInterval) * timeTickInterval
-  const timeTickCount = Math.max(
+  const liveTimeTickCount = Math.max(
     4,
     Math.ceil((seriesRight - PLOT_LEFT) / timeTickSpacing) + 1,
   )
-  const timeTicks = Array.from({ length: timeTickCount }, (_, index) => {
-    const timestamp = latestTimeTick - index * timeTickInterval
+  const timeTicks = isLiveRange
+    ? Array.from({ length: liveTimeTickCount }, (_, index) => {
+        const timestamp = latestTimeTick - index * timeTickInterval
 
-    return {
-      timestamp,
-      x:
-        seriesRight -
-        ((anchorTime - timestamp) / 1000) * pixelsPerSecond,
-    }
-  })
+        return {
+          timestamp,
+          x:
+            seriesRight -
+            ((anchorTime - timestamp) / 1000) * pixelsPerSecond,
+        }
+      })
+    : getPriceChartTimeTicks(
+        anchorTime,
+        timeTickInterval,
+        PLOT_LEFT,
+        seriesRight,
+        TIME_TICK_LABEL_INSET,
+      )
 
   return (
     <figure
@@ -811,19 +821,22 @@ export function PriceChart({
             ocultá-los, como no Figma, onde `preco-objetivo-down` está acima
             de `tempo`. */}
         <g className="price-chart__time-axis" aria-hidden="true">
-          {timeTicks.map(({ timestamp, x }) => (
+          {timeTicks.map(({ timestamp, x }, index) => (
             <g
               key={timestamp}
               className="price-chart__time-tick"
               data-time-tick={timestamp}
-              style={{
-                opacity: getTimeTickOpacity(
-                  x,
-                  PLOT_LEFT,
-                  seriesRight,
-                  TIME_TICK_FADE_DISTANCE,
-                ),
-              }}
+              data-time-tick-position={index}
+              style={isLiveRange
+                ? {
+                    opacity: getTimeTickOpacity(
+                      x,
+                      PLOT_LEFT,
+                      seriesRight,
+                      TIME_TICK_FADE_DISTANCE,
+                    ),
+                  }
+                : undefined}
             >
               <line
                 x1={x}

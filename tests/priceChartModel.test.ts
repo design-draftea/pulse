@@ -10,6 +10,7 @@ import {
   DOMAIN_SHIFT_CONFIRMATION_MS,
   getContinuousVisiblePricePoints,
   getPriceChartRangeConfig,
+  getPriceChartTimeTicks,
   getPriceChartWindowPoints,
   interpolatePriceAt,
   interpolatePriceChartDomain,
@@ -135,6 +136,35 @@ test('configura escala e marcações para cada range do gráfico', () => {
   assert.equal(getPriceChartRangeConfig('15m', seriesRight).timeTickIntervalMs, 5 * 60_000)
   assert.equal(getPriceChartRangeConfig('1h', seriesRight).pixelsPerSecond, 1 / 15)
   assert.equal(getPriceChartRangeConfig('1h', seriesRight).timeTickIntervalMs, 20 * 60_000)
+})
+
+test('mantém exatamente três horários em posições fixas e distribuídas', () => {
+  const anchorTime = Date.UTC(2026, 8, 4, 10, 54, 48)
+
+  assert.deepEqual(
+    getPriceChartTimeTicks(anchorTime, 2 * 60_000, 16, 236, 24),
+    [
+      { timestamp: Date.UTC(2026, 8, 4, 10, 50, 0), x: 40 },
+      { timestamp: Date.UTC(2026, 8, 4, 10, 52, 0), x: 126 },
+      { timestamp: Date.UTC(2026, 8, 4, 10, 54, 0), x: 212 },
+    ],
+  )
+
+  assert.deepEqual(
+    getPriceChartTimeTicks(anchorTime, 20 * 60_000, 16, 236, 24),
+    [
+      { timestamp: Date.UTC(2026, 8, 4, 10, 0, 0), x: 40 },
+      { timestamp: Date.UTC(2026, 8, 4, 10, 20, 0), x: 126 },
+      { timestamp: Date.UTC(2026, 8, 4, 10, 40, 0), x: 212 },
+    ],
+  )
+})
+
+test('redistribui os três horários sem cortar os rótulos em telas estreitas', () => {
+  const ticks = getPriceChartTimeTicks(20_000, 5_000, 16, 181, 24)
+
+  assert.equal(ticks.length, 3)
+  assert.deepEqual(ticks.map(({ x }) => x), [40, 98.5, 157])
 })
 
 test('o domínio de um range considera todos os pontos visíveis', () => {
