@@ -63,3 +63,70 @@ final result: passed
 No actionable P0, P1 or P2 differences remain for this scoped clipping and chip-color adjustment.
 
 final result: passed
+
+---
+
+# Design QA — horários dos ranges do gráfico
+
+## Alvos da comparação
+
+- Verdade visual:
+  - `/var/folders/d0/n7r_rl_s3vl1rr4c9lv35s0c0000gn/T/TemporaryItems/NSIRD_screencaptureui_7sb7k1/Captura de Tela 2026-09-04 às 10.54.40.png` (`970 × 688px`, estado `5M`).
+  - `/var/folders/d0/n7r_rl_s3vl1rr4c9lv35s0c0000gn/T/TemporaryItems/NSIRD_screencaptureui_RRdLv3/Captura de Tela 2026-09-04 às 10.54.48.png` (`1194 × 752px`, estado `15M`).
+  - `/var/folders/d0/n7r_rl_s3vl1rr4c9lv35s0c0000gn/T/TemporaryItems/NSIRD_screencaptureui_Vlsqtl/Captura de Tela 2026-09-04 às 10.54.54.png` (`1118 × 848px`, estado `1H`).
+- Implementação: captura do Browser interno na aba local `http://127.0.0.1:5174/`, exibida na tarefa. A API do Browser não expôs um caminho de arquivo local para a captura.
+- Viewport da implementação: `375 × 812 CSS px`, sem escala de emulação adicional informada pela ferramenta.
+- Normalização: as referências são recortes em densidades e tamanhos diferentes; a comparação ficou restrita à região do eixo temporal e ao comportamento pedido, sem usar as dimensões dos recortes como medidas CSS.
+
+## Estado validado
+
+- `LIVE`: eixo móvel original preservado, com marcações de `5s` e fade nas bordas.
+- `5M`: três horários de `2min`, em `x = 40, 126, 212`.
+- `15M`: três horários de `5min`, em `x = 40, 126, 212`.
+- `1H`: três horários de `20min`, em `x = 40, 126, 212`.
+- Sem overflow horizontal e sem erros no console.
+
+## Comparação visual
+
+### Visão completa
+
+O canvas, a série, a grade, os preços, os botões e o restante da composição permanecem iguais. A alteração está isolada no eixo dos ranges fixos.
+
+### Região focada
+
+Nas referências, `5M` e `15M` exibem somente dois horários porque uma marcação deriva para fora da área visível; `1H` exibe três, mas suas posições dependem do instante atual. Na implementação revisada, os três ranges fixos exibem sempre três rótulos completos, com centros idênticos e espaçamento uniforme.
+
+## Superfícies de fidelidade
+
+- Tipografia: família, peso, tamanho, altura e formatação `HH:mm:ss` não mudaram.
+- Espaçamento e layout: três centros responsivos e uniformes; nenhuma alteração na altura do canvas ou na fileira de botões.
+- Cores e tokens: opacidade e cores existentes foram preservadas; o fade continua exclusivo do `LIVE`.
+- Imagens e assets: nenhuma imagem ou asset foi adicionado, removido ou alterado.
+- Copy: rótulos e textos acessíveis permanecem iguais.
+
+## Histórico da iteração
+
+- Primeira passagem: as três posições fixas também foram aplicadas ao `LIVE`, contrariando a intenção esclarecida pela pessoa usuária.
+- Correção: a geração anterior de marcações móveis e o fade do `LIVE` foram restaurados; a nova função de três posições ficou exclusiva de `5M`, `15M` e `1H`.
+- Evidência pós-correção: em `LIVE`, uma mesma marcação moveu de `x = 213.608` para `x = 201.608` em `500ms`; nos três ranges fixos, a contagem permaneceu `3` e os centros permaneceram `40, 126, 212`.
+
+## Findings
+
+Nenhuma diferença P0, P1 ou P2 permanece no escopo solicitado.
+
+## Open Questions
+
+Nenhuma.
+
+## Implementation Checklist
+
+- [x] Preservar o eixo móvel do `LIVE`.
+- [x] Exibir exatamente três horários em `5M`, `15M` e `1H`.
+- [x] Manter as três posições iguais entre os ranges fixos.
+- [x] Validar responsividade, overflow e console.
+
+## Follow-up Polish
+
+Nenhum P3 identificado no eixo temporal.
+
+final result: passed

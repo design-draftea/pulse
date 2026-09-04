@@ -11,6 +11,11 @@ export type PriceChartRangeConfig = {
   timeTickIntervalMs: number
 }
 
+export type PriceChartTimeTick = {
+  timestamp: number
+  x: number
+}
+
 export type PriceChartDomain = {
   bottom: number
   top: number
@@ -51,6 +56,7 @@ const TREND_SHIFT_INTERVALS = 2
 const TREND_MINIMUM_STEP_FRACTION = 0.1
 const LIVE_PIXELS_PER_SECOND = 24
 const LIVE_TIME_TICK_INTERVAL_MS = 5_000
+const TIME_TICK_COUNT = 3
 const RANGE_CONFIG = {
   '5m': { durationMs: 5 * 60_000, timeTickIntervalMs: 2 * 60_000 },
   '15m': { durationMs: 15 * 60_000, timeTickIntervalMs: 5 * 60_000 },
@@ -78,6 +84,37 @@ export const getPriceChartRangeConfig = (
     pixelsPerSecond: seriesRight / (durationMs / 1000),
     timeTickIntervalMs,
   }
+}
+
+export const getPriceChartTimeTicks = (
+  anchorTime: number,
+  intervalMs: number,
+  leftBoundary: number,
+  rightBoundary: number,
+  labelInset: number,
+): PriceChartTimeTick[] => {
+  if (
+    !Number.isFinite(anchorTime)
+    || !Number.isFinite(intervalMs)
+    || intervalMs <= 0
+    || !Number.isFinite(leftBoundary)
+    || !Number.isFinite(rightBoundary)
+    || rightBoundary < leftBoundary
+  ) return []
+
+  const availableWidth = rightBoundary - leftBoundary
+  const safeInset = Math.min(
+    availableWidth / 2,
+    Math.max(0, Number.isFinite(labelInset) ? labelInset : 0),
+  )
+  const firstX = leftBoundary + safeInset
+  const lastX = rightBoundary - safeInset
+  const latestTimestamp = Math.floor(anchorTime / intervalMs) * intervalMs
+
+  return Array.from({ length: TIME_TICK_COUNT }, (_, index) => ({
+    timestamp: latestTimestamp - (TIME_TICK_COUNT - 1 - index) * intervalMs,
+    x: firstX + ((lastX - firstX) * index) / (TIME_TICK_COUNT - 1),
+  }))
 }
 
 export const projectPriceToY = (
