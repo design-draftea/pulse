@@ -4,10 +4,10 @@
 
 - Atualizado em: 2026-09-04
 - Agente que entrega: Codex
-- Agente esperado a seguir: pessoa usuária para revisão visual; Codex para ajustes
-- Status: implementado e validado localmente; publicação autorizada e em andamento
+- Agente esperado a seguir: pessoa usuária para novos ajustes de produto
+- Status: concluído — commit `466850e`, PR #60, merge `51d397e`, GitHub Pages publicado e verificado
 - Objetivo: substituir `Aprende a jugar` no Centro de ayuda por um assistente conversacional local para usuários do Pulse, sem modelo, chave, backend ou custo de IA
-- Branch: `feature/assistente-ajuda-local`, atualizada sobre `origin/main` em `ee7cd54`
+- Branch: `feature/assistente-ajuda-local`, integrada à `main` pelo PR #60
 - Worktree: `/private/tmp/pulse-assistente-ajuda-local`; o checkout principal permaneceu na `fix/chart-time-labels`, com as alterações locais da outra task intocadas
 
 ### Escopo e decisões
@@ -56,13 +56,13 @@
 - Mensagens medidas no navegador: no primeiro quadro a pergunta tinha a animação `help-assistant-question-enter`, opacidade `0` e transformação horizontal de `24px`; aos `1.000ms` o loading continuava presente e a resposta ainda não existia; após `2.097ms` o loading tinha saído e a resposta estava sob `help-assistant-response-fade-in`. O indicador e a resposta foram conferidos também em imagem.
 - Layout conferido em `320×568`, `375×812`, `430×832` e `499×900`, sem overflow horizontal. Em `375×400`, simulando a altura reduzida pelo teclado, o compositor permaneceu inteiro e colado ao fundo.
 - Console sem erros ou avisos. A consulta do assistente não registrou chamadas `fetch`/XHR nem requisições com nomes de assistente, ajuda, modelo ou embedding.
+- O PR #60 foi mesclado em `51d397e6a9cea2cb1cc65b3f4b1edd6d9f5f91bc`. O workflow GitHub Pages `33887177243` concluiu build e deploy com sucesso. Em `https://design-draftea.github.io/pulse/`, a versão publicada foi conferida a `416×878`: ranges `LIVE`, `5M`, `15M` e `1H`, os cinco links da Home, as respostas para `que es up?` e `ultimas 10 rondas`, o retorno das fontes, `iconMessage.svg` e o alinhamento `x=16/60` do menu estavam presentes e funcionais.
 
 ### Pendências e próximo passo
 
-- A pessoa usuária ainda precisa revisar a direção visual e os textos do chat. Não houve referência de Figma para essa nova tela; a interface reutiliza tokens e padrões existentes do Pulse.
+- Não há pendência de código, merge ou publicação para este escopo. Não houve referência de Figma para a nova tela; a interface reutiliza tokens e padrões existentes do Pulse e foi aprovada durante a revisão local.
 - Verificar o teclado real no Chrome do iPhone. A redução do viewport foi simulada no navegador local, mas não substitui o comportamento do teclado do aparelho.
 - A branch foi rebaseada sem conflitos sobre a `main` que já contém os ranges e a correção dos horários do gráfico; lint, build e as oito suítes foram repetidos depois da combinação.
-- Commit, push, Pull Request, merge e deploy foram autorizados explicitamente nesta tarefa e devem ser acompanhados até a verificação da versão publicada.
 
 
 ## Histórico: formatação do monto em centavos (PR #56)
