@@ -74,6 +74,21 @@ const restoreScrollSnapshotAfterFocus = (snapshot: ScrollSnapshot) => {
 }
 
 const TAP_MOVEMENT_TOLERANCE_PX = 10
+const KEYBOARD_OPEN_THRESHOLD_PX = 60
+
+const isVirtualKeyboardOpen = () => {
+  const visualViewport = window.visualViewport
+
+  if (!visualViewport) return false
+
+  const layoutViewportHeight = Math.max(
+    window.innerHeight || 0,
+    document.documentElement.clientHeight || 0,
+  )
+
+  return layoutViewportHeight - visualViewport.height
+    > KEYBOARD_OPEN_THRESHOLD_PX
+}
 
 export function useTapFocusScrollGuard({
   inputRef,
@@ -83,6 +98,7 @@ export function useTapFocusScrollGuard({
   const pendingScrollSnapshotRef = useRef<ScrollSnapshot | null>(null)
   const pendingTapRef = useRef<{
     pointerId: number
+    resetFocusedInput: boolean
     startX: number
     startY: number
   } | null>(null)
@@ -94,9 +110,20 @@ export function useTapFocusScrollGuard({
       pendingTapRef.current = null
       return
     }
-    if (
+    const isFocusedInputTap = (
       document.activeElement === inputRef.current
       && event.target === inputRef.current
+    )
+
+    // O botão nativo de recolher o teclado no iOS mantém o input focado. Nesse
+    // estado, o toque seguinte não dispara um novo focus e escaparia do guard,
+    // deixando o Safari revelar o campo pela rolagem da página. Com o teclado
+    // aberto preservamos o comportamento nativo de posicionar o caret; com ele
+    // fechado refazemos o foco no pointerup pelo mesmo caminho protegido do
+    // primeiro toque.
+    if (
+      isFocusedInputTap
+      && (event.pointerType === 'mouse' || isVirtualKeyboardOpen())
     ) return
 
     // Impede o reveal nativo do iOS; o foco só acontece quando o gesto termina
@@ -104,6 +131,7 @@ export function useTapFocusScrollGuard({
     event.preventDefault()
     pendingTapRef.current = {
       pointerId: event.pointerId,
+      resetFocusedInput: isFocusedInputTap,
       startX: event.clientX,
       startY: event.clientY,
     }
@@ -135,6 +163,11 @@ export function useTapFocusScrollGuard({
     const scrollSnapshot = captureScrollSnapshot(input)
 
     pendingScrollSnapshotRef.current = scrollSnapshot
+
+    if (pendingTap.resetFocusedInput && document.activeElement === input) {
+      input.blur()
+    }
+
     input.focus({ preventScroll: true })
     restoreScrollSnapshotAfterFocus(scrollSnapshot)
   }

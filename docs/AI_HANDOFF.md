@@ -15,6 +15,7 @@
 - O `ProfileBottomSheet` continua sendo o componente existente. A implementação final segue o modo estável do cadastro: congela a altura externa em `--profile-sheet-stable-height` e calcula `--profile-sheet-keyboard-inset` pela diferença até o fim visível da `visualViewport`. Header, sheet e introdução permanecem parados; o inset interno sobe somente o compositor.
 - O input do assistente passou de `14px` para `16px`, removendo o zoom automático que o Safari aplica ao focar campos menores que `16px`.
 - Depois do primeiro teste no iPhone, a pessoa usuária confirmou que o zoom sumiu, mas o foco ainda movia o conteúdo do sheet. O input passou a usar o mesmo `useTapFocusScrollGuard` do cadastro do Draftaco: o foco nativo é bloqueado no `pointerdown`, o campo recebe `focus({ preventScroll: true })` no `pointerup` e a posição da página e dos scrollers ancestrais é restaurada imediatamente, em dois frames e após `80ms`, `160ms` e `320ms`.
+- No segundo teste, o problema apareceu apenas depois de recolher o teclado pelo botão nativo do iOS e tocar novamente no input; tocar fora antes fazia funcionar. O diagnóstico confirmou que o botão recolhe o teclado, mas deixa o input como `document.activeElement`, e a exceção para campos já focados deixava o segundo toque escapar do guard. Agora essa exceção vale somente com teclado realmente aberto (ou mouse): com o teclado fechado, o `pointerup` desfoca e refoca sincronamente, dentro do gesto da pessoa usuária, reaplicando `preventScroll` e a restauração de scroll.
 - O conjunto foi completado com `useStableKeyboardViewport` e `useTouchScrollFence`, também portados do Draftaco. Como o Pulse pode abrir o sheet com a Home rolada, a trava da janela preserva a posição capturada na abertura em vez de forçar `scrollY = 0`.
 
 ### Arquivos alterados
@@ -37,10 +38,11 @@
 - Teclado simulado reduzindo a viewport para `390×500`: a altura externa permaneceu em `844px`, o sheet permaneceu de `56px` a `844px` e o inset interno virou `344px`. O compositor terminou em `500px`, exatamente na borda visível, sem mover o topo do sheet ou da introdução.
 - Foco protegido conferido no navegador: antes do clique, depois do foco, com o teclado aberto e após fechá-lo, `window.scrollY` permaneceu em `307`, o scroller da conversa e o conteúdo da rota permaneceram em `0`, o topo do sheet em `56px` e o topo da introdução em `132px`. O inset percorreu `0 → 344 → 0px` e o compositor `844 → 500 → 844px`.
 - Meta viewport conferida no documento carregado e console sem erros ou avisos.
+- Regressão do refoco coberta no código pelo estado combinado `input focado + visualViewport sem teclado`; lint, build, `git diff --check` e os 63 testes do assistente continuaram passando depois do ajuste. O controle nativo de recolher teclado só existe no iOS real, por isso a confirmação final dessa sequência permanece com a pessoa usuária.
 
 ### Pendências e próximo passo
 
-- Validar em um iPhone real o mesmo percurso da captura: abrir `Pregúntale a Pulse`, focar o campo, digitar, enviar, fechar o teclado e reabrir. A simulação local cobre a geometria, mas não reproduz integralmente as animações e particularidades do teclado do Safari/Chrome no iOS.
+- Validar em um iPhone real a sequência exata da segunda captura: abrir `Pregúntale a Pulse`, focar o campo, recolher o teclado pelo botão nativo com o input ainda focado e tocar novamente no input. A simulação local cobre a geometria, mas não reproduz esse controle nem todas as particularidades do teclado do Safari/Chrome no iOS.
 - Não há Pull Request, merge ou deploy para esta branch.
 
 
