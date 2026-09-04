@@ -178,7 +178,7 @@ const helpQuickActionItems: Array<{
   },
   {
     id: 'help-glossary',
-    label: 'Glosario en Draftea',
+    label: 'Glosario en Pulse',
     icon: glossaryIcon,
     glow: 'var(--color-fill-warning)',
     openMode: 'help-glossary',
