@@ -799,7 +799,9 @@ function App() {
       </div>
       <main className="pulse-app__content">
         <MarketPriceChart
+          now={marketRound.now}
           points={marketRound.points}
+          historyPoints={marketRound.historyPoints}
           targetPrice={marketRound.targetPrice}
           currentPrice={animatedMarketPrice.value}
           priceDirection={animatedMarketPrice.direction}

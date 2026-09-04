@@ -20,10 +20,12 @@ import {
 import {
   countPricePointGaps,
   getContinuousVisiblePricePoints,
+  getPriceChartRangeConfig,
   interpolatePriceAt,
   projectPriceToY,
   resolvePriceChartTarget,
   type PriceChartDomain,
+  type PriceChartRange,
   type PricePoint,
 } from './priceChartModel'
 import { usePriceChartPan } from '../hooks/usePriceChartPan'
@@ -31,7 +33,11 @@ import { LiveIndicator } from './LiveIndicator/LiveIndicator'
 import './PriceChart.css'
 
 export type { PriceChartEntry } from './priceChartLayout'
-export type { PriceChartDomain, PricePoint } from './priceChartModel'
+export type {
+  PriceChartDomain,
+  PriceChartRange,
+  PricePoint,
+} from './priceChartModel'
 
 export type PriceDirection = 'up' | 'down'
 
@@ -56,6 +62,8 @@ type PriceChartProps = {
   source: string | null
   status: string
   updatedAt: number | null
+  range: PriceChartRange
+  onRangeChange: (range: PriceChartRange) => void
 }
 
 type ChartPoint = PricePoint & {
@@ -80,9 +88,6 @@ const TIME_AXIS_TICK_BOTTOM = TIME_AXIS_TICK_TOP + 5
 const TIME_AXIS_LABEL_BASELINE = TIME_AXIS_TICK_BOTTOM + 21
 const CURRENT_LABEL_WIDTH = 85
 const GRID_LINE_COUNT = 7
-const PIXELS_PER_SECOND = 24
-const TIME_TICK_INTERVAL = 5000
-const TIME_TICK_SPACING = (TIME_TICK_INTERVAL / 1000) * PIXELS_PER_SECOND
 const TIME_TICK_FADE_DISTANCE = 48
 const PLOT_FADE_WIDTH = 96
 const DIRECTION_CLEAR_SIZE = 30
@@ -98,6 +103,16 @@ const TARGET_PILL_PADDING_RIGHT_WITH_CHEVRON = 4
 const TARGET_CHEVRON_GAP = 2
 const TARGET_CHEVRON_SIZE = 16
 const TARGET_LABEL_BASELINE = 3.5
+const RANGE_BUTTONS: Array<{
+  range: PriceChartRange
+  label: string
+  ariaLabel: string
+}> = [
+  { range: 'live', label: 'LIVE', ariaLabel: 'Ver precio en vivo' },
+  { range: '5m', label: '5M', ariaLabel: 'Ver últimos 5 minutos' },
+  { range: '15m', label: '15M', ariaLabel: 'Ver últimos 15 minutos' },
+  { range: '1h', label: '1H', ariaLabel: 'Ver última hora' },
+]
 
 const getSmoothPath = (points: ChartPoint[]) => {
   if (points.length === 0) return ''
@@ -236,6 +251,8 @@ export function PriceChart({
   source,
   status,
   updatedAt,
+  range,
+  onRangeChange,
 }: PriceChartProps) {
   const id = useId().replace(/:/g, '')
   const [completedDirectionSequence, setCompletedDirectionSequence] = useState(0)
@@ -393,24 +410,75 @@ export function PriceChart({
 
   const renderTime = useRenderTime()
   const displayTime = Math.max(renderTime, latestPoint?.timestamp ?? renderTime)
-  const windowSpanMs = (seriesRight / PIXELS_PER_SECOND) * 1000
-  const isPanned = viewAnchorTimestamp !== null
-  const anchorTime = viewAnchorTimestamp ?? displayTime
+  const rangeConfig = getPriceChartRangeConfig(range, seriesRight)
+  const pixelsPerSecond = rangeConfig.pixelsPerSecond
+  const timeTickInterval = rangeConfig.timeTickIntervalMs
+  const timeTickSpacing = (timeTickInterval / 1000) * pixelsPerSecond
+  const windowSpanMs = rangeConfig.durationMs
+    ?? (seriesRight / pixelsPerSecond) * 1000
+  const isLiveRange = range === 'live'
+  const isPanned = isLiveRange && viewAnchorTimestamp !== null
+  const anchorTime = isPanned
+    ? viewAnchorTimestamp ?? displayTime
+    : displayTime
   const anchorPrice = isPanned
     ? interpolatePriceAt(safePoints, anchorTime) ?? latestPrice
     : latestPrice
-  const { isPanning, panHandlers, returnToLive } = usePriceChartPan({
+  const { cancelPan, isPanning, panHandlers, returnToLive } = usePriceChartPan({
     points: safePoints,
     latestTimestamp: displayTime,
     windowSpanMs,
-    pixelsPerSecond: PIXELS_PER_SECOND,
+    pixelsPerSecond,
     viewAnchorTimestamp,
     onViewAnchorChange,
   })
 
   useEffect(() => {
-    onWindowSpanChange?.(windowSpanMs)
-  }, [onWindowSpanChange, windowSpanMs])
+    if (isLiveRange) onWindowSpanChange?.(windowSpanMs)
+  }, [isLiveRange, onWindowSpanChange, windowSpanMs])
+
+  const handleRangeChange = (nextRange: PriceChartRange) => {
+    if (nextRange === 'live' && range === 'live' && isPanned) {
+      returnToLive()
+      return
+    }
+
+    cancelPan()
+    onViewAnchorChange(null)
+    onRangeChange(nextRange)
+  }
+
+  const rangeControls = (
+    <nav
+      className="price-chart__range-controls"
+      aria-label="Rango del gráfico"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      {RANGE_BUTTONS.map((button) => {
+        const isActive = button.range === range
+          && (button.range !== 'live' || !isPanned)
+
+        return (
+          <button
+            aria-label={button.range === 'live' && isPanned
+              ? 'Volver al precio en vivo'
+              : button.ariaLabel}
+            aria-pressed={isActive}
+            className={`price-chart__range-button${isActive ? ' price-chart__range-button--active' : ''}`}
+            data-chart-range={button.range}
+            key={button.range}
+            onClick={() => handleRangeChange(button.range)}
+            type="button"
+          >
+            {button.range === 'live' ? (
+              <LiveIndicator className="price-chart__range-live-dot" />
+            ) : null}
+            {button.label}
+          </button>
+        )
+      })}
+    </nav>
+  )
 
   const visibleEntries = useMemo(
     () => (isPanned ? [] : layoutPriceChartEntries(entries, displayTime)),
@@ -419,13 +487,16 @@ export function PriceChart({
 
   if (safePoints.length === 0) {
     return (
-      <div
+      <figure
         ref={containerRef}
         className={`price-chart price-chart--empty ${className}`}
-        role="status"
+        data-range={range}
       >
-        Esperando datos del mercado
-      </div>
+        <div className="price-chart__empty-message" role="status">
+          Esperando datos del mercado
+        </div>
+        {rangeControls}
+      </figure>
     )
   }
 
@@ -467,7 +538,7 @@ export function PriceChart({
     anchorTime,
     seriesRight,
     0,
-    PIXELS_PER_SECOND,
+    pixelsPerSecond,
   )
   const chartPoints: ChartPoint[] = visibleSeries.points.map((point) => ({
     ...point,
@@ -497,19 +568,19 @@ export function PriceChart({
     (_, index) => top - step * index,
   )
   const latestTimeTick =
-    Math.floor(anchorTime / TIME_TICK_INTERVAL) * TIME_TICK_INTERVAL
+    Math.floor(anchorTime / timeTickInterval) * timeTickInterval
   const timeTickCount = Math.max(
     4,
-    Math.ceil((seriesRight - PLOT_LEFT) / TIME_TICK_SPACING) + 1,
+    Math.ceil((seriesRight - PLOT_LEFT) / timeTickSpacing) + 1,
   )
   const timeTicks = Array.from({ length: timeTickCount }, (_, index) => {
-    const timestamp = latestTimeTick - index * TIME_TICK_INTERVAL
+    const timestamp = latestTimeTick - index * timeTickInterval
 
     return {
       timestamp,
       x:
         seriesRight -
-        ((anchorTime - timestamp) / 1000) * PIXELS_PER_SECOND,
+        ((anchorTime - timestamp) / 1000) * pixelsPerSecond,
     }
   })
 
@@ -521,6 +592,7 @@ export function PriceChart({
         ? `Gráfico del historial de la ronda: ${priceFormatter.format(anchorPrice)}`
         : `Gráfico del precio actual: ${priceFormatter.format(latestPrice)}`}
       data-testid="price-chart"
+      data-range={range}
       data-panned={isPanned}
       data-view-anchor={viewAnchorTimestamp ?? ''}
       data-window-span={Math.round(windowSpanMs)}
@@ -532,7 +604,7 @@ export function PriceChart({
             )}px`,
           } as CSSProperties
         : undefined}
-      {...panHandlers}
+      {...(isLiveRange ? panHandlers : {})}
       data-point-count={safePoints.length}
       data-displayed-price={latestPrice}
       data-target-price={targetPrice ?? ''}
@@ -940,21 +1012,12 @@ export function PriceChart({
 
       </svg>
 
-      {isPanned ? (
-        <button
-          aria-label="Volver al precio en vivo"
-          className="price-chart__live-button"
-          onClick={returnToLive}
-          type="button"
-        >
-          <LiveIndicator className="price-chart__live-dot" />
-          LIVE
-        </button>
-      ) : (
+      {!isPanned ? (
         <output className="price-chart__live-value" aria-live="polite">
           {priceFormatter.format(latestPrice)}
         </output>
-      )}
+      ) : null}
+      {rangeControls}
     </figure>
   )
 }

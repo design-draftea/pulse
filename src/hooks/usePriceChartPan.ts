@@ -174,6 +174,12 @@ export const usePriceChartPan = ({
     frameRef.current = window.requestAnimationFrame(step)
   }, [stopAnimation])
 
+  const cancelPan = useCallback(() => {
+    stopAnimation()
+    dragRef.current = null
+    setIsPanning(false)
+  }, [stopAnimation])
+
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return
 
@@ -255,6 +261,7 @@ export const usePriceChartPan = ({
   }, [startInertia])
 
   return {
+    cancelPan,
     isPanning,
     returnToLive,
     panHandlers: {

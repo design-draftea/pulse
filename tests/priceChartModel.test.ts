@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  appendRollingPricePoint,
   appendRoundPricePoint,
   calculatePriceChartDomain,
   clampPriceChartAnchor,
@@ -8,9 +9,11 @@ import {
   DOMAIN_CONTRACTION_DELAY_MS,
   DOMAIN_SHIFT_CONFIRMATION_MS,
   getContinuousVisiblePricePoints,
+  getPriceChartRangeConfig,
   getPriceChartWindowPoints,
   interpolatePriceAt,
   interpolatePriceChartDomain,
+  mergePricePointSeries,
   projectPriceToY,
   resolvePriceChartTarget,
   stabilizePriceChartDomain,
@@ -75,6 +78,81 @@ test('remove pontos de outra rodada ao receber o primeiro preço novo', () => {
   )
 
   assert.deepEqual(points, [{ timestamp: roundStart, value: 100 }])
+})
+
+test('mantém uma série móvel, deduplicada por segundo, por até uma hora', () => {
+  const now = Date.UTC(2026, 8, 1, 11, 0, 0)
+  const earliest = now - 60 * 60_000
+  const points = appendRollingPricePoint(
+    [
+      { timestamp: earliest - 1_000, value: 90 },
+      { timestamp: now - 500, value: 100 },
+    ],
+    { timestamp: now - 100, value: 101 },
+    earliest,
+    3_601,
+  )
+
+  assert.deepEqual(points, [{ timestamp: now - 100, value: 101 }])
+})
+
+test('mescla candles e observações priorizando o ponto observado no mesmo segundo', () => {
+  const start = Date.UTC(2026, 8, 1, 10, 0, 0)
+  const points = mergePricePointSeries(
+    [
+      { timestamp: start - 1_000, value: 99 },
+      { timestamp: start, value: 100 },
+      { timestamp: start + 60_000, value: 101 },
+    ],
+    [
+      { timestamp: start + 60_500, value: 105 },
+      { timestamp: start + 61_000, value: 106 },
+    ],
+    start,
+  )
+
+  assert.deepEqual(points, [
+    { timestamp: start, value: 100 },
+    { timestamp: start + 60_500, value: 105 },
+    { timestamp: start + 61_000, value: 106 },
+  ])
+})
+
+test('configura escala e marcações para cada range do gráfico', () => {
+  const seriesRight = 240
+
+  assert.deepEqual(getPriceChartRangeConfig('live', seriesRight), {
+    durationMs: null,
+    pixelsPerSecond: 24,
+    timeTickIntervalMs: 5_000,
+  })
+  assert.deepEqual(getPriceChartRangeConfig('5m', seriesRight), {
+    durationMs: 5 * 60_000,
+    pixelsPerSecond: 0.8,
+    timeTickIntervalMs: 2 * 60_000,
+  })
+  assert.equal(getPriceChartRangeConfig('15m', seriesRight).durationMs, 15 * 60_000)
+  assert.equal(getPriceChartRangeConfig('15m', seriesRight).timeTickIntervalMs, 5 * 60_000)
+  assert.equal(getPriceChartRangeConfig('1h', seriesRight).pixelsPerSecond, 1 / 15)
+  assert.equal(getPriceChartRangeConfig('1h', seriesRight).timeTickIntervalMs, 20 * 60_000)
+})
+
+test('o domínio de um range considera todos os pontos visíveis', () => {
+  const points = [
+    { timestamp: 0, value: 50 },
+    ...Array.from({ length: 20 }, (_, index) => ({
+      timestamp: (index + 1) * 1_000,
+      value: 100 + index / 10,
+    })),
+  ]
+  const liveDomain = calculatePriceChartDomain(points, null)
+  const rangeDomain = calculatePriceChartDomain(points, null, {
+    applyTrendShift: false,
+    includeAllPoints: true,
+  })
+
+  assert.ok(liveDomain.bottom > 50)
+  assert.ok(rangeDomain.bottom <= 50)
 })
 
 test('interpola a passagem pela borda esquerda usando os pontos reais vizinhos', () => {
