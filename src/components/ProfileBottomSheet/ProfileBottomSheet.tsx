@@ -16,7 +16,6 @@ import closeIcon from '../../assets/iconClose.svg'
 import personalDataIcon from '../../assets/iconDados.svg'
 import depositIcon from '../../assets/iconDeposito.svg'
 import faqIcon from '../../assets/iconFaq.svg'
-import playIcon from '../../assets/iconPlay.svg'
 import privacyIcon from '../../assets/iconPrivacidade.svg'
 import logoutIcon from '../../assets/iconSair.svg'
 import withdrawIcon from '../../assets/iconSaque.svg'
@@ -24,7 +23,14 @@ import supportIcon from '../../assets/iconSuporte.svg'
 import termsIcon from '../../assets/iconTermos.svg'
 import speakIcon from '../../assets/iconFalar.svg'
 import glossaryIcon from '../../assets/iconGlossario.svg'
+import messageIcon from '../../assets/iconMessage.svg'
 import backIcon from '../../assets/iconVoltar.svg'
+import {
+  helpFaqItems,
+  helpGlossaryItems,
+} from '../../content/help/es-MX/helpContent'
+import type { HelpAssistantActionId } from '../../services/helpAssistant'
+import { HelpAssistant } from '../HelpAssistant'
 import { InfoModal } from '../InfoModal'
 import {
   profileInfoById,
@@ -76,6 +82,7 @@ interface ProfileBottomSheetProps {
   initialMode?: ProfileBottomSheetMode
   isOpen: boolean
   metrics: ProfileBottomSheetMetrics
+  onAssistantNavigate: (action: HelpAssistantActionId) => void
   onClose: () => void
 }
 
@@ -97,7 +104,12 @@ interface MenuSection {
   }>
 }
 
-export type ProfileBottomSheetMode = 'profile' | 'help' | 'help-question' | 'help-glossary'
+export type ProfileBottomSheetMode =
+  | 'profile'
+  | 'help'
+  | 'help-assistant'
+  | 'help-question'
+  | 'help-glossary'
 
 const ROUTE_MOTION_MS = 300
 
@@ -106,20 +118,9 @@ const ROUTE_MOTION_MS = 300
 const routeDepthByMode: Record<ProfileBottomSheetMode, number> = {
   profile: 0,
   help: 1,
+  'help-assistant': 2,
   'help-question': 2,
   'help-glossary': 2,
-}
-
-interface HelpFaqItem {
-  answer: string
-  id: string
-  question: string
-}
-
-interface HelpGlossaryItem {
-  description: string
-  id: string
-  title: string
 }
 
 const menuSections: MenuSection[] = [
@@ -132,8 +133,14 @@ const menuSections: MenuSection[] = [
     id: 'support',
     title: 'SOPORTE',
     items: [
-      { id: 'support-help', label: 'Soporte', icon: supportIcon, openMode: 'help' },
+      { id: 'support-help', label: 'Hablar con alguien', icon: supportIcon, openMode: 'help' },
       { id: 'support-faq', label: 'Preguntas frecuentes', icon: faqIcon, openMode: 'help' },
+      {
+        id: 'support-assistant',
+        label: 'Pregúntale a Pulse',
+        icon: messageIcon,
+        openMode: 'help-assistant',
+      },
     ],
   },
   {
@@ -146,168 +153,32 @@ const menuSections: MenuSection[] = [
   },
 ]
 
-const helpQuickActionItems: Array<{ id: string; label: string; icon: string; glow: string }> = [
+const helpQuickActionItems: Array<{
+  glow: string
+  icon: string
+  id: string
+  label: string
+  openMode?: ProfileBottomSheetMode
+}> = [
   {
     id: 'help-speak',
     label: 'Hablar con alguien',
     icon: speakIcon,
     glow: 'var(--color-component-level-content)',
   },
-  { id: 'help-play', label: 'Aprende a jugar', icon: playIcon, glow: 'var(--color-fill-primary)' },
+  {
+    id: 'help-assistant',
+    label: 'Pregúntale a Pulse',
+    icon: messageIcon,
+    glow: 'var(--color-fill-primary)',
+    openMode: 'help-assistant',
+  },
   {
     id: 'help-glossary',
     label: 'Glosario en Draftea',
     icon: glossaryIcon,
     glow: 'var(--color-fill-warning)',
-  },
-]
-
-const helpQuickActionItemsWithMode: Array<{
-  id: string
-  label: string
-  icon: string
-  glow: string
-  openMode?: ProfileBottomSheetMode
-}> = helpQuickActionItems.map((item) => ({
-  ...item,
-  openMode: item.id === 'help-glossary' ? 'help-glossary' : undefined,
-}))
-
-const helpFaqItems: HelpFaqItem[] = [
-  {
-    id: 'what-is-pulse',
-    question: '¿Qué es Draftea Pulse?',
-    answer:
-      'Draftea Pulse es una experiencia en la que puedes predecir si el precio de Bitcoin terminará arriba o abajo de un valor de referencia. Cada predicción ocurre dentro de una ronda de 15 minutos. En esta versión, el saldo y las operaciones son simulados.',
-  },
-  {
-    id: 'how-round-works',
-    question: '¿Cómo funciona una ronda de 15 minutos?',
-    answer:
-      'Cada ronda comienza con un precio objetivo de Bitcoin. Durante los 15 minutos, puedes elegir si el precio terminará arriba o abajo de ese valor. Cuando el tiempo se acaba, el precio final se compara con el precio objetivo para definir el resultado.',
-  },
-  {
-    id: 'can-play-after-start',
-    question: '¿Puedo participar después de que la ronda ya comenzó?',
-    answer:
-      'Sí. Puedes entrar mientras la ronda siga abierta y las opciones de compra estén disponibles. Antes de confirmar, revisa cuánto tiempo queda, ya que el precio de las participaciones puede cambiar durante la ronda.',
-  },
-  {
-    id: 'what-is-up-down',
-    question: '¿Qué significa elegir UP o DOWN?',
-    answer:
-      'Elige UP si crees que el precio final de Bitcoin será igual o mayor que el precio objetivo. Elige DOWN si crees que terminará por debajo. Tu selección queda asociada a esa ronda específica.',
-  },
-  {
-    id: 'what-is-target-price',
-    question: '¿Qué es el precio objetivo?',
-    answer:
-      'Es el precio de Bitcoin registrado al inicio de la ronda y sirve como referencia para definir el resultado. Este valor permanece fijo durante los 15 minutos, aunque el precio actual siga subiendo o bajando.',
-  },
-  {
-    id: 'where-price-comes-from',
-    question: '¿De dónde viene el precio de Bitcoin que muestra Pulse?',
-    answer:
-      'Pulse utiliza fuentes externas de datos de mercado para mostrar el precio de Bitcoin. El precio objetivo se registra al inicio de cada ronda, mientras que el precio actual se actualiza durante la experiencia.',
-  },
-  {
-    id: 'price-difference',
-    question: '¿Por qué el precio puede ser diferente al de otras plataformas?',
-    answer:
-      'Cada plataforma puede consultar una fuente distinta o actualizar el precio en momentos diferentes. Por eso pueden existir pequeñas variaciones entre los valores mostrados. Para definir el resultado, Pulse utiliza la referencia establecida para la ronda.',
-  },
-  {
-    id: 'possible-win',
-    question: '¿Cuánto puedo recibir si acierto?',
-    answer:
-      'Cada participación ganadora paga US$1 al finalizar la ronda. El monto total dependerá de cuántas participaciones tengas. Antes de confirmar una compra, puedes consultar el retorno potencial estimado.',
-  },
-  {
-    id: 'can-sell-before-end',
-    question: '¿Puedo vender mi participación antes de que termine la ronda?',
-    answer:
-      'Sí. Puedes vender mientras esta opción esté disponible y exista un precio de venta. El monto que recibirás depende del valor de tus participaciones en ese momento y puede ser mayor o menor que el monto utilizado en la compra.',
-  },
-  {
-    id: 'where-to-check-entries',
-    question: '¿Dónde puedo consultar mis entradas y resultados?',
-    answer:
-      'En la sección Entradas puedes acompañar tus participaciones abiertas y consultar las que ya terminaron. Las entradas se organizan entre Abiertas, Ganadas y Pasadas, según su estado.',
-  },
-  {
-    id: 'equal-price-result',
-    question: '¿Qué pasa si el precio final es igual al precio objetivo?',
-    answer:
-      'Cuando ambos precios son iguales, el resultado se considera UP. La ronda se liquida siguiendo esta regla y las participaciones ganadoras se actualizan en tu saldo.',
-  },
-  {
-    id: 'what-if-round-canceled',
-    question: '¿Qué pasa cuando se cancela una ronda?',
-    answer:
-      'Si una ronda se cancela, las participaciones asociadas también se cancelan. El monto utilizado en la compra se devuelve a tu saldo y la entrada queda registrada como cancelada.',
-  },
-]
-
-const helpGlossaryItems: HelpGlossaryItem[] = [
-  {
-    description: 'Es un activo digital cuyo precio cambia constantemente. En Draftea Pulse, este precio se utiliza para crear las rondas y definir sus resultados.',
-    id: 'bitcoin',
-    title: 'Bitcoin',
-  },
-  {
-    description: 'Es el periodo de 15 minutos en el que puedes elegir UP o DOWN. Cada ronda tiene su propio precio objetivo, tiempo restante y resultado.',
-    id: 'round',
-    title: 'Ronda',
-  },
-  {
-    description: 'Es el precio de Bitcoin registrado al inicio de la ronda. Sirve como referencia para determinar si el resultado será UP o DOWN.',
-    id: 'target-price',
-    title: 'Precio objetivo',
-  },
-  {
-    description: 'Es el precio más reciente de Bitcoin mostrado durante la ronda. Puede cambiar varias veces antes de que termine el tiempo.',
-    id: 'current-price',
-    title: 'Precio actual',
-  },
-  {
-    description: 'Es el precio utilizado al cierre de la ronda. Se compara con el precio objetivo para definir el resultado.',
-    id: 'final-price',
-    title: 'Precio final',
-  },
-  {
-    description: 'Es la opción que representa una subida. Gana cuando el precio final es igual o mayor que el precio objetivo.',
-    id: 'up',
-    title: 'UP',
-  },
-  {
-    description: 'Es la opción que representa una bajada. Gana cuando el precio final queda por debajo del precio objetivo.',
-    id: 'down',
-    title: 'DOWN',
-  },
-  {
-    description: 'Es la unidad que recibes al comprar UP o DOWN. Su valor puede cambiar durante la ronda y cada participación ganadora paga US$1.',
-    id: 'participation',
-    title: 'Participación',
-  },
-  {
-    description: 'Es el registro de tu participación en una ronda. Incluye información como tu selección, el monto utilizado y el estado del resultado.',
-    id: 'entry',
-    title: 'Entrada',
-  },
-  {
-    description: 'Es el total de participaciones que mantienes en UP o DOWN dentro de una ronda. Puede aumentar con nuevas compras o disminuir cuando realizas una venta.',
-    id: 'position',
-    title: 'Posición',
-  },
-  {
-    description: 'Es el monto estimado que recibirías si tu selección gana. Puede cambiar según la cantidad y el precio de las participaciones que compres.',
-    id: 'potential-return',
-    title: 'Retorno potencial',
-  },
-  {
-    description: 'Es el proceso que ocurre después del cierre de la ronda. En ese momento se confirma el resultado, se calculan las participaciones ganadoras y se actualiza el saldo.',
-    id: 'settlement',
-    title: 'Liquidación',
+    openMode: 'help-glossary',
   },
 ]
 
@@ -430,6 +301,7 @@ export function ProfileBottomSheet({
   initialMode = 'profile',
   isOpen,
   metrics,
+  onAssistantNavigate,
   onClose,
 }: ProfileBottomSheetProps) {
   const [shouldRender, setShouldRender] = useState(false)
@@ -440,6 +312,12 @@ export function ProfileBottomSheet({
   const [isHeaderDragClosing, setIsHeaderDragClosing] = useState(false)
   const [activeMode, setActiveMode] = useState<ProfileBottomSheetMode>('profile')
   const [activeHelpQuestionId, setActiveHelpQuestionId] = useState<string | null>(null)
+  const [deepHelpReturnMode, setDeepHelpReturnMode] = useState<
+    'help' | 'help-assistant'
+  >('help')
+  const [assistantReturnMode, setAssistantReturnMode] = useState<
+    'profile' | 'help'
+  >('help')
   const [isRouteTransitioning, setIsRouteTransitioning] = useState(false)
   // Tela em que o sheet abriu. É a raiz da pilha, então é ela que decide se
   // existe para onde voltar. Aberto pelo rodapé da Home, o Centro de ayuda é
@@ -508,6 +386,8 @@ export function ProfileBottomSheet({
       setActiveMode(initialMode)
       setRootMode(initialMode)
       setActiveHelpQuestionId(null)
+      setDeepHelpReturnMode('help')
+      setAssistantReturnMode('help')
       setIsRouteTransitioning(false)
       setIsBalanceExpanded(true)
       setActiveInfoId(null)
@@ -595,13 +475,40 @@ export function ProfileBottomSheet({
     goToMode('profile')
   }, [goToMode])
 
-  const openHelpListMode = useCallback(() => {
-    goToMode('help')
-  }, [goToMode])
-
   const openHelpQuestion = useCallback((id: string) => {
+    setDeepHelpReturnMode(activeMode === 'help-assistant' ? 'help-assistant' : 'help')
     goToMode('help-question', id)
-  }, [goToMode])
+  }, [activeMode, goToMode])
+
+  const openHelpGlossary = useCallback(() => {
+    setDeepHelpReturnMode(activeMode === 'help-assistant' ? 'help-assistant' : 'help')
+    goToMode('help-glossary')
+  }, [activeMode, goToMode])
+
+  const openHelpAssistant = useCallback(() => {
+    setAssistantReturnMode(activeMode === 'profile' ? 'profile' : 'help')
+    goToMode('help-assistant')
+  }, [activeMode, goToMode])
+
+  const openHelpParentMode = useCallback(() => {
+    goToMode(activeMode === 'help-assistant'
+      ? assistantReturnMode
+      : deepHelpReturnMode)
+  }, [activeMode, assistantReturnMode, deepHelpReturnMode, goToMode])
+
+  const navigateFromAssistant = useCallback((action: HelpAssistantActionId) => {
+    requestClose()
+    onAssistantNavigate(action)
+  }, [onAssistantNavigate, requestClose])
+
+  const getRouteDepth = (mode: ProfileBottomSheetMode) => {
+    const isAssistantSource = deepHelpReturnMode === 'help-assistant'
+      && (mode === 'help-question' || mode === 'help-glossary')
+
+    return isAssistantSource
+      ? routeDepthByMode['help-assistant'] + 1
+      : routeDepthByMode[mode]
+  }
 
   const handleHeaderPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     if (isClosing || isHeaderDragClosing) return
@@ -719,13 +626,17 @@ export function ProfileBottomSheet({
       ? 'negative'
       : 'neutral'
   const isHelpMode = activeMode === 'help'
+    || activeMode === 'help-assistant'
     || activeMode === 'help-question'
     || activeMode === 'help-glossary'
-  const isDeepHelpMode = activeMode === 'help-question' || activeMode === 'help-glossary'
-  const canGoBack = routeDepthByMode[activeMode] > routeDepthByMode[rootMode]
+  const isDeepHelpMode = activeMode === 'help-assistant'
+    || activeMode === 'help-question'
+    || activeMode === 'help-glossary'
+  const canGoBack = getRouteDepth(activeMode) > getRouteDepth(rootMode)
   const sheetTitles: Array<{ mode: ProfileBottomSheetMode; label: string }> = [
     { mode: 'profile', label: 'Mi perfil' },
     { mode: 'help', label: 'Centro de ayuda' },
+    { mode: 'help-assistant', label: 'Asistente Pulse' },
     { mode: 'help-glossary', label: 'Glosario' },
   ]
   // A pergunta aberta continua sob o título do Centro de ayuda, então as duas
@@ -858,7 +769,9 @@ export function ProfileBottomSheet({
                     className="profile-sheet__menu-item profile-sheet__menu-button"
                     key={item.id}
                     type="button"
-                    onClick={() => goToMode(item.openMode!)}
+                    onClick={item.openMode === 'help-assistant'
+                      ? openHelpAssistant
+                      : () => goToMode(item.openMode!)}
                   >
                     <span className="profile-sheet__menu-icon" aria-hidden="true">
                       <img src={item.icon} alt="" />
@@ -908,15 +821,19 @@ export function ProfileBottomSheet({
       <div className="profile-sheet__help-essentials">
         <h3 className="profile-sheet__help-essentials-title">Esencial en Draftea</h3>
         <div className="profile-sheet__help-actions">
-          {helpQuickActionItemsWithMode.map((action) => (
+          {helpQuickActionItems.map((action) => (
             <button
               key={action.id}
               className="profile-sheet__help-action"
               style={{ '--help-action-glow': action.glow } as CSSProperties}
               type="button"
-              onClick={action.openMode
-                ? () => goToMode(action.openMode!)
-                : undefined}
+              onClick={action.openMode === 'help-glossary'
+                ? openHelpGlossary
+                : action.openMode === 'help-assistant'
+                  ? openHelpAssistant
+                : action.openMode
+                    ? () => goToMode(action.openMode!)
+                    : undefined}
             >
               <span className="profile-sheet__help-action-glow" aria-hidden="true" />
               <span className="profile-sheet__help-action-icon" aria-hidden="true">
@@ -976,9 +893,23 @@ export function ProfileBottomSheet({
     </section>
   ) : null
 
+  const renderHelpAssistantView = (
+    <HelpAssistant
+      context={{
+        availableBalanceCents: metrics.availableBalanceCents,
+        hasOpenEntries: metrics.openEntriesCents > 0,
+      }}
+      isActive={activeMode === 'help-assistant'}
+      onNavigate={navigateFromAssistant}
+      onOpenFaq={openHelpQuestion}
+      onOpenGlossary={openHelpGlossary}
+    />
+  )
+
   const sheetRoutes: Array<{ mode: ProfileBottomSheetMode; view: ReactNode }> = [
     { mode: 'profile', view: renderProfileView },
     { mode: 'help', view: renderHelpView },
+    { mode: 'help-assistant', view: renderHelpAssistantView },
     { mode: 'help-question', view: renderHelpQuestionView },
     { mode: 'help-glossary', view: renderHelpGlossaryView },
   ]
@@ -1026,7 +957,7 @@ export function ProfileBottomSheet({
             aria-hidden={!canGoBack}
             tabIndex={canGoBack ? 0 : -1}
             disabled={!canGoBack || isRouteTransitioning}
-            onClick={isDeepHelpMode ? openHelpListMode : openProfileMode}
+            onClick={isDeepHelpMode ? openHelpParentMode : openProfileMode}
           >
             <img src={backIcon} alt="" aria-hidden="true" />
           </button>
@@ -1057,14 +988,14 @@ export function ProfileBottomSheet({
           {sheetRoutes.map((route) => {
             const position = route.mode === activeMode
               ? 'current'
-              : routeDepthByMode[route.mode] < routeDepthByMode[activeMode]
+              : getRouteDepth(route.mode) < getRouteDepth(activeMode)
                 ? 'past'
                 : 'future'
 
             return (
               <div
                 key={route.mode}
-                className={`profile-sheet__route profile-sheet__route--${position}`}
+                className={`profile-sheet__route profile-sheet__route--${route.mode} profile-sheet__route--${position}`}
                 aria-hidden={route.mode !== activeMode}
                 inert={route.mode !== activeMode ? true : undefined}
               >

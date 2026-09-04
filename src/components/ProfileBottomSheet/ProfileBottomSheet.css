@@ -231,6 +231,11 @@
   box-sizing: border-box;
 }
 
+.profile-sheet__route--help-assistant > .profile-sheet__content {
+  padding: 0;
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .profile-sheet__route,
   .profile-sheet__title,
@@ -702,6 +707,10 @@
   color: inherit;
   font: inherit;
   text-align: left;
+}
+
+.profile-sheet__menu-button {
+  padding: 0;
 }
 
 .profile-sheet__help {

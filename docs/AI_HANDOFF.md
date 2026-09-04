@@ -3,6 +3,71 @@
 ## Estado atual
 
 - Atualizado em: 2026-09-04
+- Agente que entrega: Codex
+- Agente esperado a seguir: pessoa usuária para revisão visual; Codex para ajustes
+- Status: implementado e validado localmente; publicação autorizada e em andamento
+- Objetivo: substituir `Aprende a jugar` no Centro de ayuda por um assistente conversacional local para usuários do Pulse, sem modelo, chave, backend ou custo de IA
+- Branch: `feature/assistente-ajuda-local`, atualizada sobre `origin/main` em `ee7cd54`
+- Worktree: `/private/tmp/pulse-assistente-ajuda-local`; o checkout principal permaneceu na `fix/chart-time-labels`, com as alterações locais da outra task intocadas
+
+### Escopo e decisões
+
+- O card central passou a ser `Pregúntale a Pulse`, usando o `iconMessage.svg` fornecido pela pessoa usuária e preservando a geometria e o brilho do card anterior. O mesmo balão identifica o assistente no menu, enquanto `Preguntas frecuentes` conserva `iconFaq.svg`. `Hablar con alguien` continua sem ação; não existe encaminhamento fictício para suporte.
+- A lista de links da Home ganhou `Pregúntale a Pulse` entre `Preguntas frecuentes` e `Hablar con alguien`; o novo link abre o assistente diretamente como raiz do sheet. O antigo rótulo `Soporte` passou a ser `Hablar con alguien`, sem adicionar um destino externo inexistente.
+- O grupo `SOPORTE` do perfil agora contém `Hablar con alguien`, `Preguntas frecuentes` e `Pregúntale a Pulse`. O chat aberto por esse menu retorna ao perfil; aberto pelo card do Centro de ayuda, continua retornando ao Centro de ayuda.
+- `Asistente Pulse` é uma nova rota de profundidade 2 no `ProfileBottomSheet`, com introdução, três sugestões, histórico da sessão, campo de texto e compositor fixo. O histórico não persiste depois que o sheet desmonta.
+- Os 12 FAQs e 12 termos do glossário saíram do componente visual e viraram conteúdo estruturado. As respostas aprovadas não foram reescritas; foram acrescentados exemplos e palavras-chave para recuperação. O catálogo também descreve `Últimas 10 rondas`, `Gráfico de precio` e `Movimientos`, com aliases e ações quando existe um destino seguro.
+- O motor v2 normaliza caixa, acentos, pontuação e `diez`/`10`; reconhece a intenção, resolve enunciados e conceitos exatos antes do ranking, pondera títulos, aliases, exemplos, palavras-chave e respostas, tolera uma edição em termos com pelo menos cinco caracteres e só assume uma resposta ranqueada quando existe distância suficiente para o segundo candidato. Conceitos únicos não são penalizados por serem curtos; palavras genéricas continuam ambíguas.
+- O último tópico de conteúdo com confiança alta fica apenas na memória da conversa. Isso permite continuações curtas como `¿Y cuándo gana?` depois de `¿Qué es UP?`, sem usar o histórico para forçar uma pergunta externa ou ambígua.
+- Saldo e existência de entradas abertas vêm de `ProfileBottomSheetMetrics`. As ações são estruturadas e fecham o sheet antes de usar a navegação existente: `Ver mis entradas` abre `#entradas`, `Ver movimientos` abre `#movimientos` e `Ver últimas rondas` volta à Home e centraliza a seção real.
+- Consultas pedindo recomendação de UP/DOWN ou previsão de Bitcoin recebem resposta fixa. Como não existe modelo, a pergunta nunca executa instruções nem produz texto novo.
+- Ao abrir uma fonte a partir do chat, o retorno volta para a conversa preservada. FAQ e glossário abertos diretamente pelo Centro de ayuda continuam voltando para o Centro de ayuda.
+- A profundidade das fontes agora é contextual: uma FAQ ou o glossário abertos pelo assistente ocupam o nível 3, fazendo o assistente sair para a esquerda e a fonte entrar pela direita; no retorno, a fonte sai à direita e o assistente volta pela esquerda. O atalho direto do Centro de ayuda para o glossário redefine explicitamente o retorno para o Centro de ayuda, sem reaproveitar uma visita anterior feita pelo chat.
+- A pergunta enviada entra da direita para a esquerda por `24px` com fade em `280ms`. A resposta é calculada localmente no envio, mas fica substituída por um indicador de três pontos durante `2s`; depois o mesmo item recebe a resposta e faz fade in de `240ms`. Enquanto existe uma resposta pendente, o campo aceita digitação da próxima pergunta, mas o envio fica desabilitado. `prefers-reduced-motion` remove deslocamento, fade e oscilação dos pontos sem eliminar o estado de espera pedido.
+- A subida visual na ida e volta entre Centro de ayuda e assistente vinha de `.profile-sheet__stage--help-assistant .profile-sheet__content`: ao trocar o modo do palco, ela removia o padding também da rota que ainda estava saindo. O estilo de `padding: 0` agora pertence somente a `.profile-sheet__route--help-assistant > .profile-sheet__content`; Centro de ayuda conserva `16px` durante toda a transição e o chat conserva `0px` também durante o retorno.
+- Os itens clicáveis do grupo `SOPORTE` herdavam o padding horizontal padrão de `button`, por isso começavam à direita dos itens não clicáveis. `.profile-sheet__menu-button` agora usa `padding: 0`, sem compensações específicas por seção.
+
+### Arquivos alterados
+
+- `src/content/help/es-MX/helpContent.ts`
+- `src/services/helpAssistant.ts`
+- `src/components/HelpAssistant/HelpAssistant.tsx`
+- `src/components/HelpAssistant/HelpAssistant.css`
+- `src/components/HelpAssistant/index.ts`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.tsx`
+- `src/components/ProfileBottomSheet/ProfileBottomSheet.css`
+- `src/components/PulseFooter/PulseFooter.tsx`
+- `src/assets/iconMessage.svg`
+- `src/App.tsx`
+- `tests/helpAssistant.test.ts`
+- `package.json`
+- `docs/AI_CONTEXT.md`
+- `docs/AI_HANDOFF.md`
+
+### Validações
+
+- `pnpm lint` limpo e `pnpm build` concluído. O aviso existente de chunk acima de 500 kB permanece; não foi adicionada dependência.
+- As oito suítes do repositório passaram após o rebase sobre os ranges: 117 testes no total, incluindo 17 do assistente. Os testes do assistente cobrem as 12 perguntas oficiais, todos os exemplos curados de FAQ, glossário e produto, todos os aliases de produto, definições de todos os termos do glossário, erros de digitação, ambiguidade, contexto curto, assunto externo, proteções, saldo e entradas.
+- Navegador local em `127.0.0.1:5186`, no caminho rodapé → Centro de ayuda → `Pregúntale a Pulse`. Além dos fluxos anteriores, `que es up?` respondeu diretamente com a definição de `UP`, `y cuando gana?` preservou o tópico, `ultimas 10 rondas` trouxe explicação e ação que fechou o sheet e centralizou a seção real, e `donde veo mis movimientos` abriu `#movimientos`.
+- Novos acessos conferidos no navegador a `416×878`: a Home exibiu os cinco links na ordem esperada e abriu `Asistente Pulse` sem seta, por ser a raiz; uma fonte exibiu a seta e retornou à conversa. No perfil, o grupo `SOPORTE` exibiu exatamente as três opções novas, abriu o chat com seta e voltou para `Mi perfil`.
+- Ícone e alinhamento conferidos visualmente e por geometria a `416×878`: `Mis datos`, as três opções de `SOPORTE`, `Términos y condiciones`, `Aviso de privacidad` e `Cerrar sesión` ficaram todos com item e ícone em `x=16` e corpo/divisória em `x=60`. `iconMessage.svg` apareceu no menu e no card `Pregúntale a Pulse` do Centro de ayuda.
+- Transição medida a `375×812`: na ida, o conteúdo do Centro de ayuda manteve `padding-top: 16px` antes, no primeiro quadro e aos `150ms`; o conteúdo do assistente permaneceu em `0px`. Na volta, o assistente ficou em `0px` nos mesmos três pontos e o Centro de ayuda em `16px`, sem a alteração vertical instantânea anterior.
+- Direção das fontes conferida no navegador a `416×878`: assistente e glossário partiram respectivamente de `x=0` e `x=416`; depois de abrir `Fuente: Glosario · DOWN`, ficaram em `x=-416` e `x=0`. Ao voltar, retornaram para `x=0` e `x=416`. Depois desse fluxo, o atalho direto do Centro de ayuda abriu o glossário com ajuda em `x=-416`, assistente em `x=416` e glossário em `x=0`, e a seta retornou corretamente à ajuda.
+- Mensagens medidas no navegador: no primeiro quadro a pergunta tinha a animação `help-assistant-question-enter`, opacidade `0` e transformação horizontal de `24px`; aos `1.000ms` o loading continuava presente e a resposta ainda não existia; após `2.097ms` o loading tinha saído e a resposta estava sob `help-assistant-response-fade-in`. O indicador e a resposta foram conferidos também em imagem.
+- Layout conferido em `320×568`, `375×812`, `430×832` e `499×900`, sem overflow horizontal. Em `375×400`, simulando a altura reduzida pelo teclado, o compositor permaneceu inteiro e colado ao fundo.
+- Console sem erros ou avisos. A consulta do assistente não registrou chamadas `fetch`/XHR nem requisições com nomes de assistente, ajuda, modelo ou embedding.
+
+### Pendências e próximo passo
+
+- A pessoa usuária ainda precisa revisar a direção visual e os textos do chat. Não houve referência de Figma para essa nova tela; a interface reutiliza tokens e padrões existentes do Pulse.
+- Verificar o teclado real no Chrome do iPhone. A redução do viewport foi simulada no navegador local, mas não substitui o comportamento do teclado do aparelho.
+- A branch foi rebaseada sem conflitos sobre a `main` que já contém os ranges e a correção dos horários do gráfico; lint, build e as oito suítes foram repetidos depois da combinação.
+- Commit, push, Pull Request, merge e deploy foram autorizados explicitamente nesta tarefa e devem ser acompanhados até a verificação da versão publicada.
+
+
+## Histórico: formatação do monto em centavos (PR #56)
+
+- Atualizado em: 2026-09-04
 - Agente que entrega: Claude
 - Agente esperado a seguir: Claude ou Codex
 - Status: concluído — mesclado pelo PR #56, publicado no GitHub Pages e verificado no artefato real. A pessoa usuária autorizou explicitamente PR, merge e deploy durante a entrega

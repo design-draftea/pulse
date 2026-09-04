@@ -5,14 +5,16 @@ const FOOTER_LINKS = [
   { id: 'terms', label: 'Términos y condiciones' },
   { id: 'privacy', label: 'Aviso de privacidad' },
   { id: 'faq', label: 'Preguntas frecuentes' },
-  { id: 'support', label: 'Soporte' },
+  { id: 'assistant', label: 'Pregúntale a Pulse' },
+  { id: 'support', label: 'Hablar con alguien' },
 ]
 
 interface PulseFooterProps {
+  onAssistantOpen?: () => void
   onHelpOpen?: () => void
 }
 
-export function PulseFooter({ onHelpOpen }: PulseFooterProps) {
+export function PulseFooter({ onAssistantOpen, onHelpOpen }: PulseFooterProps) {
   return (
     <footer className="pulse-footer" data-node-id="188:3060">
       <div className="pulse-footer__base">
@@ -32,7 +34,9 @@ export function PulseFooter({ onHelpOpen }: PulseFooterProps) {
               className="pulse-footer__link"
               type="button"
               key={link.id}
-              onClick={link.id === 'faq' ? onHelpOpen : undefined}
+              onClick={link.id === 'faq'
+                ? onHelpOpen
+                : link.id === 'assistant' ? onAssistantOpen : undefined}
             >
               <img src={iconChevronRight} alt="" aria-hidden="true" />
               <span>{link.label}</span>
