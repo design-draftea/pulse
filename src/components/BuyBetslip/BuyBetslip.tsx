@@ -53,7 +53,7 @@ const dollarAmountFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 })
-const dollarGainFormatter = new Intl.NumberFormat('en-US', {
+const dollarCentsFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   minimumFractionDigits: 2,
@@ -64,18 +64,27 @@ const participationFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 })
 
+const AMOUNT_MAX_DIGITS = 7
+const DEFAULT_AMOUNT = 100
+
 const clamp = (value: number, minimum: number, maximum: number) => (
   Math.max(minimum, Math.min(value, maximum))
 )
 
 const formatAmount = (value: number) => dollarAmountFormatter.format(value)
 
+// O teclado do monto acumula centavos, então o valor digitado sempre aparece
+// com as duas casas decimais: `55555` é `$555.55`.
+const formatTypedAmount = (value: number) => dollarCentsFormatter.format(value)
+
+const toAmountDigits = (value: number) => String(Math.round(value * 100))
+
 const formatAveragePrice = (quote: ExecutionQuote | null) => (
   quote?.complete ? `${Math.round(quote.averagePrice * 100)}¢` : '—'
 )
 
 const formatPotentialPayout = (quote: ExecutionQuote | null) => (
-  quote?.complete ? dollarGainFormatter.format(quote.participations) : '—'
+  quote?.complete ? dollarCentsFormatter.format(quote.participations) : '—'
 )
 
 const formatPercentage = (price: number | null) => (
@@ -157,7 +166,7 @@ function SwipeToBuy({
       ? unavailableLabel ?? 'Cotización no disponible'
     : mode === 'sell'
       ? `Desliza para vender: ${formattedValue ?? formatParticipations(amount)}`
-      : `Desliza para comprar por: ${formatAmount(amount)}`
+      : `Desliza para comprar por: ${formatTypedAmount(amount)}`
 
   // O preenchimento é publicado como fração e convertido em largura pelo CSS,
   // contra a medida viva do trilho. Uma largura em pixels calculada aqui ficava
@@ -386,10 +395,10 @@ export function BuyBetslip({
   const lockedQuoteRef = useRef<ExecutionQuote | null>(null)
   const lockedSuccessDetailsRef = useRef<BetslipSuccessDetails | null>(null)
   const forcedRequoteKeyRef = useRef<string | null>(null)
-  const amountBeforeEditRef = useRef('100')
+  const amountBeforeEditRef = useRef(toAmountDigits(DEFAULT_AMOUNT))
   const dragYRef = useRef(0)
   const sheetExpandedHeightRef = useRef(SHEET_COLLAPSED_HEIGHT)
-  const [amount, setAmount] = useState('100')
+  const [amount, setAmount] = useState(toAmountDigits(DEFAULT_AMOUNT))
   const [operationMode, setOperationMode] = useState<BetslipOperationMode>(
     initialOperationMode,
   )
@@ -416,8 +425,8 @@ export function BuyBetslip({
   const [isClosing, setIsClosing] = useState(false)
   const exitTimerRef = useRef<number | null>(null)
   const [isDraggingSheet, setIsDraggingSheet] = useState(false)
-  const numericAmount = Number(amount || 0)
-  const numericAmountCents = Math.round(numericAmount * 100)
+  const numericAmountCents = Number(amount || 0)
+  const numericAmount = numericAmountCents / 100
   const isSellMode = operationMode === 'sell'
   const isContentTransitioning = contentTransitionPhase !== 'idle'
   const isQuoteTransitioning = quoteTransitionPhase !== 'idle'
@@ -452,7 +461,7 @@ export function BuyBetslip({
   const averagePrice = formatAveragePrice(activeQuote)
   const selectedPercentage = formatPercentage(presentedQuote.percentages[side])
   const amountToReceive = isSellMode && activeQuote?.complete
-    ? dollarGainFormatter.format(activeQuote.grossValue)
+    ? dollarCentsFormatter.format(activeQuote.grossValue)
     : '—'
   const quoteFeedbackText = quoteFeedback === 'requote'
     ? 'El precio cambió. Revisa la nueva cotización.'
@@ -705,7 +714,7 @@ export function BuyBetslip({
     const quote = protection.quote
     if (!beginBuyExecution(quickAmount, quote)) return
 
-    setAmount(String(quickAmount))
+    setAmount(toAmountDigits(quickAmount))
     setIsKeyboardOpen(false)
     setQuickAmountLoadingIndex(index)
     onPurchaseLoadingChange?.(true)
@@ -727,9 +736,9 @@ export function BuyBetslip({
   const handleDigit = (digit: string) => {
     clearQuoteFeedback()
     setAmount((current) => {
-      if (current.length >= 5) return current
-      if (current === '0') return digit
-      return `${current}${digit}`
+      const next = `${current}${digit}`.replace(/^0+/, '')
+      if (next.length > AMOUNT_MAX_DIGITS) return current
+      return next
     })
   }
 
@@ -806,7 +815,7 @@ export function BuyBetslip({
     }
 
     if (details.operation === 'buy') {
-      setAmount(String(details.amount))
+      setAmount(toAmountDigits(details.amount))
       setIsKeyboardOpen(false)
       setIsCollapsed(true)
       return
@@ -1333,7 +1342,7 @@ export function BuyBetslip({
                           ? ''
                           : formatParticipations(activeSellParticipation)
                         : amount
-                          ? formatAmount(numericAmount)
+                          ? formatTypedAmount(numericAmount)
                           : '$'}
                     </span>
                     {isKeyboardOpen && <span className="buy-betslip__caret" aria-hidden="true" />}
@@ -1474,7 +1483,7 @@ export function BuyBetslip({
               <strong>
                 {isSellMode
                   ? formatParticipations(sellParticipation)
-                  : formatAmount(numericAmount)}
+                  : formatTypedAmount(numericAmount)}
               </strong>
               <small>{isSellMode ? 'Participaciones' : 'Monto'}</small>
             </span>
