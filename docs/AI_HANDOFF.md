@@ -4,11 +4,11 @@
 
 - Atualizado em: 2026-09-04
 - Agente que entrega: Claude
-- Agente esperado a seguir: pessoa usuária, para revisar a copy nova e autorizar PR
-- Status: implementado e validado localmente. Sem PR, sem merge e sem publicação
+- Agente esperado a seguir: pessoa usuária, para revisar a copy dos tópicos exclusivos do assistente
+- Status: concluído — PR #63, merge `7e05f28`, deploy `33899809725` com sucesso e publicação verificada no artefato real. A pessoa usuária autorizou explicitamente commit, PR e merge
 - Objetivo: o assistente respondia `No encontré una respuesta segura` para perguntas centrais do produto, entre elas `¿Cuál es la probabilidad de que yo gane?`. Passa a responder com os dados reais do momento, sem modelo, chave, backend ou custo de IA
-- Branch: `feature/assistente-probabilidade`, criada a partir da `main` em `94599be`
-- Worktree: `.worktrees/feature-assistente-probabilidade`, dentro do repositório, conforme `AGENTS.md`
+- Branch: `feature/assistente-probabilidade`, criada a partir da `main` em `94599be`, integrada pelo PR #63 e removida do remoto
+- Worktree: `.worktrees/feature-assistente-probabilidade`, removido após o merge, junto da branch local
 
 ### O diagnóstico
 
@@ -88,7 +88,9 @@ Uma sondagem com 15 perguntas de testador real mostrou 6 falhas, 4 ambiguidades 
 - Não validado: o teclado real no Chrome do iPhone, pendência que já vinha da entrega anterior.
 - Revisar a copy dos três tópicos novos: `Cambiar de lado o tener los dos`, `Rangos del gráfico` e `Cuántas rondas hay`. Nenhum aparece nas telas aprovadas.
 - Existe uma entrada local `pulse-assistente-5187` em `.claude/launch.json`, que não é versionada, apontando para este worktree. Removê-la depois que a branch sair.
-- Sem autorização para PR, merge ou deploy.
+- Publicação verificada em `https://design-draftea.github.io/pulse/` a `416×878`: o bundle `assets/index-6uUDbJ_s.js` traz `Glosario en Pulse`, `probabilidad implícita del mercado`, `Si vendes ahora tus`, `96 rondas por día`, `Cambiar de lado o tener los dos`, `Dato en vivo`, `no puedo recomendarte vender` e `Cada ronda es independiente`. No artefato real, `¿Cuál es la probabilidad de que yo gane?` devolveu `UP 50% · DOWN 50%` com o mesmo valor que o `MarketChoice` exibia, `¿Puedo cambiar de UP a DOWN?` e `¿Cuántas rondas hay al día?` responderam o tópico certo e `¿Cuanto tienpo qeda?`, com dois erros de digitação, chegou à resposta da rodada.
+- As entradas locais `pulse-assistente-5187` e `pulse-assistente-lan` de `.claude/launch.json` apontavam para o worktree removido e foram apagadas. Esse arquivo não é versionado.
+- Não há pendência de código, merge ou publicação para este escopo.
 
 
 ## Histórico: assistente conversacional local (PR #60)
