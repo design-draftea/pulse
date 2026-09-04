@@ -25,8 +25,12 @@
 - Crie branches a partir da `main` atualizada, usando prefixos como `feature/`, `fix/`, `chore/` ou `docs/`.
 - Mantenha cada commit e Pull Request restritos ao objetivo da tarefa.
 - Não abra Pull Request, faça merge ou publique sem a autorização correspondente.
-- O processo de deploy ainda não foi definido. Não crie ou altere infraestrutura de publicação por suposição.
+- O deploy da `main` é automático: `.github/workflows/deploy-pages.yml` testa e publica o build estático em `https://design-draftea.github.io/pulse/` após cada merge. O Worker de `infra/polymarket-proxy` continua sendo publicado manualmente. Não crie ou altere infraestrutura de publicação por suposição.
 - Nunca remova o checkout principal do projeto. Limpezas podem atingir apenas worktrees temporários criados para tarefas específicas e exigem autorização quando houver risco de perda.
+- Crie worktrees isolados dentro de `.worktrees/<nome-da-branch>`, nunca em `/tmp` ou `/private/tmp`, que o sistema apaga sem avisar e deixa registros órfãos.
+- Ao encerrar uma tarefa que usou worktree isolado — após o merge ou ao abandonar o trabalho — remova o worktree com `git worktree remove` e apague a branch local com `git branch -d`, que recusa branches não mergeadas. Não apague a pasta manualmente: o Git mantém o registro e ele vira um worktree órfão.
+- Use `git worktree list` para conferir o que existe e `git worktree prune` para descartar registros cujas pastas já não existem.
+- As branches remotas são apagadas automaticamente no merge (`delete_branch_on_merge`). Localmente, `fetch.prune` remove as referências mortas a cada `git fetch`.
 
 ## Segurança e escopo
 

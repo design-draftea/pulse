@@ -25,3 +25,6 @@ dist-ssr
 
 # Configuração local do servidor de desenvolvimento (caminhos da máquina)
 .claude/
+
+# Worktrees isolados de tarefas
+.worktrees/
