@@ -50,6 +50,66 @@ const clockFormatter = new Intl.DateTimeFormat('es-MX', {
   hourCycle: 'h23',
 })
 
+/**
+ * Acompanhamentos oferecidos depois de uma resposta com dados ao vivo.
+ *
+ * Cada `query` precisa resolver em conteúdo de alta confiança: um chip que cai
+ * no fallback é pior do que nenhum chip. `tests/helpAssistantLive.test.ts`
+ * percorre este mapa e falha se algum deixar de resolver.
+ */
+export const FOLLOW_UPS = {
+  amountLimits: {
+    id: 'follow-up:amount-limits',
+    label: '¿Cuál es el monto mínimo?',
+    query: '¿Cuál es el monto mínimo?',
+  },
+  canLose: {
+    id: 'follow-up:can-i-lose',
+    label: '¿Puedo perder el monto?',
+    query: '¿Puedo perder el monto que utilicé?',
+  },
+  canSell: {
+    id: 'follow-up:can-sell',
+    label: '¿Puedo vender antes?',
+    query: '¿Puedo vender mi participación antes de que termine la ronda?',
+  },
+  howToStart: {
+    id: 'follow-up:how-to-start',
+    label: '¿Cómo empiezo?',
+    query: '¿Cómo empiezo?',
+  },
+  impliedProbability: {
+    id: 'follow-up:implied-probability',
+    label: '¿Cómo se calcula ese porcentaje?',
+    query: '¿Qué es la probabilidad implícita?',
+  },
+  liveProbability: {
+    id: 'follow-up:live-probability',
+    label: '¿Qué probabilidad hay ahora?',
+    query: '¿Cuál es la probabilidad de que yo gane?',
+  },
+  participation: {
+    id: 'follow-up:participation',
+    label: '¿Qué es una participación?',
+    query: '¿Qué es una participación?',
+  },
+  potentialReturn: {
+    id: 'follow-up:potential-return',
+    label: '¿Qué es el retorno potencial?',
+    query: '¿Qué es el retorno potencial?',
+  },
+  roundWorks: {
+    id: 'follow-up:round-works',
+    label: '¿Cómo funciona una ronda?',
+    query: '¿Cómo funciona una ronda de 15 minutos?',
+  },
+  targetPrice: {
+    id: 'follow-up:target-price',
+    label: '¿Qué es el precio objetivo?',
+    query: '¿Qué es el precio objetivo?',
+  },
+} as const
+
 const SIDE_LABEL: Record<OutcomeSide, string> = { up: 'UP', down: 'DOWN' }
 const SIDE_DIRECTION: Record<OutcomeSide, string> = {
   up: 'arriba',
@@ -109,7 +169,7 @@ const pricesUnavailableResult = (
   confidence: 'high',
   details: ['Vuelve a preguntarme en unos segundos, cuando el precio esté disponible.'],
   source: liveSource(id, label),
-  suggestions: [],
+  suggestions: [FOLLOW_UPS.impliedProbability],
 })
 
 // ---------------------------------------------------------------------------
@@ -317,7 +377,7 @@ const buildProbabilityAnswer = (
       ],
       highlight,
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.canSell],
     }
   }
 
@@ -332,7 +392,7 @@ const buildProbabilityAnswer = (
       ],
       highlight,
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.canSell],
     }
   }
 
@@ -345,7 +405,7 @@ const buildProbabilityAnswer = (
     ],
     highlight,
     source,
-    suggestions: [],
+    suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.canLose],
   }
 }
 
@@ -374,7 +434,7 @@ const buildSharePriceAnswer = (
       ],
       highlight,
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.participation],
     }
   }
 
@@ -384,7 +444,7 @@ const buildSharePriceAnswer = (
     details: [CHANGES_DURING_ROUND],
     highlight,
     source,
-    suggestions: [],
+    suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.participation],
   }
 }
 
@@ -403,7 +463,7 @@ const buildSimulationAnswer = (
       answer: `El monto más alto que acepta el campo de compra es ${formatCents(MAX_SIMULATION_CENTS)}, así que no puedo calcular el retorno de ${formatCents(amountCents)}.`,
       confidence: 'high',
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.amountLimits],
     }
   }
 
@@ -449,7 +509,7 @@ const buildSimulationAnswer = (
       details: ['Prueba con un monto menor o vuelve a preguntarme en unos segundos.'],
       highlight,
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.participation],
     }
   }
 
@@ -467,7 +527,7 @@ const buildSimulationAnswer = (
     ],
     highlight,
     source,
-    suggestions: [],
+    suggestions: [FOLLOW_UPS.canLose, FOLLOW_UPS.canSell],
   }
 }
 
@@ -487,7 +547,7 @@ const buildMyEntryAnswer = (
       confidence: 'high',
       details: [`Tu saldo disponible es ${formatCents(snapshot.wallet.availableBalanceCents)}.`],
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.howToStart, FOLLOW_UPS.liveProbability],
     }
   }
 
@@ -523,7 +583,7 @@ const buildMyEntryAnswer = (
     ],
     highlight: priceHighlight(snapshot),
     source,
-    suggestions: [],
+    suggestions: [FOLLOW_UPS.canSell, FOLLOW_UPS.potentialReturn],
   }
 }
 
@@ -542,7 +602,7 @@ const buildHistoryAnswer = (
       answer: 'Todavía no tengo cargado el historial de rondas, así que no puedo darte la cuenta sin inventarla.',
       confidence: 'high',
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.liveProbability],
     }
   }
 
@@ -563,7 +623,7 @@ const buildHistoryAnswer = (
       ],
     },
     source,
-    suggestions: [],
+    suggestions: [FOLLOW_UPS.liveProbability],
   }
 }
 
@@ -627,7 +687,7 @@ const buildRoundStateAnswer = (
         ...(stillOpenLine ? [stillOpenLine] : []),
       ],
       source,
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.targetPrice, FOLLOW_UPS.liveProbability],
     }
   }
 
@@ -640,7 +700,7 @@ const buildRoundStateAnswer = (
       ...(stillOpenLine ? [stillOpenLine] : []),
     ],
     source,
-    suggestions: [],
+    suggestions: [FOLLOW_UPS.roundWorks, FOLLOW_UPS.liveProbability],
   }
 }
 

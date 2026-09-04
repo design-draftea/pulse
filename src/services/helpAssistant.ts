@@ -5,7 +5,11 @@ import {
   helpSmallTalkItems,
   helpTopicItems,
 } from '../content/help/es-MX/helpContent.ts'
-import { describeMarketPrices, resolveLiveAnswer } from './helpAssistantLive.ts'
+import {
+  describeMarketPrices,
+  FOLLOW_UPS,
+  resolveLiveAnswer,
+} from './helpAssistantLive.ts'
 import { ACTION_LABELS } from './helpAssistantTypes.ts'
 import type {
   HelpAssistantActionId,
@@ -88,7 +92,7 @@ const STOP_WORDS = new Set([
 
 const DEFAULT_SUGGESTION_IDS = [
   'faq:how-round-works',
-  'product:implied-probability',
+  'glossary:implied-probability',
   'faq:what-is-up-down',
 ]
 
@@ -575,7 +579,7 @@ export const askHelpAssistant = (
         label: 'Ayuda de Pulse · Uso responsable',
         type: 'policy',
       },
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.canLose],
     }
   }
 

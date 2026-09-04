@@ -9,6 +9,7 @@ import {
 import { askHelpAssistant } from '../src/services/helpAssistant.ts'
 import {
   detectSide,
+  FOLLOW_UPS,
   parseMoneyAmountCents,
 } from '../src/services/helpAssistantLive.ts'
 import type { HelpAssistantLiveSnapshot } from '../src/services/helpAssistantSnapshot.ts'
@@ -329,4 +330,48 @@ test('sem estado ao vivo, o assistente mantém o comportamento anterior', () => 
 
   assert.equal(result.confidence, 'low')
   assert.equal(result.source, undefined)
+})
+
+test('todo chip de acompanhamento resolve em conteúdo de alta confiança', () => {
+  for (const followUp of Object.values(FOLLOW_UPS)) {
+    const result = ask(followUp.query, createSnapshot())
+
+    assert.equal(result.confidence, 'high', followUp.query)
+    assert.notEqual(result.source, undefined, followUp.query)
+    assert.equal(result.suggestions.every((item) => item.id !== followUp.id), true, followUp.query)
+  }
+})
+
+test('as respostas ao vivo oferecem um próximo passo em vez de terminar em silêncio', () => {
+  const cases = [
+    ['¿Cuál es la probabilidad de que yo gane?', createSnapshot()],
+    ['¿Cuál es la probabilidad de que yo gane?', withPosition('up')],
+    ['¿Cuánto cuesta UP ahora?', createSnapshot()],
+    ['¿Cuánto gano si pongo $10 en UP?', createSnapshot()],
+    ['¿Cómo va mi entrada?', withPosition('up')],
+    ['¿Cómo va mi entrada?', createSnapshot()],
+    ['¿Cuántas rondas terminaron arriba?', createSnapshot()],
+    ['¿Cuánto tiempo queda?', createSnapshot()],
+    ['¿Cuánto está Bitcoin?', createSnapshot()],
+    ['¿Me conviene UP?', createSnapshot()],
+  ] as const
+
+  for (const [query, snapshot] of cases) {
+    const result = ask(query, snapshot)
+
+    assert.ok(result.suggestions.length > 0, query)
+    assert.ok(result.suggestions.length <= 2, query)
+  }
+})
+
+test('depois de mostrar una ganancia estimada, ofrece la pregunta sobre la pérdida', () => {
+  const result = ask('¿Cuánto gano si pongo $10 en UP?', createSnapshot())
+
+  assert.ok(result.suggestions.some(({ id }) => id === FOLLOW_UPS.canLose.id))
+})
+
+test('o histórico oferece o dado del momento en vez de dejar la racha sola', () => {
+  const result = ask('¿Cuántas rondas terminaron arriba?', createSnapshot())
+
+  assert.ok(result.suggestions.some(({ id }) => id === FOLLOW_UPS.liveProbability.id))
 })

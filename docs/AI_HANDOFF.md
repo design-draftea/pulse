@@ -28,6 +28,8 @@
 - A copy nova ficou em `helpTopicItems`, fora das duas telas aprovadas. As 12 perguntas frequentes e os 12 termos do glossário não foram tocados. Promover um tópico para essas telas, depois da sua revisão, é mover o objeto de lista.
 - A conversa básica exige o enunciado inteiro, não uma palavra solta: `ayuda` sozinho é uma saudação, mas `ayuda` dentro de uma pergunta real não sequestra a pergunta.
 - Interface: destaque de números acima do texto com os tokens `--color-fill-success` e `--color-fill-error`, selo `Dato en vivo · HH:MM` e linhas de apoio. Não há referência de Figma para esta tela, como já registrado na entrega anterior.
+- Toda resposta com dados ao vivo oferece de um a dois acompanhamentos, reaproveitando o mecanismo de sugestões que já existia. Eles ficam num mapa único (`FOLLOW_UPS`) e um teste percorre esse mapa exigindo que cada `query` resolva em conteúdo de alta confiança: um chip que cai no fallback seria pior do que nenhum chip. Dois pares são editoriais, não decorativos: depois de mostrar um ganho estimado, o assistente oferece `¿Puedo perder el monto?`; depois da contagem do histórico, oferece `¿Qué probabilidad hay ahora?`, que desvia a leitura de padrão para o número do momento.
+- Promoção de conteúdo decidida pela pessoa usuária depois da entrega inicial: `Probabilidad implícita` subiu para o glossário visível e `¿Puedo perder el monto que utilicé?` para as perguntas frequentes. O critério aplicado foi se a pessoa procuraria aquilo navegando ou só pensaria em perguntar. Os outros sete tópicos continuam exclusivos do assistente. `¿Es un juego de azar?` ficou de fora por decisão consciente: numa tela visível ela deixa de ser resposta e vira posicionamento do produto, o que é decisão de produto e de compliance. `Depósitos y retiros` também ficou de fora, porque os botões inertes são um estado conhecido do protótipo e serão tratados depois.
 
 ### Arquivos alterados
 
@@ -56,14 +58,18 @@
 - Contagem do histórico conferida contra os cards reais de `Últimas 10 rondas`: `6` arriba e `4` abajo nos dois.
 - Saldo: `$1,940.00` disponível e `$2,045.69` de total, conferidos contra o cabeçalho e o perfil depois da compra.
 - Ações conferidas: `Ver últimas rondas` fechou o sheet e centralizou a seção real; `Ver mis entradas` abriu `#entradas`.
+- Acompanhamentos conferidos no navegador: a probabilidade ofereceu `¿Cómo se calcula ese porcentaje?` e `¿Puedo perder el monto?`; o histórico ofereceu `¿Qué probabilidad hay ahora?` junto da ação; o simulador ofereceu `¿Puedo perder el monto?` e `¿Puedo vender antes?`. O chip do porcentual abriu a definição do glossário, e a fonte da resposta virou botão, porque o termo agora existe na tela aprovada.
+- Telas aprovadas conferidas depois da promoção: o glossário passou a `13` termos, com `Probabilidad implícita` na posição `9`, logo após `Participación`; as perguntas frequentes passaram a `13`, com `¿Puedo perder el monto que utilicé?` na posição `9`, logo após `¿Cuánto puedo recibir si acierto?`. Sem overflow horizontal em nenhuma das duas.
+- O retorno da fonte continua correto depois da promoção: o glossário aberto pelo chat voltou para a conversa preservada.
 - Rede: com `window.fetch` instrumentado, três perguntas seguidas dispararam **zero** requisições. Os erros `400` no console são das chamadas de dados de mercado do próprio app e são anteriores a esta mudança.
 - Layout sem overflow horizontal a `320×568`, `375×812` e `430×832`; a `375×400`, simulando o teclado, o compositor permaneceu inteiro e colado ao fundo.
 - O estado do protótipo foi restaurado ao saldo inicial de `$2,040.00` ao fim da validação.
 
 ### Pendências e próximo passo
 
-- Revisar a copy nova em `helpTopicItems` e em `helpSmallTalkItems`. Nada dela aparece hoje nas telas de perguntas frequentes ou do glossário.
-- Decidir se `Probabilidad implícita` deve subir para o glossário visível. Ele é o conceito central da funcionalidade e hoje só existe dentro do assistente.
+- Revisar a copy dos sete tópicos que continuam em `helpTopicItems` e da conversa básica em `helpSmallTalkItems`. Nada disso aparece nas telas de perguntas frequentes ou do glossário.
+- Revisar as duas entradas promovidas, que agora são visíveis: o termo `Probabilidad implícita` no glossário e a pergunta `¿Puedo perder el monto que utilicé?` nas perguntas frequentes.
+- `Depósitos y retiros` segue só no assistente. Os botões `Depositar` e `Retirar` continuam visíveis e inertes no perfil; a pessoa usuária registrou que isso será tratado depois, por ser um protótipo.
 - Não validado: o caminho de preço indisponível de forma forçada. Ele foi observado funcionando no app real durante uma troca de rodada, às `13:29`, e está coberto por testes para preço nulo e para mercado indisponível. Não foi possível forçá-lo pelos parâmetros de injeção de falha porque a contingência local repõe os preços, que é justamente o comportamento desejado do protótipo.
 - Não validado: o teclado real no Chrome do iPhone, pendência que já vinha da entrega anterior.
 - Existe uma entrada local `pulse-assistente-5187` em `.claude/launch.json`, que não é versionada, apontando para este worktree. Removê-la depois que a branch sair.

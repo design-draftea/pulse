@@ -140,6 +140,18 @@ export const helpFaqItems: HelpFaqItem[] = [
     ],
   },
   {
+    id: 'can-i-lose',
+    question: '¿Puedo perder el monto que utilicé?',
+    answer:
+      'Sí. Si tu selección no acierta, las participaciones de esa ronda no reciben pago y el monto utilizado no regresa a tu saldo. También puedes vender antes del cierre por un monto menor al que utilizaste. En esta versión el saldo es simulado, así que no hay pérdida de dinero real.',
+    keywords: ['puedo perder', 'perder dinero', 'pierdo el monto', 'qué pasa si no acierto', 'riesgo'],
+    examples: [
+      '¿Puedo perder dinero?',
+      '¿Qué pasa si pierdo?',
+      '¿Pierdo el monto si no acierto?',
+    ],
+  },
+  {
     id: 'can-sell-before-end',
     question: '¿Puedo vender mi participación antes de que termine la ronda?',
     answer:
@@ -247,6 +259,13 @@ export const helpGlossaryItems: HelpGlossaryItem[] = [
     examples: ['¿Qué es una participación?', '¿Qué recibo cuando compro?'],
   },
   {
+    description: 'Es la probabilidad que el mercado le da a un resultado, expresada en el precio de la participación. Si UP cuesta $0.62, el mercado le está dando 62% a que la ronda termine arriba, porque esa participación paga US$1 si acierta. No es una predicción de Pulse: es el precio que se está pagando en ese momento y cambia durante la ronda.',
+    id: 'implied-probability',
+    title: 'Probabilidad implícita',
+    keywords: ['porcentaje de UP y DOWN', 'qué significa el porcentaje', 'precio como probabilidad', 'qué representa el precio'],
+    examples: ['¿Qué es la probabilidad implícita?', '¿Qué significa el porcentaje que aparece en UP?', '¿Por qué el precio se muestra como porcentaje?'],
+  },
+  {
     description: 'Es el registro de tu participación en una ronda. Incluye información como tu selección, el monto utilizado y el estado del resultado.',
     id: 'entry',
     title: 'Entrada',
@@ -339,30 +358,6 @@ export const helpProductItems: HelpProductItem[] = [
  */
 export const helpTopicItems: HelpTopicItem[] = [
   {
-    id: 'implied-probability',
-    title: 'Probabilidad implícita',
-    description:
-      'Es la probabilidad que el mercado le da a un resultado, expresada en el precio de la participación. Si UP cuesta $0.62, el mercado le está dando 62% a que la ronda termine arriba, porque esa participación paga US$1 si acierta. No es una predicción de Pulse: es el precio que se está pagando en ese momento y cambia durante la ronda.',
-    aliases: [
-      'probabilidad implícita',
-      'qué significa el porcentaje',
-      'qué significa 62%',
-      'el porcentaje de UP',
-      'el porcentaje de DOWN',
-    ],
-    keywords: [
-      'probabilidad',
-      'porcentaje de UP y DOWN',
-      'precio como probabilidad',
-      'qué representa el precio',
-    ],
-    examples: [
-      '¿Qué es la probabilidad implícita?',
-      '¿Qué significa el porcentaje que aparece en UP?',
-      '¿Por qué el precio se muestra como porcentaje?',
-    ],
-  },
-  {
     id: 'is-money-real',
     title: 'Saldo simulado',
     description:
@@ -379,25 +374,6 @@ export const helpTopicItems: HelpTopicItem[] = [
       '¿El dinero de Pulse es real?',
       '¿Estoy usando dinero de verdad?',
       '¿Esto es real o es una simulación?',
-    ],
-  },
-  {
-    id: 'can-i-lose',
-    title: 'Perder el monto utilizado',
-    description:
-      'Sí. Si tu selección no acierta, las participaciones de esa ronda no reciben pago y el monto utilizado no regresa a tu saldo. También puedes vender antes del cierre por un monto menor al que utilizaste. En esta versión el saldo es simulado, así que no hay pérdida de dinero real.',
-    aliases: [
-      'puedo perder',
-      'puedo perder dinero',
-      'pierdo el dinero',
-      'qué pasa si pierdo',
-      'qué pasa si no acierto',
-    ],
-    keywords: ['perder', 'pérdida', 'riesgo', 'no acierto'],
-    examples: [
-      '¿Puedo perder dinero?',
-      '¿Qué pasa si pierdo?',
-      '¿Pierdo el monto si no acierto?',
     ],
   },
   {
