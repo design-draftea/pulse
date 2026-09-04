@@ -2,6 +2,50 @@
 
 ## Estado atual
 
+- Atualizado em: 2026-09-04
+- Agente que entrega: Claude
+- Agente esperado a seguir: Claude ou Codex
+- Status: concluído — mesclado pelo PR #56, publicado no GitHub Pages e verificado no artefato real. A pessoa usuária autorizou explicitamente PR, merge e deploy durante a entrega
+- Objetivo: corrigir a formatação do monto digitado no betslip, que lia cada dígito como dólar inteiro
+- Branch: `fix/formato-monto-centavos`, criada a partir da `main` em `a533cce`, commit `6dd9d36`, PR #56, mesclada em `5f46760` e removida do remoto
+
+### O defeito
+
+- O estado `amount` do betslip guardava a sequência de dígitos como valor em dólares. Digitando cinco cincos, o campo `Monto` mostrava `$55,555` em vez de `$555.55`.
+- O formatador do campo era o `dollarAmountFormatter`, sem casas decimais, então nem existia como exibir centavos ali.
+
+### A correção
+
+- `amount` passa a guardar a quantidade de **centavos** digitada. `numericAmountCents` é o próprio número e `numericAmount` é ele dividido por 100, invertendo a conversão que existia antes.
+- `handleDigit` acumula o dígito e descarta zeros à esquerda, com limite de 7 dígitos (`AMOUNT_MAX_DIGITS`). O teto em dólares continua o mesmo de antes, `$99,999.99`, porque o limite anterior era de 5 dígitos em dólares.
+- Os pontos que escreviam o estado a partir de um valor em dólares passam por `toAmountDigits`: `Un toque` e a reposição do monto depois da compra.
+- `formatTypedAmount` exibe o valor digitado sempre com duas casas, no campo, no resumo recolhido e no rótulo do swipe. O `dollarGainFormatter` foi renomeado para `dollarCentsFormatter`, porque agora serve às duas leituras.
+- Os montos de `Un toque` continuam inteiros (`$10`, `$25`, `$50`), com o `formatAmount` sem decimais.
+
+### Arquivos alterados
+
+- `src/components/BuyBetslip/BuyBetslip.tsx`
+
+### Validações
+
+- `pnpm lint` limpo e `pnpm build` sem erros.
+- Navegador em `localhost:5173`, viewport `375px`. Digitando `5` cinco vezes, o campo percorreu `$0.05 → $0.55 → $5.55 → $55.55 → $555.55`. No sétimo dígito parou em `$55,555.55` e a cotação passou para `Saldo insuficiente`, com `Precio promedio` e `Ganancia potencial` em `—`.
+- `Hecho` manteve `$12.34`, o swipe leu `Desliza para comprar por: $12.34` e a compra debitou exatamente `-1234` centavos, levando o saldo de `$2,040.00` para `$2,027.66`. O card de entrada aberta exibiu `Monto: $12.34` e o resumo recolhido, `$12.34 Monto`.
+- `Un toque` de `$10` debitou `-1000` centavos e o resumo recolhido exibiu `$10.00 Monto`. Os três montos continuaram inteiros na lista.
+- Geometria medida a `375px` e `320px`: nenhum overflow horizontal do documento. A `375px`, o valor mais largo possível (`$55,555.55`) mede 90,71px dentro de uma coluna de 98,32px. A `320px`, `$2,000.00` transborda a própria coluna por 5px, dentro do intervalo de 12px entre as métricas, sem sobrepor a métrica vizinha — conferido também em imagem.
+- Publicação verificada em `https://design-draftea.github.io/pulse/` a `375px`: o mesmo percurso de dígitos devolveu `$0.05 → $0.55 → $5.55 → $55.55 → $555.55` e o swipe leu `Desliza para comprar por: $555.55`. Deploy `33876511171` concluído com sucesso.
+- O estado do protótipo foi restaurado ao saldo inicial ao fim da validação local.
+- Não validado: o gesto real de arrasto do swipe. A confirmação da compra foi disparada pelo caminho de teclado do próprio controle (`Enter`), porque o painel do navegador desta sessão não renderiza durante o arrasto.
+
+### Pendências e próximo passo
+
+- Não há próximo passo pendente. A correção está mesclada e publicada.
+- `QuickAmountEditorSheet`, que edita os presets de `Un toque`, continua lendo dígitos como dólares inteiros, com limite de 5. Ficou fora do pedido, e os presets são exibidos sem centavos. Se algum dia precisarem de centavos, é o mesmo ajuste feito aqui.
+- A `320px`, o campo do monto transborda a própria coluna por até 5px com valores de seis ou sete dígitos. Não sobrepõe nada hoje, mas é o limite da linha de três métricas iguais; vale olhar com quem desenhou se esse viewport importar.
+
+
+## Histórico: altura do chip ativo (PRs #54 e #55)
+
 - Atualizado em: 2026-09-03
 - Agente que entrega: Claude
 - Agente esperado a seguir: Claude ou Codex
