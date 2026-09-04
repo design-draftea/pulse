@@ -3,6 +3,14 @@ export type PricePoint = {
   value: number
 }
 
+export type PriceChartRange = 'live' | '5m' | '15m' | '1h'
+
+export type PriceChartRangeConfig = {
+  durationMs: number | null
+  pixelsPerSecond: number
+  timeTickIntervalMs: number
+}
+
 export type PriceChartDomain = {
   bottom: number
   top: number
@@ -41,8 +49,36 @@ const TREND_LOOKBACK_POINT_COUNT = 6
 const TREND_TRIGGER_INTERVALS = 2
 const TREND_SHIFT_INTERVALS = 2
 const TREND_MINIMUM_STEP_FRACTION = 0.1
+const LIVE_PIXELS_PER_SECOND = 24
+const LIVE_TIME_TICK_INTERVAL_MS = 5_000
+const RANGE_CONFIG = {
+  '5m': { durationMs: 5 * 60_000, timeTickIntervalMs: 2 * 60_000 },
+  '15m': { durationMs: 15 * 60_000, timeTickIntervalMs: 5 * 60_000 },
+  '1h': { durationMs: 60 * 60_000, timeTickIntervalMs: 20 * 60_000 },
+} as const
 export const DOMAIN_CONTRACTION_DELAY_MS = 5_000
 export const DOMAIN_SHIFT_CONFIRMATION_MS = 750
+
+export const getPriceChartRangeConfig = (
+  range: PriceChartRange,
+  seriesRight: number,
+): PriceChartRangeConfig => {
+  if (range === 'live') {
+    return {
+      durationMs: null,
+      pixelsPerSecond: LIVE_PIXELS_PER_SECOND,
+      timeTickIntervalMs: LIVE_TIME_TICK_INTERVAL_MS,
+    }
+  }
+
+  const { durationMs, timeTickIntervalMs } = RANGE_CONFIG[range]
+
+  return {
+    durationMs,
+    pixelsPerSecond: seriesRight / (durationMs / 1000),
+    timeTickIntervalMs,
+  }
+}
 
 export const projectPriceToY = (
   value: number,
@@ -93,9 +129,12 @@ const getNiceStep = (minimumStep: number) => {
   return multiplier * exponent
 }
 
-const getDomainValues = (points: PricePoint[], targetPrice: number | null) => {
-  const values = points
-    .slice(-RECENT_DOMAIN_POINT_COUNT)
+const getDomainValues = (
+  points: PricePoint[],
+  targetPrice: number | null,
+  includeAllPoints: boolean,
+) => {
+  const values = (includeAllPoints ? points : points.slice(-RECENT_DOMAIN_POINT_COUNT))
     .map(({ value }) => value)
     .filter((value) => Number.isFinite(value))
 
@@ -140,6 +179,55 @@ export const appendRoundPricePoint = (
   return next.slice(-Math.max(1, maximumPoints))
 }
 
+export const appendRollingPricePoint = (
+  current: PricePoint[],
+  nextPoint: PricePoint,
+  earliestTimestamp: number,
+  maximumPoints: number,
+) => {
+  if (
+    !Number.isFinite(nextPoint.timestamp)
+    || !Number.isFinite(nextPoint.value)
+    || nextPoint.value <= 0
+  ) return current
+
+  const normalizedSecond = Math.floor(nextPoint.timestamp / 1000)
+  const next = [
+    ...current.filter(({ timestamp }) => (
+      timestamp >= earliestTimestamp
+      && Math.floor(timestamp / 1000) !== normalizedSecond
+    )),
+    nextPoint,
+  ].sort((left, right) => left.timestamp - right.timestamp)
+
+  return next.slice(-Math.max(1, maximumPoints))
+}
+
+export const mergePricePointSeries = (
+  historical: PricePoint[],
+  observed: PricePoint[],
+  earliestTimestamp: number,
+) => {
+  const bySecond = new Map<number, PricePoint>()
+  const addPoint = (point: PricePoint) => {
+    if (
+      point.timestamp < earliestTimestamp
+      || !Number.isFinite(point.timestamp)
+      || !Number.isFinite(point.value)
+      || point.value <= 0
+    ) return
+
+    bySecond.set(Math.floor(point.timestamp / 1000), point)
+  }
+
+  historical.forEach(addPoint)
+  observed.forEach(addPoint)
+
+  return [...bySecond.values()].sort(
+    (left, right) => left.timestamp - right.timestamp,
+  )
+}
+
 export const countPricePointGaps = (
   points: PricePoint[],
   gapThresholdMs = 2_500,
@@ -151,9 +239,15 @@ export const countPricePointGaps = (
 export const calculatePriceChartDomain = (
   points: PricePoint[],
   targetPrice: number | null,
-  { applyTrendShift = true }: { applyTrendShift?: boolean } = {},
+  {
+    applyTrendShift = true,
+    includeAllPoints = false,
+  }: {
+    applyTrendShift?: boolean
+    includeAllPoints?: boolean
+  } = {},
 ): PriceChartDomain => {
-  const values = getDomainValues(points, targetPrice)
+  const values = getDomainValues(points, targetPrice, includeAllPoints)
 
   if (values.length === 0) {
     return {

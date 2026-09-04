@@ -6,9 +6,11 @@ import {
   type PriceChartEntry,
   type PriceDirection,
   type PricePoint,
+  type PriceChartRange,
 } from '../PriceChart'
 import {
   calculatePriceChartDomain,
+  getPriceChartRangeConfig,
   getPriceChartWindowPoints,
   interpolatePriceChartDomain,
   stabilizePriceChartDomain,
@@ -16,7 +18,9 @@ import {
 } from '../priceChartModel'
 
 interface MarketPriceChartProps {
+  now: number
   points: PricePoint[]
+  historyPoints: PricePoint[]
   targetPrice: number | null
   currentPrice: number | null
   priceDirection: PriceDirection | null
@@ -83,7 +87,9 @@ const useAnimatedPriceChartDomain = (
 }
 
 export function MarketPriceChart({
+  now,
   points,
+  historyPoints,
   targetPrice,
   currentPrice,
   priceDirection,
@@ -94,6 +100,7 @@ export function MarketPriceChart({
   currentStatus,
   currentUpdatedAt,
 }: MarketPriceChartProps) {
+  const [range, setRange] = useState<PriceChartRange>('live')
   const [panState, setPanState] = useState<{
     roundStart: number
     anchor: number | null
@@ -106,13 +113,14 @@ export function MarketPriceChart({
     (anchor: number | null) => setPanState({ roundStart, anchor }),
     [roundStart],
   )
+  const displayedPoints = range === 'live' ? points : historyPoints
 
   const candidateDomain = useMemo(
     () => calculatePriceChartDomain(points, targetPrice),
     [points, targetPrice],
   )
   const pannedDomain = useMemo(() => {
-    if (viewAnchorTimestamp === null) return null
+    if (range !== 'live' || viewAnchorTimestamp === null) return null
 
     const windowPoints = getPriceChartWindowPoints(
       points,
@@ -123,7 +131,26 @@ export function MarketPriceChart({
     return windowPoints.length === 0
       ? null
       : calculatePriceChartDomain(windowPoints, null, { applyTrendShift: false })
-  }, [points, viewAnchorTimestamp, windowSpanMs])
+  }, [points, range, viewAnchorTimestamp, windowSpanMs])
+  const fixedRangeDomain = useMemo(() => {
+    const durationMs = getPriceChartRangeConfig(range, 1).durationMs
+    if (durationMs === null) return null
+
+    const rangeEnd = Math.max(
+      now,
+      historyPoints.at(-1)?.timestamp ?? 0,
+    )
+    const windowPoints = getPriceChartWindowPoints(
+      historyPoints,
+      rangeEnd - durationMs,
+      rangeEnd,
+    )
+
+    return calculatePriceChartDomain(windowPoints, targetPrice, {
+      applyTrendShift: false,
+      includeAllPoints: true,
+    })
+  }, [historyPoints, now, range, targetPrice])
   const [stableDomainState, setStableDomainState] = useState<{
     roundStart: number
     inputKey: string
@@ -168,12 +195,12 @@ export function MarketPriceChart({
   const liveDomain = resolvedDomainState.roundStart === roundStart
     ? resolvedDomainState.state.domain
     : candidateDomain
-  const domain = pannedDomain ?? liveDomain
+  const domain = fixedRangeDomain ?? pannedDomain ?? liveDomain
   const renderDomain = useAnimatedPriceChartDomain(domain)
 
   return (
     <PriceChart
-      points={points}
+      points={displayedPoints}
       domain={domain}
       renderDomain={renderDomain}
       currentPrice={currentPrice}
@@ -193,6 +220,8 @@ export function MarketPriceChart({
       source={currentSource}
       status={currentStatus}
       updatedAt={currentUpdatedAt}
+      range={range}
+      onRangeChange={setRange}
     />
   )
 }

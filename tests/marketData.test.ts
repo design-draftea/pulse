@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   BTC_ROUND_DURATION_MS,
+  fetchBtcMinutePoints,
   fetchBtcRoundMinutePoints,
   getBtcRoundStart,
   getPreviousBtcRoundStarts,
@@ -82,6 +83,42 @@ test('não consulta o histórico da ronda antes do primeiro minuto', async () =>
 
     assert.equal(called, false)
     assert.deepEqual(points, [])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('consulta candles de um intervalo móvel que atravessa rondas', async () => {
+  const until = Date.UTC(2026, 8, 1, 11, 0, 0)
+  const start = until - 60 * 60_000
+  const originalFetch = globalThis.fetch
+  let requestedUrl = ''
+
+  globalThis.fetch = (async (input: string) => {
+    requestedUrl = String(input)
+
+    return {
+      ok: true,
+      json: async () => [
+        [until / 1000, 100, 110, 104, 108],
+        [(start + 59 * 60_000) / 1000, 100, 110, 103, 109],
+        [start / 1000, 90, 105, 100, 104],
+      ],
+    }
+  }) as typeof globalThis.fetch
+
+  try {
+    const points = await fetchBtcMinutePoints(start, until)
+
+    assert.match(requestedUrl, /granularity=60/)
+    assert.match(requestedUrl, /start=2026-09-01T10%3A00%3A00Z/)
+    assert.match(requestedUrl, /end=2026-09-01T11%3A00%3A00Z/)
+    assert.deepEqual(points, [
+      { timestamp: start, value: 100 },
+      { timestamp: start + 60_000, value: 104 },
+      { timestamp: start + 59 * 60_000, value: 103 },
+      { timestamp: until, value: 109 },
+    ])
   } finally {
     globalThis.fetch = originalFetch
   }

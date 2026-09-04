@@ -208,20 +208,17 @@ export type BtcRoundPricePoint = {
 const ROUND_BACKFILL_GRANULARITY_SECONDS = 60
 const ROUND_BACKFILL_GRANULARITY_MS = ROUND_BACKFILL_GRANULARITY_SECONDS * 1000
 
-export const fetchBtcRoundMinutePoints = async (
-  roundStart: number,
+export const fetchBtcMinutePoints = async (
+  start: number,
   until: number,
   signal?: AbortSignal,
 ): Promise<BtcRoundPricePoint[]> => {
-  const roundEnd = roundStart + BTC_ROUND_DURATION_MS
-  const boundedUntil = Math.min(until, roundEnd)
-
-  if (boundedUntil - roundStart < ROUND_BACKFILL_GRANULARITY_MS) return []
+  if (until - start < ROUND_BACKFILL_GRANULARITY_MS) return []
 
   const params = new URLSearchParams({
     granularity: String(ROUND_BACKFILL_GRANULARITY_SECONDS),
-    start: toPolymarketIso(roundStart),
-    end: toPolymarketIso(boundedUntil),
+    start: toPolymarketIso(start),
+    end: toPolymarketIso(until),
   })
   const response = await fetch(`${COINBASE_CANDLES_ENDPOINT}?${params}`, {
     signal,
@@ -240,8 +237,8 @@ export const fetchBtcRoundMinutePoints = async (
     const close = Number(rawClose)
 
     if (
-      openedAt < roundStart
-      || openedAt >= boundedUntil
+      openedAt < start
+      || openedAt >= until
       || !Number.isFinite(open)
       || open <= 0
       || !Number.isFinite(close)
@@ -250,7 +247,7 @@ export const fetchBtcRoundMinutePoints = async (
 
     const closedAt = openedAt + ROUND_BACKFILL_GRANULARITY_MS
 
-    return closedAt <= boundedUntil
+    return closedAt <= until
       ? [
           { timestamp: openedAt, value: open },
           { timestamp: closedAt, value: close },
@@ -264,3 +261,13 @@ export const fetchBtcRoundMinutePoints = async (
       index === 0 || all[index - 1].timestamp !== point.timestamp
     ))
 }
+
+export const fetchBtcRoundMinutePoints = (
+  roundStart: number,
+  until: number,
+  signal?: AbortSignal,
+) => fetchBtcMinutePoints(
+  roundStart,
+  Math.min(until, roundStart + BTC_ROUND_DURATION_MS),
+  signal,
+)

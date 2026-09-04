@@ -6,10 +6,15 @@ import {
   useState,
 } from 'react'
 import type { PricePoint } from '../components/PriceChart'
-import { appendRoundPricePoint } from '../components/priceChartModel'
+import {
+  appendRollingPricePoint,
+  appendRoundPricePoint,
+  mergePricePointSeries,
+} from '../components/priceChartModel'
 import {
   BTC_DISPLAY_TIME_ZONE,
   BTC_ROUND_DURATION_MS,
+  fetchBtcMinutePoints,
   fetchBtcRoundMinutePoints,
   fetchBtcRoundTarget,
   fetchPreviousBtcRounds,
@@ -37,6 +42,8 @@ export type MarketDataStatus =
   | 'unavailable'
 
 const MAX_HISTORY_POINTS = BTC_ROUND_DURATION_MS / 1000 + 1
+const RANGE_HISTORY_DURATION_MS = 60 * 60_000
+const MAX_RANGE_HISTORY_POINTS = RANGE_HISTORY_DURATION_MS / 1000 + 1
 const ROUND_BACKFILL_RETRY_DELAYS_MS = [2_000, 5_000, 15_000]
 const CLOCK_INTERVAL_MS = 250
 const TARGET_FALLBACK_DELAY_MS = 3_000
@@ -58,6 +65,7 @@ const marketTimeFormatter = new Intl.DateTimeFormat('es-MX', {
 })
 
 export type BtcMarketRoundState = {
+  now: number
   roundStart: number
   roundEnd: number
   roundSlug: string
@@ -73,6 +81,7 @@ export type BtcMarketRoundState = {
   currentPriceSource: BtcPriceSource | null
   targetSource: RoundDataSource | null
   points: PricePoint[]
+  historyPoints: PricePoint[]
   previousRounds: HistoricalBtcRound[]
   targetStatus: MarketDataStatus
   currentStatus: MarketDataStatus
@@ -154,6 +163,8 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
     roundStart: number
     points: PricePoint[]
   }>(() => ({ roundStart, points: [] }))
+  const [observedHistoryPoints, setObservedHistoryPoints] = useState<PricePoint[]>([])
+  const [rangeBackfillPoints, setRangeBackfillPoints] = useState<PricePoint[]>([])
   const [officialPreviousRounds, setOfficialPreviousRounds] = useState<
     HistoricalBtcRound[]
   >([])
@@ -161,6 +172,7 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
     'connecting',
   )
   const [previousRoundsRefreshSequence, setPreviousRoundsRefreshSequence] = useState(0)
+  const [rangeHistoryRefreshSequence, setRangeHistoryRefreshSequence] = useState(0)
   const [cachedRounds, setCachedRounds] = useState<CachedMarketRound[]>(
     readRoundCache,
   )
@@ -191,6 +203,7 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
       syncFrame = window.requestAnimationFrame(() => {
         setNow(Date.now())
         setPreviousRoundsRefreshSequence((current) => current + 1)
+        setRangeHistoryRefreshSequence((current) => current + 1)
       })
     }
     const syncWhenVisible = () => {
@@ -261,6 +274,12 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
 
         return { roundStart, points: nextPoints }
       })
+      setObservedHistoryPoints((current) => appendRollingPricePoint(
+        current,
+        { timestamp, value },
+        timestamp - RANGE_HISTORY_DURATION_MS,
+        MAX_RANGE_HISTORY_POINTS,
+      ))
     })
 
     return () => window.cancelAnimationFrame(updateFrame)
@@ -302,6 +321,44 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
       window.clearTimeout(retryTimer)
     }
   }, [roundStart])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let retryTimer = 0
+    let retryIndex = 0
+    let disposed = false
+    const requestedAt = Date.now()
+
+    const loadRangeBackfill = async () => {
+      try {
+        if (hasForcedBackfillFailure()) throw new Error('forced backfill failure')
+
+        const points = await fetchBtcMinutePoints(
+          requestedAt - RANGE_HISTORY_DURATION_MS,
+          requestedAt,
+          controller.signal,
+        )
+        if (disposed || points.length === 0) return
+
+        setRangeBackfillPoints(points)
+      } catch {
+        if (disposed || controller.signal.aborted) return
+        if (retryIndex >= ROUND_BACKFILL_RETRY_DELAYS_MS.length) return
+
+        const retryDelay = ROUND_BACKFILL_RETRY_DELAYS_MS[retryIndex]
+        retryIndex += 1
+        retryTimer = window.setTimeout(() => void loadRangeBackfill(), retryDelay)
+      }
+    }
+
+    void loadRangeBackfill()
+
+    return () => {
+      disposed = true
+      controller.abort()
+      window.clearTimeout(retryTimer)
+    }
+  }, [rangeHistoryRefreshSequence, roundStart])
 
   useEffect(() => {
     const previousSnapshot = roundSnapshotRef.current
@@ -591,8 +648,25 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
           timestamp: Math.max(roundStart, priceFeed.updatedAt ?? now),
           value: priceFeed.value,
         }]
+  const historyPoints = useMemo(() => {
+    const earliestTimestamp = now - RANGE_HISTORY_DURATION_MS
+    const mergedPoints = mergePricePointSeries(
+      rangeBackfillPoints,
+      observedHistoryPoints,
+      earliestTimestamp,
+    )
+
+    if (mergedPoints.length > 0) return mergedPoints
+    if (!isPositivePrice(priceFeed.value)) return []
+
+    return [{
+      timestamp: Math.max(earliestTimestamp, priceFeed.updatedAt ?? now),
+      value: priceFeed.value,
+    }]
+  }, [now, observedHistoryPoints, priceFeed.updatedAt, priceFeed.value, rangeBackfillPoints])
 
   return {
+    now,
     roundStart,
     roundEnd,
     roundSlug: getBtcRoundSlug(roundStart),
@@ -608,6 +682,7 @@ export function useResilientBtcMarketRound(): BtcMarketRoundState {
     currentPriceSource: priceFeed.source,
     targetSource: isTargetForCurrentRound ? targetData.source : null,
     points: visiblePoints,
+    historyPoints,
     previousRounds,
     targetStatus: isTargetForCurrentRound ? targetData.status : 'connecting',
     currentStatus,
