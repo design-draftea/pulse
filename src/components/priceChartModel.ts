@@ -60,6 +60,7 @@ export type PriceChartTargetPlacement = {
 
 const GRID_INTERVALS = 6
 const MINIMUM_GRID_STEP = 2.5
+export const LIVE_MINIMUM_GRID_STEP = 0.25
 const RECENT_DOMAIN_POINT_COUNT = 20
 const TREND_LOOKBACK_POINT_COUNT = 6
 const TREND_TRIGGER_INTERVALS = 2
@@ -268,8 +269,13 @@ export const mergePricePointSeries = (
     bySecond.set(Math.floor(point.timestamp / 1000), point)
   }
 
-  historical.forEach(addPoint)
   observed.forEach(addPoint)
+  // Candles de outra fonte/resolução servem apenas para o período anterior
+  // à observação. Não preencher lacunas internas com preços incompatíveis.
+  const firstObservedSecond = Math.min(...bySecond.keys())
+  historical.forEach((point) => {
+    if (Math.floor(point.timestamp / 1000) < firstObservedSecond) addPoint(point)
+  })
 
   return [...bySecond.values()].sort(
     (left, right) => left.timestamp - right.timestamp,
@@ -290,9 +296,11 @@ export const calculatePriceChartDomain = (
   {
     applyTrendShift = true,
     includeAllPoints = false,
+    minimumGridStep = MINIMUM_GRID_STEP,
   }: {
     applyTrendShift?: boolean
     includeAllPoints?: boolean
+    minimumGridStep?: number
   } = {},
 ): PriceChartDomain => {
   const values = getDomainValues(points, targetPrice, includeAllPoints)
@@ -309,7 +317,7 @@ export const calculatePriceChartDomain = (
   const minimum = Math.min(...values)
   const maximum = Math.max(...values)
   const step = getNiceStep(Math.max(
-    MINIMUM_GRID_STEP,
+    minimumGridStep,
     (maximum - minimum) / GRID_INTERVALS,
   ))
   const domainSpan = step * GRID_INTERVALS

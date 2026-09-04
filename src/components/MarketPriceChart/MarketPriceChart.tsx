@@ -15,6 +15,7 @@ import {
   getPriceChartWindowPoints,
   interpolatePriceChartDomain,
   LIVE_WINDOW_DURATION_MS,
+  LIVE_MINIMUM_GRID_STEP,
   stabilizePriceChartDomain,
   type StablePriceChartDomainState,
 } from '../priceChartModel'
@@ -123,6 +124,7 @@ export function MarketPriceChart({
   const candidateDomain = useMemo(
     () => calculatePriceChartDomain(liveWindowPoints, targetPrice, {
       includeAllPoints: true,
+      minimumGridStep: LIVE_MINIMUM_GRID_STEP,
     }),
     [liveWindowPoints, targetPrice],
   )
@@ -140,6 +142,7 @@ export function MarketPriceChart({
       : calculatePriceChartDomain(windowPoints, null, {
           applyTrendShift: false,
           includeAllPoints: true,
+          minimumGridStep: LIVE_MINIMUM_GRID_STEP,
         })
   }, [displayedPoints, range, viewAnchorTimestamp, windowSpanMs])
   const fixedRangeDomain = useMemo(() => {

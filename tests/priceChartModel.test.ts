@@ -16,6 +16,7 @@ import {
   interpolatePriceAt,
   interpolatePriceChartDomain,
   LIVE_WINDOW_DURATION_MS,
+  LIVE_MINIMUM_GRID_STEP,
   mergePricePointSeries,
   projectPriceToY,
   resolvePriceChartTarget,
@@ -23,6 +24,58 @@ import {
   type PriceChartDomain,
 } from '../src/components/priceChartModel.ts'
 import { getPriceChartGeometry } from '../src/components/priceChartGeometry.ts'
+
+test('histórico tardio não injeta picos nas lacunas da curva restaurada', () => {
+  const observed = [
+    { timestamp: 60000, value: 100 },
+    { timestamp: 62000, value: 100.2 },
+  ]
+  const historical = [
+    { timestamp: 0, value: 99 },
+    { timestamp: 61000, value: 110 },
+    { timestamp: 63000, value: 115 },
+  ]
+  assert.deepEqual(mergePricePointSeries(historical, observed, 0), [historical[0], ...observed])
+  assert.deepEqual(mergePricePointSeries(historical, [], 0), historical)
+  assert.deepEqual(mergePricePointSeries(historical, [{ timestamp: -1, value: 100 }], 0), historical)
+})
+
+test('LIVE revela oscilações pequenas com piso de 25 centavos sem mudar o padrão dos ranges fixos', () => {
+  const points = [
+    { timestamp: 0, value: 79670.55 },
+    { timestamp: 30000, value: 79671.28 },
+  ]
+  const options = { applyTrendShift: false, includeAllPoints: true }
+  const live = calculatePriceChartDomain(points, 79664.53, {
+    ...options, minimumGridStep: LIVE_MINIMUM_GRID_STEP,
+  })
+  assert.equal(live.step, 0.25)
+  assert.equal(live.top - live.bottom, 1.5)
+  assert.ok(live.bottom <= points[0].value && live.top >= points[1].value)
+  assert.equal(calculatePriceChartDomain(points, null, options).step, 2.5)
+  const flat = calculatePriceChartDomain([points[0]], null, {
+    ...options, minimumGridStep: LIVE_MINIMUM_GRID_STEP,
+  })
+  assert.equal(flat.step, 0.25)
+  assert.equal(flat.top - flat.bottom, 1.5)
+})
+
+test('LIVE amplia para movimentos fortes e espera cinco segundos antes de voltar ao piso menor', () => {
+  const calm = [{ timestamp: 0, value: 100 }, { timestamp: 1000, value: 100.1 }]
+  const volatile = [...calm, { timestamp: 2000, value: 120 }]
+  const options = { includeAllPoints: true, applyTrendShift: false, minimumGridStep: LIVE_MINIMUM_GRID_STEP }
+  const small = calculatePriceChartDomain(calm, null, options)
+  const large = calculatePriceChartDomain(volatile, null, options)
+  let state = stabilizePriceChartDomain(null, small, calm, 0, options)
+  state = stabilizePriceChartDomain(state, large, volatile, 1000, options)
+  assert.ok(state.domain.step > 0.25)
+  state = stabilizePriceChartDomain(state, small, calm, 2000, options)
+  assert.equal(state.domain.step, large.step)
+  state = stabilizePriceChartDomain(state, small, calm, 6999, options)
+  assert.equal(state.domain.step, large.step)
+  state = stabilizePriceChartDomain(state, small, calm, 7000, options)
+  assert.equal(state.domain.step, 0.25)
+})
 
 test('janela de 30s conserva os preços anteriores na virada da rodada', () => {
   const boundary = Date.UTC(2026, 8, 4, 19, 45)
