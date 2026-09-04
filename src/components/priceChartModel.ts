@@ -27,6 +27,17 @@ export type ProjectedPricePoint = PricePoint & {
   x: number
 }
 
+// A ponta renderizada é única: o caminho termina no mesmo objeto usado pelo
+// marcador. O recorte pode conter uma guarda além da borda; ela não deve
+// produzir um segmento que ultrapassa a ponta e depois volta.
+export const connectPriceChartEndpoint = <T extends ProjectedPricePoint>(
+  points: T[],
+  endpoint: T,
+): T[] => [
+  ...points.filter((point) => point.x < endpoint.x),
+  endpoint,
+]
+
 export type StablePriceChartDomainState = {
   domain: PriceChartDomain
   contractionCandidateKey: string | null
@@ -54,8 +65,8 @@ const TREND_LOOKBACK_POINT_COUNT = 6
 const TREND_TRIGGER_INTERVALS = 2
 const TREND_SHIFT_INTERVALS = 2
 const TREND_MINIMUM_STEP_FRACTION = 0.1
-const LIVE_PIXELS_PER_SECOND = 24
-const LIVE_TIME_TICK_INTERVAL_MS = 5_000
+export const LIVE_WINDOW_DURATION_MS = 30_000
+const LIVE_TIME_TICK_INTERVAL_MS = 10_000
 const TIME_TICK_COUNT = 3
 const RANGE_CONFIG = {
   '5m': { durationMs: 5 * 60_000, timeTickIntervalMs: 2 * 60_000 },
@@ -72,7 +83,7 @@ export const getPriceChartRangeConfig = (
   if (range === 'live') {
     return {
       durationMs: null,
-      pixelsPerSecond: LIVE_PIXELS_PER_SECOND,
+      pixelsPerSecond: seriesRight / (LIVE_WINDOW_DURATION_MS / 1000),
       timeTickIntervalMs: LIVE_TIME_TICK_INTERVAL_MS,
     }
   }
@@ -353,6 +364,11 @@ export const stabilizePriceChartDomain = (
   candidate: PriceChartDomain,
   points: PricePoint[],
   now: number,
+  {
+    includeAllPoints = false,
+  }: {
+    includeAllPoints?: boolean
+  } = {},
 ): StablePriceChartDomainState => {
   if (previous === null) {
     return {
@@ -365,7 +381,10 @@ export const stabilizePriceChartDomain = (
   }
 
   const current = previous.domain
-  const values = points.slice(-RECENT_DOMAIN_POINT_COUNT).map(({ value }) => value)
+  const values = (includeAllPoints
+    ? points
+    : points.slice(-RECENT_DOMAIN_POINT_COUNT)
+  ).map(({ value }) => value)
   const minimum = values.length > 0 ? Math.min(...values) : candidate.bottom
   const maximum = values.length > 0 ? Math.max(...values) : candidate.top
   const latest = values.at(-1) ?? (candidate.bottom + candidate.top) / 2

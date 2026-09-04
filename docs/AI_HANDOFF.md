@@ -4,6 +4,47 @@
 
 - Atualizado em: 2026-09-04
 - Agente que entrega: Codex
+- Agente esperado a seguir: pessoa usuária, para revisar a mudança local
+- Status: implementação, testes automatizados e validação local no navegador concluídos; sem commit, Pull Request, merge ou deploy
+- Objetivo: ampliar o range `LIVE` do gráfico para os últimos 30 segundos em qualquer largura mobile, com marcações de 10 segundos e domínio vertical calculado por toda a janela visível
+- Branch: `feature/live-chart-30s`, criada a partir da `main` limpa
+
+### Escopo e decisões
+
+- `LIVE` mantém `durationMs: null` como identificador semântico, mas calcula `pixelsPerSecond` pela largura disponível e pela constante de `30.000ms`. O `data-window-span` fica exatamente em `30000` de `320px` a `499px`.
+- As marcações móveis do eixo passaram de `5s` para `10s`, evitando sobreposição após a compressão horizontal.
+- O domínio ao vivo usa todos os pontos recortados pelos últimos `30s`; o domínio arrastado também considera toda a janela. A tendência continua usando a leitura curta existente, e os ranges `5M`, `15M` e `1H` não mudaram.
+- Regra revisada pela pessoa usuária: LIVE usa `historyPoints` e atravessa a virada da rodada. Arraste consulta até uma hora, preserva a âncora na virada e respeita a expiração do histórico. Domínio estabilizado não reinicia por `roundStart`; timer e objetivo continuam mudando normalmente. Histórico vazio usa os pontos reais da rodada como contingência.
+- Ajuste posterior: linha, área e bolinha compartilham a coordenada final `currentPoint`; pontos projetados na borda ou além dela são substituídos por essa ponta. No arraste, a série original não recebe o preço animado atual. Nenhuma prop pública ou dependência foi adicionada.
+
+### Arquivos alterados
+
+- `src/components/priceChartModel.ts`
+- `src/components/PriceChart.tsx`
+- `src/components/MarketPriceChart/MarketPriceChart.tsx`
+- `tests/priceChartModel.test.ts`
+- `docs/AI_CONTEXT.md`
+- `docs/AI_HANDOFF.md`
+
+### Validações
+
+- `pnpm test:chart`: 40 testes passando, incluindo ponta compartilhada, virada com 30s contínuos, retenção do arraste e histórico parcial/vazio.
+- `pnpm lint`: limpo.
+- `pnpm build`: concluído; permanece apenas o aviso conhecido de chunk acima de `500kB`.
+- Navegador local em `320×568`, `375×812`, `430×832` e `499×900`: `data-window-span="30000"`, sem overflow horizontal e sem sobreposição entre os horários visíveis de 10 segundos.
+- Em `375×812`, `5M`, `15M`, `1H` e `LIVE` publicaram respectivamente `300000`, `900000`, `3600000` e `30000`; o arraste entrou no histórico e o botão `LIVE` voltou ao presente em `320ms`. Console sem erros ou avisos.
+
+### Pendências e próximo passo
+
+- Continuidade validada em cenário React controlado no navegador: virada preservou 32 pontos renderizados (incluindo guarda), janela de 30000ms e domínio 92.5–107.5 enquanto o objetivo mudou de 100 para 101. Durante arraste, a âncora permaneceu exatamente igual antes/depois; contingência sem histórico anterior renderizou os nove pontos reais disponíveis. O arquivo temporário de QA foi removido após o teste.
+- Sincronização: antes do ajuste, a amostra de 40 leituras incluiu 10 movimentos, sem reproduzir a falha intermitente (diferença inferior a `0,005px`). Após o ajuste, 320 leituras nas quatro larguras estabilizadas incluíram 29 movimentos, sem movimento da bolinha com caminho inalterado; diferença inferior a `0,005px`. Mais 80 leituras no arraste, 100 durante retorno e 160 nos quatro ranges também ficaram abaixo de `0,005px`. A medição comparou a coordenada final do caminho SVG com o centro renderizado da bolinha. Console sem erros. Isso verifica a conexão geométrica; não comprova a causa do relato intermitente original.
+- Revisar a mudança local. Commit, Pull Request, merge e deploy não foram realizados e continuam dependendo de autorização explícita.
+
+
+## Histórico: zoom e teclado do assistente
+
+- Atualizado em: 2026-09-04
+- Agente que entrega: Codex
 - Agente esperado a seguir: GitHub Actions, para validar e publicar a `main` após o merge autorizado
 - Status: implementação e validação local e no iPhone concluídas; Pull Request e merge autorizados pela pessoa usuária
 - Objetivo: remover zoom/pinça de todo o Pulse e fazer o compositor do `Pregúntale a Pulse` acompanhar o teclado como o bottom sheet de `/criar-conta` do Draftaco
