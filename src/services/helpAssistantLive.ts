@@ -103,6 +103,11 @@ export const FOLLOW_UPS = {
     label: '¿Cómo funciona una ronda?',
     query: '¿Cómo funciona una ronda de 15 minutos?',
   },
+  settlement: {
+    id: 'follow-up:settlement',
+    label: '¿Cuándo me pagan?',
+    query: '¿Cuándo me pagan?',
+  },
   targetPrice: {
     id: 'follow-up:target-price',
     label: '¿Qué es el precio objetivo?',
@@ -306,17 +311,66 @@ const asksForMyEntry = (query: string) => (
   ])
 )
 
+// `cuántas rondas hay al día?` não é uma pergunta sobre resultados. Sem uma
+// palavra de desfecho, a contagem do histórico não é a resposta certa.
 const asksForHistory = (query: string) => (
-  matches(query, [/\brondas?\b/, /\bresultados\b/])
+  matches(query, [/\b(?:rondas?|ultimas|anteriores|pasadas|cuantas|cuantos)\b/])
   && matches(query, [
-    /\bcuantas\b/,
     /\bterminaron\b/,
     /\bacabaron\b/,
     /\bcerraron\b/,
     /\bganaron\b/,
-    /\bcuantos\b/,
+    /\bresultados?\b/,
+    /\b(?:arriba|abajo)\b/,
   ])
 )
+
+const asksForSaleValue = (query: string) => matches(query, [
+  /\bsi vendo\b/,
+  /\bvendo ahora\b/,
+  /\bvender ahora\b/,
+  /\bal vender\b/,
+  /\b(?:cuanto|que) (?:me dan|me darian|recibo|recibiria|gano|obtengo)\b.*\bvend/,
+  /\bvend\w+\b.*\b(?:cuanto|que) (?:me dan|recibo|gano)\b/,
+  /\bprecio de venta\b/,
+  /\bcuanto vale (?:mi|la) (?:posicion|entrada|participacion)\b.*\bvend/,
+])
+
+// `gané` e `gane` ficam iguais depois da normalização, então a forma sozinha
+// não distingue `¿gané la ronda?` de `la probabilidad de que yo gane`. As
+// demais formas do pretérito não têm essa ambiguidade.
+const asksForLastResult = (query: string) => (
+  matches(query, [
+    /\bperdi\b/,
+    /\backerte\b/,
+    /\bme fue\b/,
+    /\bronda (?:anterior|pasada)\b/,
+    /\bultima ronda\b/,
+    /\b(?:ya )?se liquido\b/,
+    /\bmi ultim[oa] (?:resultado|entrada)\b/,
+  ])
+  || asksForAggregateResult(query)
+  || (
+    /\bgane\b/.test(query)
+    && matches(query, [/\bya\b/, /\bhoy\b/, /\bayer\b/, /\bcuanto\b/, /\bronda\b/])
+  )
+)
+
+const asksForAggregateResult = (query: string) => matches(query, [
+  /\bcuanto llevo\b/,
+  /\bllevo (?:ganado|perdido)\b/,
+  /\ben total\b/,
+  /\bacumulado\b/,
+  /\bresultado (?:neto|total)\b/,
+  /\b(?:gane|perdi)\b.*\bhoy\b/,
+  /\bhoy\b.*\b(?:gane|perdi)\b/,
+])
+
+const asksForNextRound = (query: string) => matches(query, [
+  /\bproxima ronda\b/,
+  /\bsiguiente ronda\b/,
+  /\bcuando (?:empieza|inicia|comienza)\b/,
+])
 
 const asksForRoundState = (query: string) => matches(query, [
   /\b(?:cuanto|que) tiempo\b/,
@@ -627,9 +681,167 @@ const buildHistoryAnswer = (
   }
 }
 
+/** Valor de venda agora, reutilizado pela resposta e pela guarda de conselho. */
+export const describeSaleValue = (snapshot: HelpAssistantLiveSnapshot) => {
+  const summaries = getOpenEntrySummaries(snapshot.position, snapshot.positionCostCents)
+  if (summaries.length === 0) return null
+
+  const lines = summaries.flatMap((summary) => {
+    const quote = snapshot.quoteSell?.(summary.side, summary.participations) ?? null
+    if (!quote?.complete) return []
+
+    const saleCents = Math.round(quote.grossValue * 100)
+    return [{
+      participations: summary.participations,
+      resultCents: saleCents - summary.amountCents,
+      saleCents,
+      side: summary.side,
+      unitPriceCents: summary.participations > 0
+        ? saleCents / summary.participations
+        : 0,
+      payoutCents: summary.potentialPayoutCents,
+    }]
+  })
+
+  return lines.length === 0 ? null : lines
+}
+
+const buildSaleValueAnswer = (
+  snapshot: HelpAssistantLiveSnapshot,
+): HelpAssistantResult => {
+  const source = liveSource('sale-value', 'Valor de venta')
+  const action = { id: 'entries' as const, label: ACTION_LABELS.entries }
+
+  if (!hasAnyPosition(snapshot)) {
+    return {
+      answer: 'Ahora no tienes participaciones para vender en esta ronda.',
+      confidence: 'high',
+      details: [`Tu saldo disponible es ${formatCents(snapshot.wallet.availableBalanceCents)}.`],
+      source,
+      suggestions: [FOLLOW_UPS.howToStart, FOLLOW_UPS.canSell],
+    }
+  }
+
+  const sales = describeSaleValue(snapshot)
+
+  if (!sales) {
+    return {
+      action,
+      answer: 'Ahora no hay precio de venta disponible para tus participaciones, así que no puedo darte el monto sin inventarlo.',
+      confidence: 'high',
+      details: ['Vuelve a preguntarme en unos segundos, mientras la ronda siga abierta.'],
+      source,
+      suggestions: [FOLLOW_UPS.canSell],
+    }
+  }
+
+  const total = sales.reduce((sum, sale) => sum + sale.saleCents, 0)
+  const headline = sales.length === 1
+    ? `Si vendes ahora tus ${formatParticipations(sales[0].participations)} participaciones de ${SIDE_LABEL[sales[0].side]}, recibes ${formatCents(sales[0].saleCents)}.`
+    : `Si vendes ahora todo lo que tienes en esta ronda, recibes ${formatCents(total)}.`
+
+  return {
+    action,
+    answer: headline,
+    confidence: 'high',
+    details: [
+      ...sales.map((sale) => (
+        `${SIDE_LABEL[sale.side]}: ${formatCents(sale.saleCents)} a ${formatCents(sale.unitPriceCents)} por participación, ${formatSignedCents(sale.resultCents)} sobre el monto utilizado.`
+      )),
+      ...sales.map((sale) => (
+        `Si en vez de vender esperas al cierre y ${SIDE_LABEL[sale.side]} gana, recibes ${formatCents(sale.payoutCents)}. Si no gana, no recibes nada.`
+      )),
+      'El precio de venta cambia durante la ronda: este monto es el de este momento.',
+    ],
+    highlight: priceHighlight(snapshot),
+    source,
+    suggestions: [FOLLOW_UPS.canSell, FOLLOW_UPS.liveProbability],
+  }
+}
+
+const SETTLED_OUTCOME_LABEL: Record<
+  HelpAssistantLiveSnapshot['settledEntries'][number]['outcome'],
+  string
+> = {
+  canceled: 'se canceló',
+  lost: 'no acertaste',
+  sold: 'vendiste antes del cierre',
+  won: 'ganaste',
+}
+
+const buildLastResultAnswer = (
+  query: string,
+  snapshot: HelpAssistantLiveSnapshot,
+): HelpAssistantResult => {
+  const isAggregate = asksForAggregateResult(query)
+  const source = liveSource(
+    isAggregate ? 'accumulated-result' : 'last-result',
+    isAggregate ? 'Tu resultado acumulado' : 'Tu último resultado',
+  )
+  const action = { id: 'entries' as const, label: ACTION_LABELS.entries }
+  // A ordem da lista não é garantida por quem monta o instantâneo, então a
+  // mais recente é escolhida aqui.
+  const latest = snapshot.settledEntries.reduce<
+    HelpAssistantLiveSnapshot['settledEntries'][number] | undefined
+  >((newest, entry) => (
+    !newest || entry.roundEnd > newest.roundEnd ? entry : newest
+  ), undefined)
+
+  if (!latest) {
+    return {
+      answer: hasAnyPosition(snapshot)
+        ? 'Todavía no tienes una ronda liquidada. Tu entrada de esta ronda sigue abierta y se resuelve al cierre.'
+        : 'Todavía no tienes ninguna ronda liquidada, así que no hay un resultado que contarte.',
+      confidence: 'high',
+      details: [`Tu saldo disponible es ${formatCents(snapshot.wallet.availableBalanceCents)}.`],
+      source,
+      suggestions: [FOLLOW_UPS.howToStart, FOLLOW_UPS.settlement],
+    }
+  }
+
+  const resultCents = latest.payoutCents - latest.amountCents
+  const details = [
+    `Elegiste ${SIDE_LABEL[latest.side]} con ${formatCents(latest.amountCents)} y ${formatParticipations(latest.participations)} participaciones.`,
+    latest.outcome === 'won'
+      ? `Recibiste ${formatCents(latest.payoutCents)}, o sea ${formatSignedCents(resultCents)} sobre el monto utilizado.`
+      : latest.outcome === 'sold'
+        ? `Recibiste ${formatCents(latest.payoutCents)} por la venta, o sea ${formatSignedCents(resultCents)} sobre el monto utilizado.`
+        : latest.outcome === 'canceled'
+          ? `Se te devolvieron ${formatCents(latest.payoutCents)}, el monto que habías utilizado.`
+          : `No recibiste pago, así que el resultado fue ${formatSignedCents(resultCents)}.`,
+    `Resultado acumulado desde el depósito inicial: ${formatSignedCents(snapshot.wallet.netResultCents)}.`,
+  ]
+
+  if (isAggregate) {
+    return {
+      action,
+      // O protótipo não separa por dia, então prometer `hoy` seria inventar
+      // um recorte que a carteira não guarda.
+      answer: `Desde el depósito inicial, tu resultado acumulado es ${formatSignedCents(snapshot.wallet.netResultCents)}.`,
+      confidence: 'high',
+      details: [
+        `Saldo disponible: ${formatCents(snapshot.wallet.availableBalanceCents)} · con las entradas abiertas, tu total es ${formatCents(snapshot.wallet.portfolioTotalCents)}.`,
+        `En la ronda que cerró a las ${formatClock(latest.roundEnd)}, ${SETTLED_OUTCOME_LABEL[latest.outcome]}.`,
+        'No puedo separarlo por día: la cuenta del prototipo guarda el acumulado desde que empezaste.',
+      ],
+      source,
+      suggestions: [FOLLOW_UPS.settlement, FOLLOW_UPS.liveProbability],
+    }
+  }
+
+  return {
+    action,
+    answer: `En la ronda que cerró a las ${formatClock(latest.roundEnd)}, ${SETTLED_OUTCOME_LABEL[latest.outcome]}.`,
+    confidence: 'high',
+    details,
+    source,
+    suggestions: [FOLLOW_UPS.settlement, FOLLOW_UPS.liveProbability],
+  }
+}
+
 const buildRoundStateAnswer = (
   snapshot: HelpAssistantLiveSnapshot,
-  focus: 'time' | 'price',
+  focus: 'next' | 'price' | 'time',
 ): HelpAssistantResult => {
   const { currentPrice, endTime, isClosing, remainingSeconds, targetPrice } = snapshot.round
   const source = liveSource('round-state', 'Ronda actual')
@@ -668,6 +880,23 @@ const buildRoundStateAnswer = (
     }
     return 'Ahora no tengo el precio actual ni el precio objetivo de la ronda.'
   })()
+
+  if (focus === 'next') {
+    return {
+      answer: isClosing || remainingSeconds <= 0
+        ? `La próxima ronda empieza en cuanto cierre esta, que está cerrando ahora.`
+        : `La próxima ronda empieza a las ${endTime}, en cuanto cierre esta.`,
+      confidence: 'high',
+      details: [
+        isClosing || remainingSeconds <= 0
+          ? 'Las rondas duran 15 minutos y se suceden sin pausa.'
+          : `Quedan ${formatRemaining(remainingSeconds)} en la ronda actual. Las rondas duran 15 minutos y se suceden sin pausa.`,
+        'Cada ronda empieza con un precio objetivo nuevo.',
+      ],
+      source,
+      suggestions: [FOLLOW_UPS.roundWorks, FOLLOW_UPS.liveProbability],
+    }
+  }
 
   if (focus === 'price') {
     const headline = currentPrice === null
@@ -718,10 +947,13 @@ export const resolveLiveAnswer = (
     if (simulation) return simulation
   }
 
+  if (asksForLastResult(query)) return buildLastResultAnswer(query, snapshot)
+  if (asksForSaleValue(query)) return buildSaleValueAnswer(snapshot)
   if (asksForProbability(query)) return buildProbabilityAnswer(snapshot)
   if (asksForSharePrice(query)) return buildSharePriceAnswer(query, snapshot)
   if (asksForMyEntry(query)) return buildMyEntryAnswer(snapshot)
   if (asksForHistory(query)) return buildHistoryAnswer(snapshot)
+  if (asksForNextRound(query)) return buildRoundStateAnswer(snapshot, 'next')
   if (asksForBitcoinPrice(query)) return buildRoundStateAnswer(snapshot, 'price')
   if (asksForRoundState(query)) return buildRoundStateAnswer(snapshot, 'time')
 

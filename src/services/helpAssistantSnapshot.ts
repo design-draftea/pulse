@@ -22,7 +22,18 @@ export interface HelpAssistantLiveSnapshot {
   quoteBuy?: (side: OutcomeSide, amount: number) => ExecutionQuote | null
   quoteSell?: (side: OutcomeSide, participations: number) => ExecutionQuote | null
   round: HelpAssistantRoundSnapshot
+  /** Entradas já liquidadas, em qualquer ordem. */
+  settledEntries: HelpAssistantSettledEntry[]
   wallet: HelpAssistantWalletSnapshot
+}
+
+export interface HelpAssistantSettledEntry {
+  amountCents: number
+  outcome: 'won' | 'lost' | 'canceled' | 'sold'
+  participations: number
+  payoutCents: number
+  roundEnd: number
+  side: OutcomeSide
 }
 
 export interface HelpAssistantMarketSnapshot {
@@ -66,6 +77,7 @@ export interface HelpAssistantSnapshotInput {
     remainingSeconds: number
     targetPrice: number | null
   }
+  settledEntries: HelpAssistantSettledEntry[]
   wallet: HelpAssistantWalletSnapshot
 }
 
@@ -87,6 +99,7 @@ export const buildHelpAssistantSnapshot = (
     remainingSeconds: input.round.remainingSeconds,
     targetPrice: input.round.targetPrice,
   },
+  settledEntries: input.settledEntries,
   wallet: input.wallet,
 })
 

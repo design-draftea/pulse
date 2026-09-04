@@ -31,6 +31,18 @@
 - Toda resposta com dados ao vivo oferece de um a dois acompanhamentos, reaproveitando o mecanismo de sugestões que já existia. Eles ficam num mapa único (`FOLLOW_UPS`) e um teste percorre esse mapa exigindo que cada `query` resolva em conteúdo de alta confiança: um chip que cai no fallback seria pior do que nenhum chip. Dois pares são editoriais, não decorativos: depois de mostrar um ganho estimado, o assistente oferece `¿Puedo perder el monto?`; depois da contagem do histórico, oferece `¿Qué probabilidad hay ahora?`, que desvia a leitura de padrão para o número do momento.
 - Promoção de conteúdo decidida pela pessoa usuária depois da entrega inicial: `Probabilidad implícita` subiu para o glossário visível e `¿Puedo perder el monto que utilicé?` para as perguntas frequentes. O critério aplicado foi se a pessoa procuraria aquilo navegando ou só pensaria em perguntar. Os outros sete tópicos continuam exclusivos do assistente. `¿Es un juego de azar?` ficou de fora por decisão consciente: numa tela visível ela deixa de ser resposta e vira posicionamento do produto, o que é decisão de produto e de compliance. `Depósitos y retiros` também ficou de fora, porque os botões inertes são um estado conhecido do protótipo e serão tratados depois.
 
+### Segunda rodada de ajustes, pedida depois da entrega inicial
+
+Uma sondagem com 15 perguntas de testador real mostrou 6 falhas, 4 ambiguidades e, pior, **2 respostas confiantes e erradas**. As duas vinham do que esta tarefa tinha acrescentado.
+
+- `¿Puedo cambiar de UP a DOWN?` caía no tópico `Por qué cambia el precio de UP y DOWN`, porque `UP` e `DOWN` estavam no título e `cambiar` fica a uma edição de `cambia`. O título passou a ser `Por qué cambia el precio de las participaciones` e entrou o tópico `Cambiar de lado o tener los dos`, que responde de verdade.
+- `¿Cuántas rondas hay al día?` caía na contagem do histórico, porque o reconhecedor aceitava `cuántas` + `rondas`. Agora exige uma palavra de desfecho. Entrou o tópico `Cuántas rondas hay`, com as 96 rondas de 15 minutos.
+- Venda ao vivo: `¿Cuánto me dan si vendo ahora?` caía no fallback, embora `quoteSell` já estivesse no instantâneo. Agora responde o monto, o preço por participação, o resultado contra o custo e o que aconteceria esperando o fechamento. `¿Me conviene vender?` é recusa, mas entrega os dois montos.
+- Rodada liquidada: `settledEntries` entrou no instantâneo. `¿Gané la ronda anterior?` conta o desfecho real nos quatro estados possíveis, e perguntas de total respondem o acumulado, dizendo explicitamente que a carteira do protótipo não separa por dia.
+- Conteúdo novo: rangos do gráfico, cambiar de lado, quantas rondas há. `¿Cuándo me pagan?` passou a alcançar o termo `Liquidación`, que já tinha a resposta.
+- Digitação: `correctTypos` corrige a consulta com o vocabulário do próprio catálogo, antes de qualquer resolução. Só palavras longas desconhecidas e só com candidato único. A tolerância do ranqueamento também aceita duas edições em palavras de oito letras ou mais, pontuando menos.
+- Uma armadilha encontrada durante a implementação: `gané` e `gane` ficam idênticos depois de tirar o acento, então o reconhecedor de pretérito lia `la probabilidad de que yo gane` como uma pergunta sobre o passado. As formas sem ambiguidade resolvem, e um teste trava o caso.
+
 ### Arquivos alterados
 
 - `src/services/helpAssistantSnapshot.ts` (novo)
@@ -58,6 +70,8 @@
 - Contagem do histórico conferida contra os cards reais de `Últimas 10 rondas`: `6` arriba e `4` abajo nos dois.
 - Saldo: `$1,940.00` disponível e `$2,045.69` de total, conferidos contra o cabeçalho e o perfil depois da compra.
 - Ações conferidas: `Ver últimas rondas` fechou o sheet e centralizou a seção real; `Ver mis entradas` abriu `#entradas`.
+- Segunda rodada conferida no navegador a `416×878`, com compra real: `¿Cuánto me dan si vendo ahora?` devolveu `323.38 participaciones de UP, recibes $85.90`; `¿Me conviene vender?` recusou e deu os dois montos; `¿Puedo cambiar de UP a DOWN?` e `¿Cuántas rondas hay al día?` passaram a responder o tópico certo; `¿Cuanto tienpo qeda?`, com dois erros de digitação, chegou à resposta da rodada. Com uma rodada liquidada de verdade, `¿Gané la ronda anterior?` leu o desfecho, o monto e as participações da carteira, e `¿Cuánto llevo ganado?` devolveu o acumulado.
+- Zero requisições `fetch` em três perguntas seguidas, medido de novo depois dos ajustes. Sem overflow a `320×568` e `430×832`.
 - Acompanhamentos conferidos no navegador: a probabilidade ofereceu `¿Cómo se calcula ese porcentaje?` e `¿Puedo perder el monto?`; o histórico ofereceu `¿Qué probabilidad hay ahora?` junto da ação; o simulador ofereceu `¿Puedo perder el monto?` e `¿Puedo vender antes?`. O chip do porcentual abriu a definição do glossário, e a fonte da resposta virou botão, porque o termo agora existe na tela aprovada.
 - Telas aprovadas conferidas depois da promoção: o glossário passou a `13` termos, com `Probabilidad implícita` na posição `9`, logo após `Participación`; as perguntas frequentes passaram a `13`, com `¿Puedo perder el monto que utilicé?` na posição `9`, logo após `¿Cuánto puedo recibir si acierto?`. Sem overflow horizontal em nenhuma das duas.
 - O retorno da fonte continua correto depois da promoção: o glossário aberto pelo chat voltou para a conversa preservada.
@@ -72,6 +86,7 @@
 - `Depósitos y retiros` segue só no assistente. Os botões `Depositar` e `Retirar` continuam visíveis e inertes no perfil; a pessoa usuária registrou que isso será tratado depois, por ser um protótipo.
 - Não validado: o caminho de preço indisponível de forma forçada. Ele foi observado funcionando no app real durante uma troca de rodada, às `13:29`, e está coberto por testes para preço nulo e para mercado indisponível. Não foi possível forçá-lo pelos parâmetros de injeção de falha porque a contingência local repõe os preços, que é justamente o comportamento desejado do protótipo.
 - Não validado: o teclado real no Chrome do iPhone, pendência que já vinha da entrega anterior.
+- Revisar a copy dos três tópicos novos: `Cambiar de lado o tener los dos`, `Rangos del gráfico` e `Cuántas rondas hay`. Nenhum aparece nas telas aprovadas.
 - Existe uma entrada local `pulse-assistente-5187` em `.claude/launch.json`, que não é versionada, apontando para este worktree. Removê-la depois que a branch sair.
 - Sem autorização para PR, merge ou deploy.
 

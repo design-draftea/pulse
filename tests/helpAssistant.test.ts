@@ -275,3 +275,24 @@ test('o fallback oferece caminhos em vez de encerrar a conversa', () => {
   assert.match(result.answer, /Intenta preguntarlo de otra forma/)
   assert.equal(result.suggestions.length, 3)
 })
+
+test('corrige erros de digitação usando o vocabulário do próprio catálogo', () => {
+  const cases = [
+    ['que es el precio objetibo', 'what-is-target-price'],
+    ['puedo vender mi particiacion antes', 'can-sell-before-end'],
+    ['donde veo mis movimentos', 'movements'],
+  ] as const
+
+  for (const [query, expectedId] of cases) {
+    const result = askHelpAssistant(query, context)
+
+    assert.equal(result.confidence, 'high', query)
+    assert.equal(result.source?.id, expectedId, query)
+  }
+})
+
+test('a correção não troca uma palavra que o catálogo já conhece', () => {
+  const result = askHelpAssistant('¿Cuánto gano si acierto?', context)
+
+  assert.equal(result.source?.id, 'possible-win')
+})

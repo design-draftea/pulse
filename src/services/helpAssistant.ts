@@ -7,6 +7,7 @@ import {
 } from '../content/help/es-MX/helpContent.ts'
 import {
   describeMarketPrices,
+  describeSaleValue,
   FOLLOW_UPS,
   resolveLiveAnswer,
 } from './helpAssistantLive.ts'
@@ -184,9 +185,9 @@ const tokenize = (value: string) => normalizeHelpText(value)
   .split(' ')
   .filter((token) => token.length > 0 && !STOP_WORDS.has(token))
 
-const editDistance = (first: string, second: string) => {
+const editDistance = (first: string, second: string, maxDistance = 1) => {
   if (first === second) return 0
-  if (Math.abs(first.length - second.length) > 1) return 2
+  if (Math.abs(first.length - second.length) > maxDistance) return maxDistance + 1
 
   const previous = Array.from({ length: second.length + 1 }, (_, index) => index)
 
@@ -205,13 +206,22 @@ const editDistance = (first: string, second: string) => {
     previous.splice(0, previous.length, ...current)
   }
 
-  return previous[second.length] ?? 2
+  return Math.min(previous[second.length] ?? maxDistance + 1, maxDistance + 1)
 }
 
+// A digitação em celular erra mais do que uma letra em palavras longas, mas
+// afrouxar demais é justamente o que produz resposta confiante e errada. Por
+// isso a segunda edição só vale para palavras longas e pontua menos, exigindo
+// mais apoio do resto da frase.
 const tokenSimilarity = (queryToken: string, knowledgeToken: string) => {
   if (queryToken === knowledgeToken) return 1
-  if (queryToken.length < 5 || knowledgeToken.length < 5) return 0
-  return editDistance(queryToken, knowledgeToken) <= 1 ? 0.82 : 0
+
+  const shortest = Math.min(queryToken.length, knowledgeToken.length)
+  if (shortest < 5) return 0
+  if (editDistance(queryToken, knowledgeToken, 1) <= 1) return 0.82
+  if (shortest >= 8 && editDistance(queryToken, knowledgeToken, 2) <= 2) return 0.68
+
+  return 0
 }
 
 const bestTokenCoverage = (queryTokens: string[], knowledgeTokens: string[]) => {
@@ -362,6 +372,62 @@ const scoreKnowledgeItem = (
   return queryTokens.length === 1 ? Math.min(scoreWithIntent, 0.64) : scoreWithIntent
 }
 
+/**
+ * Vocabulário do próprio catálogo, usado como dicionário de correção.
+ *
+ * Os reconhecedores de dados ao vivo são expressões exatas: sem isto, um
+ * `probabilidd` digitado no celular nunca chega à resposta certa. A correção
+ * só toca palavras longas que o catálogo não conhece e só quando existe um
+ * único candidato, para não trocar uma palavra válida por outra.
+ */
+const LIVE_INTENT_VOCABULARY = [
+  'cierra',
+  'empieza',
+  'falta',
+  'faltan',
+  'minutos',
+  'perdi',
+  'posibilidad',
+  'probabilidad',
+  'proxima',
+  'queda',
+  'quedan',
+  'segundos',
+  'vender',
+  'vendo',
+  'venta',
+]
+
+const knowledgeVocabulary = new Set([
+  ...knowledgeItems.flatMap((item) => [
+    ...tokenize(item.title),
+    ...tokenize(item.answer),
+    ...item.examples.flatMap(tokenize),
+    ...item.aliases.flatMap(tokenize),
+    ...item.keywords.flatMap(tokenize),
+  ]),
+  ...helpSmallTalkItems.flatMap((item) => item.utterances.flatMap(tokenize)),
+  ...LIVE_INTENT_VOCABULARY,
+])
+
+const correctionTargets = [...knowledgeVocabulary]
+
+const correctTypos = (query: string) => query
+  .split(' ')
+  .map((token) => {
+    if (token.length < 5 || knowledgeVocabulary.has(token) || STOP_WORDS.has(token)) {
+      return token
+    }
+
+    const candidates = correctionTargets.filter((word) => (
+      Math.abs(word.length - token.length) <= 1
+      && editDistance(token, word, 1) <= 1
+    ))
+
+    return candidates.length === 1 ? candidates[0] : token
+  })
+  .join(' ')
+
 const rankKnowledge = (query: string, intent: QueryIntent) => knowledgeItems
   .map((item): RankedKnowledgeItem => ({
     item,
@@ -426,25 +492,48 @@ const includesAny = (query: string, terms: string[]) => terms.some((term) => (
   query.includes(normalizeHelpText(term))
 ))
 
-const asksForRecommendation = (query: string) => (
+const asksForSellAdvice = (query: string) => (
   includesAny(query, [
-    'cuál conviene',
-    'cuál es mejor',
-    'conviene up',
-    'conviene down',
-    'mejor up',
-    'mejor down',
-    'qué me recomiendas',
-    'me recomiendas up',
-    'me recomiendas down',
-    'recomiéndame',
-    'debo comprar',
-    'debería comprar',
-    'debería elegir',
-    'compro up o down',
-    'elijo up o down',
+    'conviene vender',
+    'me conviene vender',
+    'debo vender',
+    'debería vender',
+    'deberia vender',
+    'vendo o espero',
+    'vender o esperar',
+    'mejor vendo',
+    'mejor vender',
   ])
-  && includesAny(query, ['up', 'down', 'arriba', 'abajo', 'comprar'])
+)
+
+const asksForRecommendation = (query: string) => (
+  asksForSellAdvice(query)
+  // Pedidos genéricos de conselho não precisam citar UP ou DOWN na frase.
+  || includesAny(query, [
+    'qué me recomiendas',
+    'qué me sugieres',
+    'recomiéndame',
+    'qué harías',
+    'qué debo hacer',
+  ])
+  || (
+    includesAny(query, [
+      'cuál conviene',
+      'cuál es mejor',
+      'conviene up',
+      'conviene down',
+      'mejor up',
+      'mejor down',
+      'me recomiendas up',
+      'me recomiendas down',
+      'debo comprar',
+      'debería comprar',
+      'debería elegir',
+      'compro up o down',
+      'elijo up o down',
+    ])
+    && includesAny(query, ['up', 'down', 'arriba', 'abajo', 'comprar'])
+  )
 )
 
 const asksForPrediction = (query: string) => includesAny(query, [
@@ -559,21 +648,28 @@ export const askHelpAssistant = (
   context: HelpAssistantContext,
   conversation: HelpAssistantConversationContext = {},
 ): HelpAssistantResult => {
-  const query = normalizeHelpText(rawQuery)
+  const query = correctTypos(normalizeHelpText(rawQuery))
 
   if (asksForRecommendation(query) || asksForPrediction(query)) {
     // A recusa deixa de ser um beco sem saída: o preço de mercado é o dado
     // honesto que existe no lugar de uma recomendação ou de uma previsão.
     const marketPrices = context.live ? describeMarketPrices(context.live) : null
+    const sales = context.live && asksForSellAdvice(query)
+      ? describeSaleValue(context.live)
+      : null
 
     return {
-      answer: marketPrices
-        ? `Esa decisión es tuya: no puedo recomendarte UP o DOWN ni predecir el precio de Bitcoin. Lo que sí puedo decirte es lo que el mercado está pagando ahora: ${marketPrices}.`
-        : 'Puedo explicar cómo funcionan UP y DOWN, pero no puedo recomendar una opción ni predecir el precio de Bitcoin. La decisión depende de ti.',
+      answer: sales
+        ? `Esa decisión es tuya: no puedo recomendarte vender ni predecir el precio de Bitcoin. Lo que sí puedo darte son los dos montos: si vendes ahora recibes ${sales.map((sale) => balanceFormatter.format(sale.saleCents / 100)).join(' y ')}, y si esperas al cierre y aciertas recibes ${sales.map((sale) => balanceFormatter.format(sale.payoutCents / 100)).join(' y ')}.`
+        : marketPrices
+          ? `Esa decisión es tuya: no puedo recomendarte UP o DOWN ni predecir el precio de Bitcoin. Lo que sí puedo decirte es lo que el mercado está pagando ahora: ${marketPrices}.`
+          : 'Puedo explicar cómo funcionan UP y DOWN, pero no puedo recomendar una opción ni predecir el precio de Bitcoin. La decisión depende de ti.',
       confidence: 'high',
-      details: marketPrices
-        ? ['Ese porcentaje es la probabilidad implícita del mercado, no una predicción de Pulse, y cambia durante la ronda.']
-        : undefined,
+      details: sales
+        ? ['Si no aciertas, no recibes nada. El precio de venta cambia durante la ronda.']
+        : marketPrices
+          ? ['Ese porcentaje es la probabilidad implícita del mercado, no una predicción de Pulse, y cambia durante la ronda.']
+          : undefined,
       source: {
         id: 'responsible-use',
         label: 'Ayuda de Pulse · Uso responsable',

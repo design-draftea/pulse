@@ -290,7 +290,7 @@ export const helpGlossaryItems: HelpGlossaryItem[] = [
     description: 'Es el proceso que ocurre después del cierre de la ronda. En ese momento se confirma el resultado, se calculan las participaciones ganadoras y se actualiza el saldo.',
     id: 'settlement',
     title: 'Liquidación',
-    keywords: ['liquidar', 'cierre', 'actualización del saldo'],
+    keywords: ['liquidar', 'cierre', 'actualización del saldo', 'cuándo me pagan', 'cuándo recibo el pago', 'cuándo me depositan lo ganado'],
     examples: ['¿Qué es la liquidación?', '¿Cuándo se actualiza el saldo al terminar?'],
   },
 ]
@@ -468,7 +468,7 @@ export const helpTopicItems: HelpTopicItem[] = [
   },
   {
     id: 'why-price-moves',
-    title: 'Por qué cambia el precio de UP y DOWN',
+    title: 'Por qué cambia el precio de las participaciones',
     description:
       'Ese precio refleja lo que el mercado está pagando por cada resultado en ese momento. Cuando Bitcoin se acerca o se aleja del precio objetivo, o cuando queda menos tiempo en la ronda, el precio se ajusta. Por eso el porcentaje de UP y DOWN se mueve durante los 15 minutos.',
     aliases: [
@@ -486,6 +486,68 @@ export const helpTopicItems: HelpTopicItem[] = [
       '¿Por qué cambia el precio de UP?',
       '¿Por qué el porcentaje se mueve?',
       '¿Por qué ahora cuesta diferente?',
+    ],
+  },
+  {
+    id: 'change-side',
+    title: 'Cambiar de lado o tener los dos',
+    description:
+      'Una entrada no cambia de lado. Si compraste UP y ahora prefieres DOWN, puedes vender tus participaciones de UP mientras haya precio de venta y después comprar DOWN. También puedes tener participaciones en UP y en DOWN al mismo tiempo dentro de la misma ronda, pero solo uno de los dos lados recibe pago al cierre.',
+    aliases: [
+      'cambiar de lado',
+      'cambiar de UP a DOWN',
+      'cambiar de DOWN a UP',
+      'cambiarme de lado',
+      'comprar los dos lados',
+      'tener UP y DOWN',
+      'comprar UP y DOWN',
+    ],
+    keywords: ['cambiar entrada', 'los dos lados', 'ambos lados', 'arrepentirme'],
+    examples: [
+      '¿Puedo cambiar de UP a DOWN?',
+      '¿Puedo comprar los dos lados?',
+      '¿Puedo tener UP y DOWN en la misma ronda?',
+    ],
+  },
+  {
+    id: 'chart-ranges',
+    title: 'Rangos del gráfico',
+    description:
+      'Los botones debajo del gráfico cambian el periodo que se muestra. LIVE sigue el precio de la ronda en curso, mientras que 5M, 15M y 1H amplían la vista a los últimos 5 minutos, 15 minutos y 1 hora. Cambiar el rango solo cambia lo que ves: no afecta tu entrada ni el resultado de la ronda.',
+    aliases: [
+      'rangos del gráfico',
+      'LIVE 5M 15M 1H',
+      'qué significa LIVE',
+      'qué significa 5M',
+      'qué significa 15M',
+      'qué significa 1H',
+      'botones del gráfico',
+    ],
+    keywords: ['periodo del gráfico', 'zoom del gráfico', 'vista del gráfico'],
+    examples: [
+      '¿Qué significa LIVE en el gráfico?',
+      '¿Para qué sirven 5M y 15M?',
+      '¿Qué cambian los botones debajo del gráfico?',
+    ],
+  },
+  {
+    id: 'rounds-per-day',
+    title: 'Cuántas rondas hay',
+    description:
+      'Las rondas duran 15 minutos y se suceden sin pausa, así que hay 96 rondas por día. En cuanto una termina, la siguiente empieza con un precio objetivo nuevo. No necesitas participar en todas: puedes entrar en la que quieras, mientras siga abierta.',
+    aliases: [
+      'cuántas rondas hay',
+      'cuántas rondas al día',
+      'cuántas rondas por día',
+      'cada cuánto hay una ronda',
+      'cuándo empieza la próxima ronda',
+      'próxima ronda',
+    ],
+    keywords: ['frecuencia de las rondas', 'rondas por día', 'siguiente ronda'],
+    examples: [
+      '¿Cuántas rondas hay al día?',
+      '¿Cada cuánto empieza una ronda?',
+      '¿Tengo que participar en todas las rondas?',
     ],
   },
 ]

@@ -807,6 +807,7 @@ function App() {
       remainingSeconds: marketRound.remainingSeconds,
       targetPrice: marketRound.targetPrice,
     },
+    settledEntries,
     wallet: profileMetrics,
   })
   const helpAssistantSnapshotRef = useRef(helpAssistantSnapshot)

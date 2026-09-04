@@ -68,6 +68,7 @@ const createSnapshot = (
     remainingSeconds: 432,
     targetPrice: 109_380,
   },
+  settledEntries: [],
   wallet: {
     availableBalanceCents: 191_618,
     netResultCents: -8_382,
@@ -374,4 +375,149 @@ test('o histórico oferece o dado del momento en vez de dejar la racha sola', ()
   const result = ask('¿Cuántas rondas terminaron arriba?', createSnapshot())
 
   assert.ok(result.suggestions.some(({ id }) => id === FOLLOW_UPS.liveProbability.id))
+})
+
+const settled = (
+  overrides: Partial<HelpAssistantLiveSnapshot['settledEntries'][number]> = {},
+) => ({
+  amountCents: 1_000,
+  outcome: 'won' as const,
+  participations: 16,
+  payoutCents: 1_600,
+  roundEnd: new Date(2026, 8, 4, 13, 15, 0).getTime(),
+  side: 'up' as const,
+  ...overrides,
+})
+
+test('cotiza la venta con el mismo quoteSell de la posición real', () => {
+  const result = ask('¿Cuánto me dan si vendo ahora?', withPosition('up'))
+
+  assert.equal(result.source?.id, 'sale-value')
+  assert.equal(result.action?.id, 'entries')
+  assert.match(result.answer, /16 participaciones de UP, recibes \$9\.76/)
+  assert.ok(result.details?.some((line) => /\$0\.61 por participación/.test(line)))
+  assert.ok(result.details?.some((line) => /esperas al cierre y UP gana, recibes \$16\.00/.test(line)))
+})
+
+test('no inventa un monto de venta cuando no hay posición o no hay precio', () => {
+  const withoutPosition = ask('¿Cuánto me dan si vendo ahora?', createSnapshot())
+  assert.match(withoutPosition.answer, /no tienes participaciones para vender/)
+
+  const withoutQuote = ask('¿Cuánto me dan si vendo ahora?', {
+    ...withPosition('up'),
+    quoteSell: () => null,
+  })
+  assert.match(withoutQuote.answer, /no hay precio de venta disponible/)
+  assert.ok(!/\$9\.76/.test(withoutQuote.answer))
+})
+
+test('recusa conselho de venda mas entrega os dois montos', () => {
+  const result = ask('¿Me conviene vender?', withPosition('up'))
+
+  assert.equal(result.source?.type, 'policy')
+  assert.match(result.answer, /no puedo recomendarte vender/)
+  assert.match(result.answer, /si vendes ahora recibes \$9\.76/)
+  assert.match(result.answer, /esperas al cierre y aciertas recibes \$16\.00/)
+})
+
+test('cuenta el resultado de la ronda que se liquidó', () => {
+  const cases = [
+    ['won', /ganaste/, /Recibiste \$16\.00/],
+    ['lost', /no acertaste/, /No recibiste pago/],
+    ['sold', /vendiste antes del cierre/, /por la venta/],
+    ['canceled', /se canceló/, /Se te devolvieron/],
+  ] as const
+
+  for (const [outcome, headline, detail] of cases) {
+    const result = ask('¿Gané la ronda anterior?', createSnapshot({
+      settledEntries: [settled({ outcome })],
+    }))
+
+    assert.equal(result.source?.id, 'last-result', outcome)
+    assert.match(result.answer, /cerró a las 13:15/, outcome)
+    assert.match(result.answer, headline, outcome)
+    assert.ok(result.details?.some((line) => detail.test(line)), outcome)
+  }
+})
+
+test('usa la ronda más reciente aunque lleguen desordenadas', () => {
+  const older = settled({ outcome: 'lost', roundEnd: new Date(2026, 8, 4, 12, 45, 0).getTime() })
+  const newer = settled({ outcome: 'won', roundEnd: new Date(2026, 8, 4, 13, 30, 0).getTime() })
+  const result = ask('¿Gané la ronda anterior?', createSnapshot({
+    settledEntries: [older, newer],
+  }))
+
+  assert.match(result.answer, /13:30/)
+  assert.match(result.answer, /ganaste/)
+})
+
+test('sin rondas liquidadas no inventa un resultado', () => {
+  const result = ask('¿Gané la ronda anterior?', createSnapshot())
+
+  assert.match(result.answer, /Todavía no tienes ninguna ronda liquidada/)
+})
+
+test('una pregunta de total responde el acumulado, no la última ronda', () => {
+  for (const query of ['¿Cuánto gané hoy?', '¿Cuánto llevo perdido?']) {
+    const result = ask(query, createSnapshot({ settledEntries: [settled()] }))
+
+    assert.equal(result.source?.id, 'accumulated-result', query)
+    assert.match(result.answer, /resultado acumulado es -\$83\.82/, query)
+    assert.ok(
+      result.details?.some((line) => /No puedo separarlo por día/.test(line)),
+      query,
+    )
+  }
+})
+
+test('`de que yo gane` não é lido como pretérito', () => {
+  const result = ask('¿Cuál es la probabilidad de que yo gane?', createSnapshot({
+    settledEntries: [settled()],
+  }))
+
+  assert.equal(result.source?.id, 'implied-probability')
+})
+
+test('`cuántas rondas hay al día` não vira contagem de resultados', () => {
+  const result = ask('¿Cuántas rondas hay al día?', createSnapshot())
+
+  assert.notEqual(result.source?.id, 'previous-rounds-count')
+  assert.equal(result.source?.id, 'rounds-per-day')
+  assert.match(result.answer, /96 rondas por día/)
+})
+
+test('`puedo cambiar de UP a DOWN` não vira explicação de preço', () => {
+  const result = ask('¿Puedo cambiar de UP a DOWN?', createSnapshot())
+
+  assert.notEqual(result.source?.id, 'why-price-moves')
+  assert.equal(result.source?.id, 'change-side')
+})
+
+test('responde a qué hora empieza la próxima ronda', () => {
+  const result = ask('¿A qué hora empieza la próxima ronda?', createSnapshot())
+
+  assert.equal(result.source?.id, 'round-state')
+  assert.match(result.answer, /La próxima ronda empieza a las 14:45/)
+})
+
+test('erros de digitação chegam às respostas com dados ao vivo', () => {
+  const cases = [
+    ['¿Cuanto tienpo qeda?', 'round-state'],
+    ['cual es la probabilidd de ganar', 'implied-probability'],
+    ['cuanto me dan si vemdo ahora', 'sale-value'],
+  ] as const
+
+  for (const [query, expectedId] of cases) {
+    const result = ask(query, withPosition('up'))
+
+    assert.equal(result.confidence, 'high', query)
+    assert.equal(result.source?.id, expectedId, query)
+  }
+})
+
+test('a correção de digitação não inventa assunto para texto externo', () => {
+  const result = ask('¿Cómo preparo una pizza?', createSnapshot())
+
+  assert.equal(result.confidence, 'low')
+  assert.equal(result.source, undefined)
 })
