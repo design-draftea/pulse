@@ -2,45 +2,36 @@ import {
   helpFaqItems,
   helpGlossaryItems,
   helpProductItems,
+  helpSmallTalkItems,
+  helpTopicItems,
 } from '../content/help/es-MX/helpContent.ts'
+import {
+  describeMarketPrices,
+  describeSaleValue,
+  FOLLOW_UPS,
+  resolveLiveAnswer,
+} from './helpAssistantLive.ts'
+import { ACTION_LABELS } from './helpAssistantTypes.ts'
+import type {
+  HelpAssistantActionId,
+  HelpAssistantContext,
+  HelpAssistantConversationContext,
+  HelpAssistantResult,
+  HelpAssistantSuggestion,
+} from './helpAssistantTypes.ts'
 
-export type HelpAssistantActionId = 'entries' | 'movements' | 'previous-rounds'
-export type HelpAssistantConfidence = 'high' | 'medium' | 'low'
-export type HelpAssistantSourceType = 'account' | 'faq' | 'glossary' | 'policy' | 'product'
-
-export interface HelpAssistantAction {
-  id: HelpAssistantActionId
-  label: string
-}
-
-export interface HelpAssistantContext {
-  availableBalanceCents: number
-  hasOpenEntries: boolean
-}
-
-export interface HelpAssistantSource {
-  id: string
-  label: string
-  type: HelpAssistantSourceType
-}
-
-export interface HelpAssistantConversationContext {
-  previousSource?: Pick<HelpAssistantSource, 'id' | 'type'>
-}
-
-export interface HelpAssistantSuggestion {
-  id: string
-  label: string
-  query: string
-}
-
-export interface HelpAssistantResult {
-  action?: HelpAssistantAction
-  answer: string
-  confidence: HelpAssistantConfidence
-  source?: HelpAssistantSource
-  suggestions: HelpAssistantSuggestion[]
-}
+export type {
+  HelpAssistantAction,
+  HelpAssistantActionId,
+  HelpAssistantConfidence,
+  HelpAssistantContext,
+  HelpAssistantConversationContext,
+  HelpAssistantHighlight,
+  HelpAssistantResult,
+  HelpAssistantSource,
+  HelpAssistantSourceType,
+  HelpAssistantSuggestion,
+} from './helpAssistantTypes.ts'
 
 type QueryIntent = 'definition' | 'explanation' | 'navigation' | 'unknown'
 
@@ -102,21 +93,22 @@ const STOP_WORDS = new Set([
 
 const DEFAULT_SUGGESTION_IDS = [
   'faq:how-round-works',
-  'product:previous-rounds',
+  'glossary:implied-probability',
   'faq:what-is-up-down',
 ]
-
-const ACTION_LABELS: Record<HelpAssistantActionId, string> = {
-  entries: 'Ver mis entradas',
-  movements: 'Ver movimientos',
-  'previous-rounds': 'Ver últimas rondas',
-}
 
 const balanceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
+})
+const netResultFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  signDisplay: 'exceptZero',
 })
 
 export const normalizeHelpText = (value: string) => value
@@ -164,6 +156,17 @@ const knowledgeItems: HelpKnowledgeItem[] = [
     sourceType: 'glossary',
     title: item.title,
   })),
+  ...helpTopicItems.map((item): HelpKnowledgeItem => ({
+    aliases: item.aliases,
+    answer: item.description,
+    examples: item.examples,
+    id: item.id,
+    keywords: item.keywords,
+    preferredIntent: 'explanation',
+    sourceLabel: 'Ayuda de Pulse',
+    sourceType: 'product',
+    title: item.title,
+  })),
   ...helpProductItems.map((item): HelpKnowledgeItem => ({
     actionId: item.action,
     aliases: item.aliases,
@@ -182,9 +185,9 @@ const tokenize = (value: string) => normalizeHelpText(value)
   .split(' ')
   .filter((token) => token.length > 0 && !STOP_WORDS.has(token))
 
-const editDistance = (first: string, second: string) => {
+const editDistance = (first: string, second: string, maxDistance = 1) => {
   if (first === second) return 0
-  if (Math.abs(first.length - second.length) > 1) return 2
+  if (Math.abs(first.length - second.length) > maxDistance) return maxDistance + 1
 
   const previous = Array.from({ length: second.length + 1 }, (_, index) => index)
 
@@ -203,13 +206,22 @@ const editDistance = (first: string, second: string) => {
     previous.splice(0, previous.length, ...current)
   }
 
-  return previous[second.length] ?? 2
+  return Math.min(previous[second.length] ?? maxDistance + 1, maxDistance + 1)
 }
 
+// A digitação em celular erra mais do que uma letra em palavras longas, mas
+// afrouxar demais é justamente o que produz resposta confiante e errada. Por
+// isso a segunda edição só vale para palavras longas e pontua menos, exigindo
+// mais apoio do resto da frase.
 const tokenSimilarity = (queryToken: string, knowledgeToken: string) => {
   if (queryToken === knowledgeToken) return 1
-  if (queryToken.length < 5 || knowledgeToken.length < 5) return 0
-  return editDistance(queryToken, knowledgeToken) <= 1 ? 0.82 : 0
+
+  const shortest = Math.min(queryToken.length, knowledgeToken.length)
+  if (shortest < 5) return 0
+  if (editDistance(queryToken, knowledgeToken, 1) <= 1) return 0.82
+  if (shortest >= 8 && editDistance(queryToken, knowledgeToken, 2) <= 2) return 0.68
+
+  return 0
 }
 
 const bestTokenCoverage = (queryTokens: string[], knowledgeTokens: string[]) => {
@@ -360,6 +372,62 @@ const scoreKnowledgeItem = (
   return queryTokens.length === 1 ? Math.min(scoreWithIntent, 0.64) : scoreWithIntent
 }
 
+/**
+ * Vocabulário do próprio catálogo, usado como dicionário de correção.
+ *
+ * Os reconhecedores de dados ao vivo são expressões exatas: sem isto, um
+ * `probabilidd` digitado no celular nunca chega à resposta certa. A correção
+ * só toca palavras longas que o catálogo não conhece e só quando existe um
+ * único candidato, para não trocar uma palavra válida por outra.
+ */
+const LIVE_INTENT_VOCABULARY = [
+  'cierra',
+  'empieza',
+  'falta',
+  'faltan',
+  'minutos',
+  'perdi',
+  'posibilidad',
+  'probabilidad',
+  'proxima',
+  'queda',
+  'quedan',
+  'segundos',
+  'vender',
+  'vendo',
+  'venta',
+]
+
+const knowledgeVocabulary = new Set([
+  ...knowledgeItems.flatMap((item) => [
+    ...tokenize(item.title),
+    ...tokenize(item.answer),
+    ...item.examples.flatMap(tokenize),
+    ...item.aliases.flatMap(tokenize),
+    ...item.keywords.flatMap(tokenize),
+  ]),
+  ...helpSmallTalkItems.flatMap((item) => item.utterances.flatMap(tokenize)),
+  ...LIVE_INTENT_VOCABULARY,
+])
+
+const correctionTargets = [...knowledgeVocabulary]
+
+const correctTypos = (query: string) => query
+  .split(' ')
+  .map((token) => {
+    if (token.length < 5 || knowledgeVocabulary.has(token) || STOP_WORDS.has(token)) {
+      return token
+    }
+
+    const candidates = correctionTargets.filter((word) => (
+      Math.abs(word.length - token.length) <= 1
+      && editDistance(token, word, 1) <= 1
+    ))
+
+    return candidates.length === 1 ? candidates[0] : token
+  })
+  .join(' ')
+
 const rankKnowledge = (query: string, intent: QueryIntent) => knowledgeItems
   .map((item): RankedKnowledgeItem => ({
     item,
@@ -424,25 +492,48 @@ const includesAny = (query: string, terms: string[]) => terms.some((term) => (
   query.includes(normalizeHelpText(term))
 ))
 
-const asksForRecommendation = (query: string) => (
+const asksForSellAdvice = (query: string) => (
   includesAny(query, [
-    'cuál conviene',
-    'cuál es mejor',
-    'conviene up',
-    'conviene down',
-    'mejor up',
-    'mejor down',
-    'qué me recomiendas',
-    'me recomiendas up',
-    'me recomiendas down',
-    'recomiéndame',
-    'debo comprar',
-    'debería comprar',
-    'debería elegir',
-    'compro up o down',
-    'elijo up o down',
+    'conviene vender',
+    'me conviene vender',
+    'debo vender',
+    'debería vender',
+    'deberia vender',
+    'vendo o espero',
+    'vender o esperar',
+    'mejor vendo',
+    'mejor vender',
   ])
-  && includesAny(query, ['up', 'down', 'arriba', 'abajo', 'comprar'])
+)
+
+const asksForRecommendation = (query: string) => (
+  asksForSellAdvice(query)
+  // Pedidos genéricos de conselho não precisam citar UP ou DOWN na frase.
+  || includesAny(query, [
+    'qué me recomiendas',
+    'qué me sugieres',
+    'recomiéndame',
+    'qué harías',
+    'qué debo hacer',
+  ])
+  || (
+    includesAny(query, [
+      'cuál conviene',
+      'cuál es mejor',
+      'conviene up',
+      'conviene down',
+      'mejor up',
+      'mejor down',
+      'me recomiendas up',
+      'me recomiendas down',
+      'debo comprar',
+      'debería comprar',
+      'debería elegir',
+      'compro up o down',
+      'elijo up o down',
+    ])
+    && includesAny(query, ['up', 'down', 'arriba', 'abajo', 'comprar'])
+  )
 )
 
 const asksForPrediction = (query: string) => includesAny(query, [
@@ -494,6 +585,50 @@ const getKnowledgeItemFromSource = (
   ))
 }
 
+const SMALL_TALK_MENU: HelpAssistantSuggestion[] = [
+  {
+    id: 'small-talk:probability',
+    label: '¿Qué probabilidad tengo de ganar?',
+    query: '¿Cuál es la probabilidad de que yo gane?',
+  },
+  {
+    id: 'small-talk:round',
+    label: '¿Cuánto tiempo queda?',
+    query: '¿Cuánto tiempo queda en la ronda?',
+  },
+  {
+    id: 'small-talk:how-to-start',
+    label: '¿Cómo empiezo?',
+    query: '¿Cómo empiezo?',
+  },
+]
+
+const smallTalkIndex = new Map(
+  helpSmallTalkItems.flatMap((item) => item.utterances.map(
+    (utterance) => [normalizeHelpText(utterance), item] as const,
+  )),
+)
+
+/**
+ * Correspondência exata do enunciado inteiro, de propósito: `ayuda` sozinho é
+ * uma saudação, mas `ayuda` dentro de uma pergunta real não deve sequestrá-la.
+ */
+const resolveSmallTalk = (query: string): HelpAssistantResult | undefined => {
+  const item = smallTalkIndex.get(query)
+  if (!item) return undefined
+
+  return {
+    answer: item.answer,
+    confidence: 'high',
+    source: {
+      id: item.id,
+      label: 'Asistente de Pulse',
+      type: 'policy',
+    },
+    suggestions: item.withMenu ? SMALL_TALK_MENU : [],
+  }
+}
+
 const toKnowledgeResult = (item: HelpKnowledgeItem): HelpAssistantResult => ({
   action: item.actionId
     ? { id: item.actionId, label: ACTION_LABELS[item.actionId] }
@@ -513,18 +648,34 @@ export const askHelpAssistant = (
   context: HelpAssistantContext,
   conversation: HelpAssistantConversationContext = {},
 ): HelpAssistantResult => {
-  const query = normalizeHelpText(rawQuery)
+  const query = correctTypos(normalizeHelpText(rawQuery))
 
   if (asksForRecommendation(query) || asksForPrediction(query)) {
+    // A recusa deixa de ser um beco sem saída: o preço de mercado é o dado
+    // honesto que existe no lugar de uma recomendação ou de uma previsão.
+    const marketPrices = context.live ? describeMarketPrices(context.live) : null
+    const sales = context.live && asksForSellAdvice(query)
+      ? describeSaleValue(context.live)
+      : null
+
     return {
-      answer: 'Puedo explicar cómo funcionan UP y DOWN, pero no puedo recomendar una opción ni predecir el precio de Bitcoin. La decisión depende de ti.',
+      answer: sales
+        ? `Esa decisión es tuya: no puedo recomendarte vender ni predecir el precio de Bitcoin. Lo que sí puedo darte son los dos montos: si vendes ahora recibes ${sales.map((sale) => balanceFormatter.format(sale.saleCents / 100)).join(' y ')}, y si esperas al cierre y aciertas recibes ${sales.map((sale) => balanceFormatter.format(sale.payoutCents / 100)).join(' y ')}.`
+        : marketPrices
+          ? `Esa decisión es tuya: no puedo recomendarte UP o DOWN ni predecir el precio de Bitcoin. Lo que sí puedo decirte es lo que el mercado está pagando ahora: ${marketPrices}.`
+          : 'Puedo explicar cómo funcionan UP y DOWN, pero no puedo recomendar una opción ni predecir el precio de Bitcoin. La decisión depende de ti.',
       confidence: 'high',
+      details: sales
+        ? ['Si no aciertas, no recibes nada. El precio de venta cambia durante la ronda.']
+        : marketPrices
+          ? ['Ese porcentaje es la probabilidad implícita del mercado, no una predicción de Pulse, y cambia durante la ronda.']
+          : undefined,
       source: {
         id: 'responsible-use',
         label: 'Ayuda de Pulse · Uso responsable',
         type: 'policy',
       },
-      suggestions: [],
+      suggestions: [FOLLOW_UPS.impliedProbability, FOLLOW_UPS.canLose],
     }
   }
 
@@ -532,6 +683,12 @@ export const askHelpAssistant = (
     return {
       answer: `Tu saldo disponible es ${balanceFormatter.format(context.availableBalanceCents / 100)}. También puedes consultarlo en la parte superior de Pulse.`,
       confidence: 'high',
+      details: context.live
+        ? [
+            `Con las entradas abiertas, tu total es ${balanceFormatter.format(context.live.wallet.portfolioTotalCents / 100)}.`,
+            `Resultado acumulado desde el depósito inicial: ${netResultFormatter.format(context.live.wallet.netResultCents / 100)}.`,
+          ]
+        : undefined,
       source: {
         id: 'available-balance',
         label: 'Tu cuenta · Saldo disponible',
@@ -561,7 +718,17 @@ export const askHelpAssistant = (
   const exactMatch = exactUtteranceMatch(query, intent)
     ?? exactConceptMatch(extractConcept(query, intent), intent)
 
+  // O conteúdo curado vem antes dos dados ao vivo: `¿Qué información tiene mi
+  // entrada?` é uma definição do glossário, não uma consulta à posição real.
   if (exactMatch) return toKnowledgeResult(exactMatch)
+
+  if (context.live) {
+    const liveAnswer = resolveLiveAnswer(query, rawQuery, context.live)
+    if (liveAnswer) return liveAnswer
+  }
+
+  const smallTalk = resolveSmallTalk(query)
+  if (smallTalk) return smallTalk
 
   const rankedItems = rankKnowledge(query, intent)
   if (hasHighConfidence(rankedItems)) return toKnowledgeResult(rankedItems[0].item)
@@ -597,7 +764,7 @@ export const askHelpAssistant = (
   }
 
   return {
-    answer: 'No encontré una respuesta segura. Puedes consultar las preguntas frecuentes o el glosario.',
+    answer: 'No encontré una respuesta segura para eso. Puedo ayudarte con la ronda, los precios de UP y DOWN, tus entradas, tus movimientos y tu saldo. Intenta preguntarlo de otra forma.',
     confidence: 'low',
     suggestions: defaultSuggestions(),
   }

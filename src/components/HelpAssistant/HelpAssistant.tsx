@@ -13,6 +13,7 @@ import {
   type HelpAssistantSource,
   type HelpAssistantSuggestion,
 } from '../../services/helpAssistant'
+import type { HelpAssistantLiveSnapshot } from '../../services/helpAssistantSnapshot'
 import './HelpAssistant.css'
 
 const RESPONSE_DELAY_MS = 2_000
@@ -24,9 +25,9 @@ const INTRO_SUGGESTIONS: HelpAssistantSuggestion[] = [
     query: '¿Cómo funciona una ronda de 15 minutos?',
   },
   {
-    id: 'intro-previous-rounds',
-    label: '¿Qué son las últimas 10 rondas?',
-    query: '¿Qué son las últimas 10 rondas?',
+    id: 'intro-probability',
+    label: '¿Qué probabilidad tengo de ganar?',
+    query: '¿Cuál es la probabilidad de que yo gane?',
   },
   {
     id: 'intro-up-down',
@@ -45,6 +46,11 @@ interface HelpAssistantMessage {
 
 interface HelpAssistantProps {
   context: HelpAssistantContext
+  /**
+   * Lido no envio, não na renderização: a resposta usa o preço, o relógio e a
+   * posição do instante da pergunta, sem recriar o componente a cada segundo.
+   */
+  getLiveSnapshot?: () => HelpAssistantLiveSnapshot
   isActive: boolean
   onNavigate: (action: HelpAssistantActionId) => void
   onOpenFaq: (id: string) => void
@@ -53,6 +59,7 @@ interface HelpAssistantProps {
 
 export function HelpAssistant({
   context,
+  getLiveSnapshot,
   isActive,
   onNavigate,
   onOpenFaq,
@@ -98,9 +105,6 @@ export function HelpAssistant({
     const trimmedQuery = query.trim()
     if (!trimmedQuery || responseTimerRef.current !== null) return
 
-    const result = askHelpAssistant(trimmedQuery, context, {
-      previousSource: previousSourceRef.current ?? undefined,
-    })
     const userMessageId = messageIdRef.current + 1
     const assistantMessageId = userMessageId + 1
     messageIdRef.current = assistantMessageId
@@ -120,6 +124,15 @@ export function HelpAssistant({
 
     responseTimerRef.current = window.setTimeout(() => {
       responseTimerRef.current = null
+
+      // A resposta é calculada aqui, e não no envio: com dados ao vivo, o
+      // número precisa ser o do instante em que a pessoa o lê, não o de dois
+      // segundos antes.
+      const result = askHelpAssistant(
+        trimmedQuery,
+        { ...context, live: getLiveSnapshot?.() },
+        { previousSource: previousSourceRef.current ?? undefined },
+      )
 
       if (
         result.confidence === 'high'
@@ -144,7 +157,7 @@ export function HelpAssistant({
       )))
       setIsResponding(false)
     }, RESPONSE_DELAY_MS)
-  }, [context])
+  }, [context, getLiveSnapshot])
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -176,8 +189,9 @@ export function HelpAssistant({
         <div className="help-assistant__intro">
           <h3 ref={headingRef} tabIndex={-1}>Hola, soy el asistente de Pulse</h3>
           <p>
-            Puedo ayudarte con rondas, precios, el gráfico, entradas y movimientos.
-            No puedo recomendarte elegir UP o DOWN.
+            Respondo con los datos de este momento: la probabilidad implícita de
+            UP y DOWN, el tiempo de la ronda, tu entrada y tu saldo. No puedo
+            recomendarte elegir UP o DOWN ni predecir el precio de Bitcoin.
           </p>
         </div>
 
@@ -212,7 +226,40 @@ export function HelpAssistant({
                     <span />
                   </span>
                 ) : (
-                  <p>{message.text}</p>
+                  <>
+                    {message.result?.highlight ? (
+                      <div className="help-assistant__highlight">
+                        <div className="help-assistant__highlight-values">
+                          {message.result.highlight.items.map((item) => (
+                            <span
+                              className={`help-assistant__highlight-item${item.side ? ` help-assistant__highlight-item--${item.side}` : ''}`}
+                              key={item.label}
+                            >
+                              <span className="help-assistant__highlight-label">
+                                {item.label}
+                              </span>
+                              <strong>{item.value}</strong>
+                            </span>
+                          ))}
+                        </div>
+                        {message.result.highlight.timeLabel ? (
+                          <span className="help-assistant__highlight-time">
+                            Dato en vivo · {message.result.highlight.timeLabel}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <p>{message.text}</p>
+
+                    {message.result?.details?.length ? (
+                      <ul className="help-assistant__details">
+                        {message.result.details.map((detail) => (
+                          <li key={detail}>{detail}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </>
                 )}
 
                 {message.result?.suggestions.length ? (

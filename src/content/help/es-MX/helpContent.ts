@@ -26,6 +26,22 @@ export interface HelpProductItem {
   title: string
 }
 
+export interface HelpTopicItem {
+  aliases: string[]
+  description: string
+  examples: string[]
+  id: string
+  keywords: string[]
+  title: string
+}
+
+export interface HelpSmallTalkItem {
+  answer: string
+  id: string
+  utterances: string[]
+  withMenu: boolean
+}
+
 export const helpFaqItems: HelpFaqItem[] = [
   {
     id: 'what-is-pulse',
@@ -121,6 +137,18 @@ export const helpFaqItems: HelpFaqItem[] = [
       '¿Cuánto gano si acierto?',
       '¿Cuánto paga una participación?',
       '¿Dónde veo mi retorno potencial?',
+    ],
+  },
+  {
+    id: 'can-i-lose',
+    question: '¿Puedo perder el monto que utilicé?',
+    answer:
+      'Sí. Si tu selección no acierta, las participaciones de esa ronda no reciben pago y el monto utilizado no regresa a tu saldo. También puedes vender antes del cierre por un monto menor al que utilizaste. En esta versión el saldo es simulado, así que no hay pérdida de dinero real.',
+    keywords: ['puedo perder', 'perder dinero', 'pierdo el monto', 'qué pasa si no acierto', 'riesgo'],
+    examples: [
+      '¿Puedo perder dinero?',
+      '¿Qué pasa si pierdo?',
+      '¿Pierdo el monto si no acierto?',
     ],
   },
   {
@@ -231,6 +259,13 @@ export const helpGlossaryItems: HelpGlossaryItem[] = [
     examples: ['¿Qué es una participación?', '¿Qué recibo cuando compro?'],
   },
   {
+    description: 'Es la probabilidad que el mercado le da a un resultado, expresada en el precio de la participación. Si UP cuesta $0.62, el mercado le está dando 62% a que la ronda termine arriba, porque esa participación paga US$1 si acierta. No es una predicción de Pulse: es el precio que se está pagando en ese momento y cambia durante la ronda.',
+    id: 'implied-probability',
+    title: 'Probabilidad implícita',
+    keywords: ['porcentaje de UP y DOWN', 'qué significa el porcentaje', 'precio como probabilidad', 'qué representa el precio'],
+    examples: ['¿Qué es la probabilidad implícita?', '¿Qué significa el porcentaje que aparece en UP?', '¿Por qué el precio se muestra como porcentaje?'],
+  },
+  {
     description: 'Es el registro de tu participación en una ronda. Incluye información como tu selección, el monto utilizado y el estado del resultado.',
     id: 'entry',
     title: 'Entrada',
@@ -255,7 +290,7 @@ export const helpGlossaryItems: HelpGlossaryItem[] = [
     description: 'Es el proceso que ocurre después del cierre de la ronda. En ese momento se confirma el resultado, se calculan las participaciones ganadoras y se actualiza el saldo.',
     id: 'settlement',
     title: 'Liquidación',
-    keywords: ['liquidar', 'cierre', 'actualización del saldo'],
+    keywords: ['liquidar', 'cierre', 'actualización del saldo', 'cuándo me pagan', 'cuándo recibo el pago', 'cuándo me depositan lo ganado'],
     examples: ['¿Qué es la liquidación?', '¿Cuándo se actualiza el saldo al terminar?'],
   },
 ]
@@ -309,5 +344,286 @@ export const helpProductItems: HelpProductItem[] = [
       'Quiero ver mis compras y ventas',
     ],
     action: 'movements',
+  },
+]
+
+/**
+ * Tópicos que existem apenas no assistente.
+ *
+ * As 12 perguntas frequentes e os 12 termos do glossário foram aprovados e não
+ * são alterados aqui. Estes textos cobrem lacunas confirmadas em consultas
+ * reais e ficam fora das duas telas aprovadas até que a copy seja revisada.
+ * Promover um item para o glossário ou para as perguntas frequentes é mover o
+ * objeto de lista, sem outra mudança.
+ */
+export const helpTopicItems: HelpTopicItem[] = [
+  {
+    id: 'is-money-real',
+    title: 'Saldo simulado',
+    description:
+      'En esta versión el saldo, las compras y las ventas son simulados: existen para que pruebes la experiencia sin usar dinero real. Los precios de Bitcoin y de las participaciones sí provienen de fuentes de mercado, así que lo que cambia es el dinero, no los datos.',
+    aliases: [
+      'dinero real',
+      'saldo real',
+      'es dinero de verdad',
+      'es real o simulado',
+      'esto es real',
+    ],
+    keywords: ['dinero simulado', 'prototipo', 'dinero de verdad', 'saldo falso'],
+    examples: [
+      '¿El dinero de Pulse es real?',
+      '¿Estoy usando dinero de verdad?',
+      '¿Esto es real o es una simulación?',
+    ],
+  },
+  {
+    id: 'amount-limits',
+    title: 'Monto mínimo y máximo',
+    description:
+      'No hay un monto mínimo definido: puedes participar desde $0.01. El máximo depende de tu saldo disponible y de las participaciones disponibles en el mercado en ese momento. Si escribes un monto mayor que tu saldo, el botón de compra muestra Saldo insuficiente.',
+    aliases: [
+      'monto mínimo',
+      'monto máximo',
+      'cuánto mínimo',
+      'lo mínimo que puedo poner',
+      'cuánto puedo poner',
+    ],
+    keywords: ['mínimo', 'máximo', 'límite de monto', 'cuánto invertir'],
+    examples: [
+      '¿Cuál es el monto mínimo?',
+      '¿Cuánto es lo mínimo que puedo poner?',
+      '¿Hay un límite de monto?',
+    ],
+  },
+  {
+    id: 'deposits-withdrawals',
+    title: 'Depósitos y retiros',
+    description:
+      'En esta versión, Depositar y Retirar todavía no están disponibles: los botones aparecen en tu perfil, pero no realizan ninguna operación. Empiezas con un saldo simulado ya cargado y ese es el que utilizas durante toda la prueba.',
+    aliases: [
+      'depositar',
+      'retirar',
+      'retirar mi dinero',
+      'sacar mi dinero',
+      'cómo deposito',
+    ],
+    keywords: ['depósito', 'retiro', 'cobrar', 'sacar saldo'],
+    examples: [
+      '¿Puedo retirar mi dinero?',
+      '¿Cómo deposito saldo?',
+      '¿Puedo sacar mis ganancias?',
+    ],
+  },
+  {
+    id: 'no-fees',
+    title: 'Comisiones',
+    description:
+      'En esta versión no se aplica ninguna comisión. El monto que utilizas es exactamente el que se descuenta de tu saldo simulado, y lo que recibes por una venta o por una ronda ganada se acredita completo.',
+    aliases: ['comisiones', 'comisión', 'cobran algo', 'hay cargos'],
+    keywords: ['comisión', 'cargo', 'costo adicional', 'tarifa'],
+    examples: [
+      '¿Pulse cobra comisiones?',
+      '¿Hay algún cargo por comprar?',
+      '¿Me descuentan algo cuando gano?',
+    ],
+  },
+  {
+    id: 'chance-or-market',
+    title: 'Mercado de predicción',
+    description:
+      'Pulse es un mercado de predicción sobre el precio de Bitcoin: el resultado depende de cómo se mueve el mercado, no de un sorteo. Aun así, nadie puede conocer el resultado por adelantado y puedes no acertar. El precio de UP y DOWN refleja lo que el mercado está pagando por cada resultado en ese momento.',
+    aliases: [
+      'es azar',
+      'juego de azar',
+      'es apuesta',
+      'es suerte',
+      'es un casino',
+    ],
+    keywords: ['azar', 'suerte', 'apuesta', 'mercado de predicción'],
+    examples: [
+      '¿Es un juego de azar?',
+      '¿Esto es una apuesta?',
+      '¿Depende de la suerte?',
+    ],
+  },
+  {
+    id: 'how-to-start',
+    title: 'Cómo empezar',
+    description:
+      'Primero mira el precio objetivo y el tiempo que queda en la ronda. Después elige UP si crees que el precio final quedará igual o arriba de ese valor, o DOWN si crees que quedará abajo. Escribe el monto, desliza para confirmar la compra y sigue el resultado en la sección Entradas.',
+    aliases: [
+      'cómo empiezo',
+      'cómo empezar',
+      'cómo juego',
+      'cómo participo',
+      'primeros pasos',
+      'cómo se usa',
+    ],
+    keywords: ['empezar', 'primeros pasos', 'cómo participar', 'cómo comprar'],
+    examples: [
+      '¿Cómo empiezo?',
+      '¿Cómo participo en una ronda?',
+      '¿Qué tengo que hacer para comprar?',
+    ],
+  },
+  {
+    id: 'why-price-moves',
+    title: 'Por qué cambia el precio de las participaciones',
+    description:
+      'Ese precio refleja lo que el mercado está pagando por cada resultado en ese momento. Cuando Bitcoin se acerca o se aleja del precio objetivo, o cuando queda menos tiempo en la ronda, el precio se ajusta. Por eso el porcentaje de UP y DOWN se mueve durante los 15 minutos.',
+    aliases: [
+      'por qué cambia el precio',
+      'por qué se mueve el porcentaje',
+      'por qué sube el precio de UP',
+      'por qué baja el precio de DOWN',
+    ],
+    keywords: [
+      'cambio de precio',
+      'precio de las participaciones',
+      'porcentaje que se mueve',
+    ],
+    examples: [
+      '¿Por qué cambia el precio de UP?',
+      '¿Por qué el porcentaje se mueve?',
+      '¿Por qué ahora cuesta diferente?',
+    ],
+  },
+  {
+    id: 'change-side',
+    title: 'Cambiar de lado o tener los dos',
+    description:
+      'Una entrada no cambia de lado. Si compraste UP y ahora prefieres DOWN, puedes vender tus participaciones de UP mientras haya precio de venta y después comprar DOWN. También puedes tener participaciones en UP y en DOWN al mismo tiempo dentro de la misma ronda, pero solo uno de los dos lados recibe pago al cierre.',
+    aliases: [
+      'cambiar de lado',
+      'cambiar de UP a DOWN',
+      'cambiar de DOWN a UP',
+      'cambiarme de lado',
+      'comprar los dos lados',
+      'tener UP y DOWN',
+      'comprar UP y DOWN',
+    ],
+    keywords: ['cambiar entrada', 'los dos lados', 'ambos lados', 'arrepentirme'],
+    examples: [
+      '¿Puedo cambiar de UP a DOWN?',
+      '¿Puedo comprar los dos lados?',
+      '¿Puedo tener UP y DOWN en la misma ronda?',
+    ],
+  },
+  {
+    id: 'chart-ranges',
+    title: 'Rangos del gráfico',
+    description:
+      'Los botones debajo del gráfico cambian el periodo que se muestra. LIVE sigue el precio de la ronda en curso, mientras que 5M, 15M y 1H amplían la vista a los últimos 5 minutos, 15 minutos y 1 hora. Cambiar el rango solo cambia lo que ves: no afecta tu entrada ni el resultado de la ronda.',
+    aliases: [
+      'rangos del gráfico',
+      'LIVE 5M 15M 1H',
+      'qué significa LIVE',
+      'qué significa 5M',
+      'qué significa 15M',
+      'qué significa 1H',
+      'botones del gráfico',
+    ],
+    keywords: ['periodo del gráfico', 'zoom del gráfico', 'vista del gráfico'],
+    examples: [
+      '¿Qué significa LIVE en el gráfico?',
+      '¿Para qué sirven 5M y 15M?',
+      '¿Qué cambian los botones debajo del gráfico?',
+    ],
+  },
+  {
+    id: 'rounds-per-day',
+    title: 'Cuántas rondas hay',
+    description:
+      'Las rondas duran 15 minutos y se suceden sin pausa, así que hay 96 rondas por día. En cuanto una termina, la siguiente empieza con un precio objetivo nuevo. No necesitas participar en todas: puedes entrar en la que quieras, mientras siga abierta.',
+    aliases: [
+      'cuántas rondas hay',
+      'cuántas rondas al día',
+      'cuántas rondas por día',
+      'cada cuánto hay una ronda',
+      'cuándo empieza la próxima ronda',
+      'próxima ronda',
+    ],
+    keywords: ['frecuencia de las rondas', 'rondas por día', 'siguiente ronda'],
+    examples: [
+      '¿Cuántas rondas hay al día?',
+      '¿Cada cuánto empieza una ronda?',
+      '¿Tengo que participar en todas las rondas?',
+    ],
+  },
+]
+
+/**
+ * Conversa básica. Sem isso, `hola` e `gracias` caem no fallback de baixa
+ * confiança, que é o pior primeiro contato possível com o assistente.
+ */
+export const helpSmallTalkItems: HelpSmallTalkItem[] = [
+  {
+    id: 'greeting',
+    answer: 'Hola. Soy el asistente de Pulse y respondo con la información de tu ronda y de tu cuenta. ¿Qué quieres saber?',
+    utterances: [
+      'hola',
+      'holi',
+      'buenas',
+      'buenos dias',
+      'buenas tardes',
+      'buenas noches',
+      'que tal',
+      'hey',
+      'ola',
+    ],
+    withMenu: true,
+  },
+  {
+    id: 'thanks',
+    answer: 'Con gusto. Si te queda otra duda sobre la ronda, los precios o tus entradas, aquí sigo.',
+    utterances: [
+      'gracias',
+      'muchas gracias',
+      'mil gracias',
+      'te lo agradezco',
+      'genial gracias',
+      'ok gracias',
+    ],
+    withMenu: false,
+  },
+  {
+    id: 'farewell',
+    answer: 'Hasta luego. Puedes volver a abrirme desde el Centro de ayuda cuando quieras.',
+    utterances: ['adios', 'hasta luego', 'nos vemos', 'bye', 'chao'],
+    withMenu: false,
+  },
+  {
+    id: 'capabilities',
+    answer: 'Puedo responderte con los datos reales de este momento: la probabilidad implícita de UP y DOWN, cuánto tiempo queda en la ronda, cómo va tu entrada, tu saldo y las últimas rondas. También explico cómo funciona Pulse. Lo que no hago es recomendarte UP o DOWN ni predecir el precio de Bitcoin.',
+    utterances: [
+      'que puedes hacer',
+      'que sabes hacer',
+      'en que me puedes ayudar',
+      'para que sirves',
+      'quien eres',
+      'que eres',
+      'como funcionas',
+    ],
+    withMenu: true,
+  },
+  {
+    id: 'confused',
+    answer: 'Sin problema, vamos por partes. Dime qué parte no quedó clara y la explico con los datos de tu ronda.',
+    utterances: [
+      'no entendi',
+      'no entiendo',
+      'no entendi nada',
+      'no me quedo claro',
+      'explicame de nuevo',
+      'como asi',
+      'no se',
+    ],
+    withMenu: true,
+  },
+  {
+    id: 'open-help',
+    answer: 'Claro. Pregúntame directamente lo que necesites; respondo con los datos de tu ronda y de tu cuenta.',
+    utterances: ['ayuda', 'ayudame', 'necesito ayuda', 'auxilio'],
+    withMenu: true,
   },
 ]
