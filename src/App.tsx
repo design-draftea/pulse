@@ -64,6 +64,7 @@ import {
   type PrototypeWalletCostBasis,
   type PrototypeWalletPosition,
 } from './services/prototypeWallet'
+import type { HelpAssistantActionId } from './services/helpAssistant'
 import './App.css'
 
 const MARKET_HEADER_COMPACT_SCROLL_Y = 80
@@ -230,6 +231,7 @@ function App() {
   const activeSectionRef = useRef(activeSection)
   const pageTransitionRef = useRef<PageTransitionState | null>(null)
   const pageTransitionTimerRef = useRef<number | null>(null)
+  const helpNavigationTimerRef = useRef<number | null>(null)
   const marketHeaderSlotRef = useRef<HTMLDivElement>(null)
   const roundSnapshotRef = useRef({
     roundStart: marketRound.roundStart,
@@ -359,6 +361,9 @@ function App() {
   useEffect(() => () => {
     if (pageTransitionTimerRef.current !== null) {
       window.clearTimeout(pageTransitionTimerRef.current)
+    }
+    if (helpNavigationTimerRef.current !== null) {
+      window.clearTimeout(helpNavigationTimerRef.current)
     }
   }, [])
 
@@ -616,6 +621,11 @@ function App() {
     setIsProfileOpen(true)
   }, [])
 
+  const handleAssistantOpen = useCallback(() => {
+    setProfileSheetMode('help-assistant')
+    setIsProfileOpen(true)
+  }, [])
+
   const handleProfileClose = useCallback(() => {
     setIsProfileOpen(false)
   }, [])
@@ -716,6 +726,37 @@ function App() {
     window.history.pushState(window.history.state, '', url)
     transitionToSection(nextSection)
   }, [transitionToSection])
+
+  const handleAssistantNavigate = useCallback((action: HelpAssistantActionId) => {
+    if (helpNavigationTimerRef.current !== null) {
+      window.clearTimeout(helpNavigationTimerRef.current)
+      helpNavigationTimerRef.current = null
+    }
+
+    if (action === 'entries') {
+      handleNavigate('entries')
+      return
+    }
+
+    if (action === 'movements') {
+      handleNavigate('movements')
+      return
+    }
+
+    handleNavigate('home')
+    helpNavigationTimerRef.current = window.setTimeout(() => {
+      helpNavigationTimerRef.current = null
+      const previousRoundsSection = document.querySelector<HTMLElement>('.previous-rounds')
+      if (!previousRoundsSection) return
+
+      previousRoundsSection.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
+        block: 'center',
+      })
+    }, PAGE_TRANSITION_FALLBACK_MS + 100)
+  }, [handleNavigate])
 
   const handleAnimatedRoundSeen = useCallback((roundStart: number) => {
     setLastSeenCompletedRoundStart((currentRoundStart) => (
@@ -828,7 +869,10 @@ function App() {
           onAnimatedRoundSeen={handleAnimatedRoundSeen}
           rounds={visiblePreviousRounds}
         />
-        <PulseFooter onHelpOpen={handleHelpOpen} />
+        <PulseFooter
+          onAssistantOpen={handleAssistantOpen}
+          onHelpOpen={handleHelpOpen}
+        />
       </main>
     </>
   )
@@ -961,6 +1005,7 @@ function App() {
         initialMode={profileSheetMode}
         isOpen={isProfileOpen}
         metrics={profileMetrics}
+        onAssistantNavigate={handleAssistantNavigate}
         onClose={handleProfileClose}
       />
 
