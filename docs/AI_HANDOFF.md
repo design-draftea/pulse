@@ -8,11 +8,12 @@
 - Critérios de aceite: eliminar confirmações redundantes e paradas de etapas independentes; manter autorizações de PR/merge/publicação, proteção de trabalho alheio e evidência de QA; manter as regras restritas ao Pulse.
 - Branch/worktree: `docs/agent-autonomy`, em `.worktrees/docs-agent-autonomy`, criada de `origin/main` no commit `f3dd1dd`.
 - Status: ajustes documentais implementados e validados localmente. Commit, PR e publicação autorizados pela pessoa usuária; o merge é a etapa necessária para disparar o deploy automático existente.
+- Registro de entrega: [PR #69](https://github.com/design-draftea/pulse/pull/69), com o commit inicial `6dd79b1`. O resultado de integração está no estado do PR e o resultado da publicação na execução de `Deploy Pulse to GitHub Pages` vinculada ao commit de merge; as evidências finais ficam registradas na descrição do PR.
 - Arquivos alterados: `AGENTS.md`, `CLAUDE.md`, `docs/AI_CONTEXT.md`, `docs/AI_HANDOFF.md`.
 - Decisões: regras operacionais centralizadas no AGENTS.md; exceções de aplicação de skills limitadas ao Pulse, sem alterar o cache global de plugins ou arquivos de memória; seleção visual obrigatória mantida para novas direções sem referência escolhida.
 - Validações: `pnpm lint`, `pnpm build` e `git diff --check` passaram. O build mantém o aviso de chunk acima de 500 kB. Revisão de coerência confirmou a preservação de aprovações explícitas, isolamento, proteção de mudanças alheias e critérios de QA; isso não é um teste de comportamento de sessões futuras. Sem mudança de interface; validação visual não se aplica a este escopo documental.
 - Pendências obrigatórias: nenhuma de implementação ou validação deste escopo documental local.
-- Próximo passo: publicar a branch, integrar o PR após as verificações e acompanhar o deploy automático. Confirmar o resultado no Git e no GitHub Actions; não inferir publicação concluída apenas desta autorização. Após integração e verificação, sincronizar a `main` local e limpar somente o worktree e a branch temporários desta tarefa.
+- Próximo passo de continuidade: consultar o registro de entrega antes de retomar qualquer etapa de release; não repetir etapas já concluídas nem inferir publicação apenas da autorização. Após integração e verificação, sincronizar a `main` local e limpar somente o worktree e a branch temporários desta tarefa, se ainda existirem. Nenhuma nova alteração de produto faz parte deste escopo.
 
 ## Histórico: persistência do gráfico e escala LIVE
 
