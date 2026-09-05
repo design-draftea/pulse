@@ -4,6 +4,22 @@
 
 - Atualizado em: 2026-09-04
 - Agente que entrega: Codex
+- Objetivo: esclarecer autonomia, aprovação, aplicação de skills e conclusão de tarefas no Pulse, preservando as salvaguardas explícitas.
+- Critérios de aceite: eliminar confirmações redundantes e paradas de etapas independentes; manter autorizações de PR/merge/publicação, proteção de trabalho alheio e evidência de QA; manter as regras restritas ao Pulse.
+- Branch/worktree: `docs/agent-autonomy`, em `.worktrees/docs-agent-autonomy`, criada de `origin/main` no commit `f3dd1dd`.
+- Status: ajustes documentais implementados e validados localmente. Commit, PR e publicação autorizados pela pessoa usuária; o merge é a etapa necessária para disparar o deploy automático existente.
+- Arquivos alterados: `AGENTS.md`, `CLAUDE.md`, `docs/AI_CONTEXT.md`, `docs/AI_HANDOFF.md`.
+- Decisões: regras operacionais centralizadas no AGENTS.md; exceções de aplicação de skills limitadas ao Pulse, sem alterar o cache global de plugins ou arquivos de memória; seleção visual obrigatória mantida para novas direções sem referência escolhida.
+- Validações: `pnpm lint`, `pnpm build` e `git diff --check` passaram. O build mantém o aviso de chunk acima de 500 kB. Revisão de coerência confirmou a preservação de aprovações explícitas, isolamento, proteção de mudanças alheias e critérios de QA; isso não é um teste de comportamento de sessões futuras. Sem mudança de interface; validação visual não se aplica a este escopo documental.
+- Pendências obrigatórias: nenhuma de implementação ou validação deste escopo documental local.
+- Próximo passo: publicar a branch, integrar o PR após as verificações e acompanhar o deploy automático. Confirmar o resultado no Git e no GitHub Actions; não inferir publicação concluída apenas desta autorização. Após integração e verificação, sincronizar a `main` local e limpar somente o worktree e a branch temporários desta tarefa.
+
+## Histórico: persistência do gráfico e escala LIVE
+
+Nota de reconciliação em 2026-09-04: o Git registra o commit `57c7527` e o merge do PR #68 em `f3dd1dd`, já presente em `origin/main` após fetch. As referências abaixo a alterações sem commit descrevem o momento da entrega anterior. O deploy desse trabalho não foi revalidado nesta tarefa.
+
+- Atualizado em: 2026-09-04
+- Agente que entrega: Codex
 - Status: implementação e validação local concluídas; sem commit, PR, merge ou deploy nesta tarefa
 - Objetivo: preservar os pontos reais recentes do gráfico após F5 e experimentar escala LIVE com piso de US$ 0,25, sem usar cache como cotação atual.
 - Branch: `fix/chart-history-persistence`, criada da `origin/main` atualizada, checkout inicialmente limpo.

@@ -132,9 +132,7 @@ Este arquivo contém o contexto durável para Codex e Claude. Para o estado da t
 ## Git e publicação
 
 - Repositório: `design-draftea/pulse`.
-- `main` representa a versão oficial e não deve receber trabalho direto.
-- Crie uma branch por tarefa e mantenha mudanças não relacionadas fora dela.
-- Pull Request, merge e deploy são etapas separadas e exigem autorização explícita.
+- As regras de branch, isolamento, autorização de PR/merge/publicação e limpeza estão no [AGENTS.md](../AGENTS.md), a fonte única das regras compartilhadas do repositório.
 - `.github/workflows/deploy-pages.yml` testa e publica o build estático em `https://design-draftea.github.io/pulse/` após mudanças na `main`.
 - `.github/workflows/deploy-market-proxy.yml` publica manualmente o Worker gratuito do protótipo. Ele exige os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`; a URL resultante deve ser salva na variável `PULSE_POLYMARKET_PROXY_ORIGIN`.
 
